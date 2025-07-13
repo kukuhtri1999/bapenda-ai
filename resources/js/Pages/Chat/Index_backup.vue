@@ -1,0 +1,850 @@
+<template>
+    <v-app>
+        <v-container fluid class="pa-0 chat-app">
+            <v-row no-gutters class="fill-height">
+                <v-col cols="12">
+                    <!-- Chat Header with Gradient -->
+                    <v-app-bar
+                        density="comfortable"
+                        class="chat-header"
+                        :style="{
+                            background: 'linear-gradient(135deg, #E9A5F1 0%, #C68EFD 50%, #8F87F1 100%)',
+                            boxShadow: '0 4px 12px rgba(233, 165, 241, 0.3)'
+                        }"
+                    >
+                        <v-btn
+                            icon="mdi-arrow-left"
+                            variant="text"
+                            color="white"
+                            @click="goToHome"
+                            class="me-2"
+                        ></v-btn>
+                        <v-app-bar-title class="text-white">
+                            <v-icon left color="white" size="28">mdi-robot</v-icon>
+                            <span class="font-weight-bold">Asisten AI Bapenda Samsat</span>
+                        </v-app-bar-title>
+                        <v-spacer></v-spacer>
+                        <v-btn
+                            icon="mdi-refresh"
+                            variant="text"
+                            color="white"
+                            @click="startNewChat"
+                            title="Chat Baru"
+                            class="me-2"
+                        ></v-btn>
+                        <v-btn
+                            icon="mdi-close"
+                            variant="text"
+                            color="white"
+                            @click="closeChat"
+                            v-if="chatSession"
+                        ></v-btn>
+                    </v-app-bar>
+
+                    <!-- Chat Messages Container -->
+                    <v-card
+                        class="chat-container mx-auto elevation-8"
+                        max-width="900"
+                        height="calc(100vh - 200px)"
+                        style="border-radius: 20px; overflow: hidden;"
+                    >
+                        <v-card-text class="pa-0">
+                            <div
+                                ref="messagesContainer"
+                                class="messages-scroll"
+                                :style="{
+                                    height: 'calc(100vh - 280px)',
+                                    overflowY: 'auto',
+                                    background: 'linear-gradient(to bottom, #f8f9fa, #ffffff)'
+                                }"
+                            >
+                                <!-- Welcome Message -->
+                                <div
+                                    v-if="!chatSession || messages.length === 0"
+                                    class="welcome-section pa-8 text-center"
+                                >
+                                    <div class="welcome-card">
+                                        <v-avatar
+                                            size="100"
+                                            class="mb-6 welcome-avatar"
+                                            :style="{
+                                                background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
+                                                boxShadow: '0 8px 24px rgba(233, 165, 241, 0.4)'
+                                            }"
+                                        >
+                                            <v-icon size="50" color="white">mdi-robot</v-icon>
+                                        </v-avatar>
+                                        <h2 class="text-h4 mb-4 gradient-text font-weight-bold">
+                                            Selamat Datang di Layanan AI
+                                        </h2>
+                                        <h3 class="text-h5 mb-4 text-primary">
+                                            Samsat Lamongan
+                                        </h3>
+                                        <p class="text-h6 text-grey-700 mb-6 mx-auto" style="max-width: 500px;">
+                                            Saya siap membantu Anda dengan informasi seputar pajak kendaraan, 
+                                            STNK, dan layanan Samsat lainnya 24/7.
+                                        </p>
+                                        
+                                        <!-- Quick Suggestions dengan styling baru -->
+                                        <div class="mb-6">
+                                            <h4 class="text-h6 mb-4 text-grey-800">Pertanyaan Populer:</h4>
+                                            <v-row justify="center">
+                                                <v-col
+                                                    v-for="(suggestion, index) in quickSuggestions"
+                                                    :key="suggestion"
+                                                    cols="12" sm="6" md="4"
+                                                    class="pa-2"
+                                                >
+                                                    <v-card
+                                                        @click="sendQuickMessage(suggestion)"
+                                                        class="suggestion-card pa-4 text-center"
+                                                        :style="{
+                                                            background: getSuggestionColor(index),
+                                                            cursor: 'pointer',
+                                                            borderRadius: '16px',
+                                                            transition: 'all 0.3s ease'
+                                                        }"
+                                                        hover
+                                                        variant="flat"
+                                                    >
+                                                        <v-icon 
+                                                            :icon="getSuggestionIcon(index)" 
+                                                            color="white" 
+                                                            size="32"
+                                                            class="mb-2"
+                                                        ></v-icon>
+                                                        <p class="text-white font-weight-medium mb-0">{{ suggestion }}</p>
+                                                    </v-card>
+                                                </v-col>
+                                            </v-row>
+                                        </div>
+
+                                        <!-- Chat Start Button -->
+                                        <v-btn
+                                            size="x-large"
+                                            class="start-chat-btn"
+                                            :style="{
+                                                background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
+                                                borderRadius: '50px',
+                                                textTransform: 'none',
+                                                fontWeight: '600',
+                                                boxShadow: '0 8px 24px rgba(233, 165, 241, 0.4)'
+                                            }"
+                                            @click="initializeChat"
+                                        >
+                                            <v-icon left size="24">mdi-chat</v-icon>
+                                            Mulai Percakapan
+                                        </v-btn>
+                                    </div>
+                                </div>
+
+                                <!-- Chat Messages -->
+                                <div v-else class="pa-4">
+                                    <div
+                                        v-for="(message, index) in messages"
+                                        :key="`${message.id || index}-${message.sent_at}`"
+                                        class="message-wrapper mb-4"
+                                    >
+                                        <!-- User Message -->
+                                        <div
+                                            v-if="message.role === 'user'"
+                                            class="d-flex justify-end"
+                                        >
+                                            <v-card
+                                                class="user-message"
+                                                :style="{
+                                                    background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
+                                                    borderRadius: '20px 20px 4px 20px',
+                                                    maxWidth: '75%'
+                                                }"
+                                                variant="flat"
+                                            >
+                                                <v-card-text class="pa-4">
+                                                    <p class="text-white mb-0 font-weight-medium">{{ message.content }}</p>
+                                                    <div class="text-right mt-2">
+                                                        <small class="text-white-70">
+                                                            {{ formatTime(message.sent_at) }}
+                                                        </small>
+                                                    </div>
+                                                </v-card-text>
+                                            </v-card>
+                                        </div>
+
+                                        <!-- Assistant Message -->
+                                        <div v-else class="d-flex justify-start">
+                                            <div class="d-flex align-start" style="max-width: 85%;">
+                                                <v-avatar
+                                                    size="40"
+                                                    class="me-3 mt-1"
+                                                    :style="{
+                                                        background: 'linear-gradient(135deg, #8F87F1, #C68EFD)'
+                                                    }"
+                                                >
+                                                    <v-icon color="white" size="20">mdi-robot</v-icon>
+                                                </v-avatar>
+                                                <v-card
+                                                    class="assistant-message"
+                                                    color="white"
+                                                    :style="{
+                                                        borderRadius: '4px 20px 20px 20px',
+                                                        border: '1px solid #E9A5F1'
+                                                    }"
+                                                    variant="outlined"
+                                                >
+                                                    <v-card-text class="pa-4">
+                                                        <div 
+                                                            class="message-content text-grey-800"
+                                                            v-html="formatMessage(message.content)"
+                                                        ></div>
+                                                        <div class="text-left mt-2">
+                                                            <small class="text-grey-600">
+                                                                {{ formatTime(message.sent_at) }}
+                                                            </small>
+                                                        </div>
+                                                    </v-card-text>
+                                                </v-card>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Typing Indicator -->
+                                    <div v-if="isTyping" class="d-flex justify-start mb-4">
+                                        <div class="d-flex align-start">
+                                            <v-avatar
+                                                size="40"
+                                                class="me-3"
+                                                :style="{
+                                                    background: 'linear-gradient(135deg, #8F87F1, #C68EFD)'
+                                                }"
+                                            >
+                                                <v-icon color="white" size="20">mdi-robot</v-icon>
+                                            </v-avatar>
+                                            <v-card
+                                                color="grey-lighten-4"
+                                                style="border-radius: 4px 20px 20px 20px;"
+                                                variant="flat"
+                                            >
+                                                <v-card-text class="pa-3">
+                                                    <div class="typing-indicator">
+                                                        <span></span>
+                                                        <span></span>
+                                                        <span></span>
+                                                    </div>
+                                                </v-card-text>
+                                            </v-card>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Message Input -->
+                            <v-divider></v-divider>
+                            <div class="message-input-container pa-4" style="background: white;">
+                                <v-row no-gutters align="center">
+                                    <v-col>
+                                        <v-textarea
+                                            v-model="newMessage"
+                                            placeholder="Ketik pertanyaan Anda tentang layanan Samsat..."
+                                            rows="1"
+                                            auto-grow
+                                            max-rows="4"
+                                            variant="outlined"
+                                            hide-details
+                                            class="message-input"
+                                            :style="{
+                                                borderRadius: '25px'
+                                            }"
+                                            @keydown.enter.prevent="handleEnterKey"
+                                            :disabled="isLoading"
+                                        ></v-textarea>
+                                    </v-col>
+                                    <v-col cols="auto" class="ml-3">
+                                        <v-btn
+                                            icon
+                                            size="large"
+                                            :style="{
+                                                background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
+                                                borderRadius: '50%'
+                                            }"
+                                            @click="sendMessage"
+                                            :disabled="!newMessage.trim() || isLoading"
+                                            :loading="isLoading"
+                                        >
+                                            <v-icon color="white">mdi-send</v-icon>
+                                        </v-btn>
+                                    </v-col>
+                                </v-row>
+                                
+                                <!-- Quick Actions -->
+                                <div class="mt-3" v-if="messages.length > 0">
+                                    <v-chip-group>
+                                        <v-chip
+                                            v-for="action in quickActions"
+                                            :key="action"
+                                            @click="sendQuickMessage(action)"
+                                            color="primary"
+                                            variant="outlined"
+                                            size="small"
+                                            :disabled="isLoading"
+                                        >
+                                            {{ action }}
+                                        </v-chip>
+                                    </v-chip-group>
+                                </div>
+                            </div>
+                        </v-card-text>
+                    </v-card>
+                </v-col>
+            </v-row>
+        </v-container>
+    </v-app>
+</template>
+                                                    <p
+                                                        class="text-body-1 text-white mb-0"
+                                                    >
+                                                        {{ message.content }}
+                                                    </p>
+                                                    <div
+                                                        class="text-caption text-white-70 mt-1"
+                                                    >
+                                                        {{
+                                                            formatTime(
+                                                                message.sent_at,
+                                                            )
+                                                        }}
+                                                    </div>
+                                                </v-card-text>
+                                            </v-card>
+                                            <v-avatar
+                                                class="ml-2"
+                                                size="40"
+                                                color="primary"
+                                            >
+                                                <v-icon color="white"
+                                                    >mdi-account</v-icon
+                                                >
+                                            </v-avatar>
+                                        </div>
+
+                                        <!-- Assistant Message -->
+                                        <div
+                                            v-else-if="
+                                                message.role === 'assistant'
+                                            "
+                                            class="d-flex justify-start"
+                                        >
+                                            <v-avatar
+                                                class="mr-2"
+                                                size="40"
+                                                color="secondary"
+                                            >
+                                                <v-icon color="white"
+                                                    >mdi-robot</v-icon
+                                                >
+                                            </v-avatar>
+                                            <v-card
+                                                class="assistant-message"
+                                                color="grey-lighten-4"
+                                                max-width="70%"
+                                                variant="flat"
+                                            >
+                                                <v-card-text class="pa-3">
+                                                    <div
+                                                        class="text-body-1 mb-0 assistant-content"
+                                                        v-html="
+                                                            formatMessage(
+                                                                message.content,
+                                                            )
+                                                        "
+                                                    ></div>
+                                                    <div
+                                                        class="text-caption text-medium-emphasis mt-1"
+                                                    >
+                                                        {{
+                                                            formatTime(
+                                                                message.sent_at,
+                                                            )
+                                                        }}
+                                                    </div>
+                                                </v-card-text>
+                                            </v-card>
+                                        </div>
+                                    </div>
+
+                                    <!-- Typing Indicator -->
+                                    <div
+                                        v-if="isTyping"
+                                        class="d-flex justify-start mb-4"
+                                    >
+                                        <v-avatar
+                                            class="mr-2"
+                                            size="40"
+                                            color="secondary"
+                                        >
+                                            <v-icon color="white"
+                                                >mdi-robot</v-icon
+                                            >
+                                        </v-avatar>
+                                        <v-card
+                                            color="grey-lighten-4"
+                                            variant="flat"
+                                        >
+                                            <v-card-text class="pa-3">
+                                                <div class="typing-indicator">
+                                                    <span></span>
+                                                    <span></span>
+                                                    <span></span>
+                                                </div>
+                                                <div
+                                                    class="text-caption text-medium-emphasis mt-1"
+                                                >
+                                                    Mengetik...
+                                                </div>
+                                            </v-card-text>
+                                        </v-card>
+                                    </div>
+                                </div>
+                            </div>
+                        </v-card-text>
+                    </v-card>
+
+                    <!-- Message Input -->
+                    <v-card
+                        class="mx-auto mt-4"
+                        max-width="800"
+                        variant="outlined"
+                    >
+                        <v-card-text class="pa-2">
+                            <v-row no-gutters align="center">
+                                <v-col>
+                                    <v-textarea
+                                        v-model="currentMessage"
+                                        placeholder="Ketik pertanyaan Anda tentang layanan Samsat..."
+                                        variant="outlined"
+                                        density="compact"
+                                        rows="1"
+                                        auto-grow
+                                        hide-details
+                                        @keydown.enter.prevent="handleEnterKey"
+                                        :disabled="isLoading"
+                                        class="message-input"
+                                    ></v-textarea>
+                                </v-col>
+                                <v-col cols="auto" class="ml-2">
+                                    <v-btn
+                                        icon
+                                        color="primary"
+                                        @click="sendMessage"
+                                        :disabled="
+                                            !currentMessage.trim() || isLoading
+                                        "
+                                        :loading="isLoading"
+                                    >
+                                        <v-icon>mdi-send</v-icon>
+                                    </v-btn>
+                                </v-col>
+                            </v-row>
+                        </v-card-text>
+                    </v-card>
+
+                    <!-- Quick Actions -->
+                    <div class="text-center mt-4">
+                        <v-chip-group>
+                            <v-chip
+                                v-for="action in quickActions"
+                                :key="action"
+                                @click="sendQuickMessage(action)"
+                                color="secondary"
+                                variant="outlined"
+                                size="small"
+                                :disabled="isLoading"
+                            >
+                                {{ action }}
+                            </v-chip>
+                        </v-chip-group>
+                    </div>
+                </v-col>
+            </v-row>
+
+            <!-- Error Snackbar -->
+            <v-snackbar
+                v-model="showError"
+                color="error"
+                timeout="5000"
+                location="top"
+            >
+                {{ errorMessage }}
+                <template v-slot:actions>
+                    <v-btn variant="text" @click="showError = false">
+                        Tutup
+                    </v-btn>
+                </template>
+            </v-snackbar>
+        </v-container>
+    </v-app>
+</template>
+
+<script setup>
+import { ref, onMounted, nextTick, watch } from "vue";
+import { router } from "@inertiajs/vue3";
+import axios from "axios";
+
+// Reactive data
+const newMessage = ref("");
+const messages = ref([]);
+const chatSession = ref(null);
+const isLoading = ref(false);
+const isTyping = ref(false);
+const showError = ref(false);
+const errorMessage = ref("");
+const messagesContainer = ref(null);
+
+// Quick suggestions for new users
+const quickSuggestions = ref([
+    "Cara bayar pajak kendaraan",
+    "Syarat perpanjang STNK",
+    "Lokasi Samsat Lamongan",
+    "Tarif pajak motor",
+]);
+
+// Quick actions
+const quickActions = ref([
+    "Jam operasional",
+    "Cara cek pajak online",
+    "Syarat balik nama",
+    "Denda keterlambatan",
+]);
+
+// Generate unique session ID untuk setiap chat baru
+const generateSessionId = () => {
+    return "sess_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+};
+
+// Get or create session ID - IMPROVED: Force new session untuk menghindari jawaban berulang
+const getSessionId = (forceNew = false) => {
+    let sessionId = localStorage.getItem("chat_session_id");
+    if (!sessionId || forceNew) {
+        sessionId = generateSessionId();
+        localStorage.setItem("chat_session_id", sessionId);
+    }
+    return sessionId;
+};
+
+// PERBAIKAN: Start new chat dengan session ID baru
+const startNewChat = async () => {
+    try {
+        // Clear existing data
+        messages.value = [];
+        chatSession.value = null;
+        
+        // Generate new session ID
+        const sessionId = getSessionId(true);
+        
+        // Initialize new chat
+        await initializeChat();
+    } catch (error) {
+        console.error("Error starting new chat:", error);
+        showErrorMessage("Gagal memulai chat baru. Silakan refresh halaman.");
+    }
+};
+
+// Initialize chat
+const initializeChat = async () => {
+    try {
+        isLoading.value = true;
+        const sessionId = getSessionId();
+
+        const response = await axios.post("/api/chat/start", {
+            session_id: sessionId,
+        });
+
+        if (response.data.success) {
+            chatSession.value = response.data.chat;
+            messages.value = response.data.chat.messages || [];
+            await scrollToBottom();
+        }
+    } catch (error) {
+        console.error("Error initializing chat:", error);
+        showErrorMessage("Gagal memulai chat. Silakan refresh halaman.");
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+// PERBAIKAN: Send message dengan handling yang lebih baik
+const sendMessage = async () => {
+    if (!newMessage.value.trim() || isLoading.value) return;
+
+    const messageText = newMessage.value.trim();
+    newMessage.value = "";
+
+    // Pastikan chat sudah diinisialisasi
+    if (!chatSession.value) {
+        await initializeChat();
+    }
+
+    // Add user message to UI immediately dengan timestamp unik
+    const userMessage = {
+        role: "user",
+        content: messageText,
+        sent_at: new Date().toISOString(),
+        id: 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+    };
+    messages.value.push(userMessage);
+
+    await scrollToBottom();
+
+    try {
+        isLoading.value = true;
+        isTyping.value = true;
+
+        const response = await axios.post("/api/chat/message", {
+            session_id: getSessionId(),
+            message: messageText,
+        });
+
+        isTyping.value = false;
+
+        if (response.data.success) {
+            // Add assistant response dengan ID unik
+            const assistantMessage = {
+                ...response.data.assistant_message,
+                id: 'assistant_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+            };
+            messages.value.push(assistantMessage);
+            await scrollToBottom();
+        } else {
+            showErrorMessage(response.data.message || "Gagal mengirim pesan");
+        }
+    } catch (error) {
+        isTyping.value = false;
+        console.error("Error sending message:", error);
+        showErrorMessage("Gagal mengirim pesan. Silakan coba lagi.");
+    } finally {
+        isLoading.value = false;
+    }
+};
+
+// Send quick message
+const sendQuickMessage = async (message) => {
+    currentMessage.value = message;
+    await sendMessage();
+};
+
+// Handle enter key
+const handleEnterKey = (event) => {
+    if (!event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+    }
+};
+
+// Go to home
+const goToHome = () => {
+    router.visit('/');
+};
+
+// Close chat
+const closeChat = async () => {
+    try {
+        if (chatSession.value) {
+            await axios.post("/api/chat/close", {
+                session_id: getSessionId(),
+            });
+        }
+        localStorage.removeItem("chat_session_id");
+        router.visit('/');
+    } catch (error) {
+        console.error("Error closing chat:", error);
+        router.visit('/');
+    }
+};
+
+// Utility functions
+const formatTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatMessage = (content) => {
+    if (!content) return '';
+    return content
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>')
+        .replace(/^(\d+\.\s)/gm, '<br>$1');
+};
+
+const getSuggestionColor = (index) => {
+    const colors = ['#E9A5F1', '#C68EFD', '#8F87F1'];
+    return colors[index % colors.length];
+};
+
+const getSuggestionIcon = (index) => {
+    const icons = ['mdi-credit-card', 'mdi-card-account-details', 'mdi-map-marker', 'mdi-currency-usd'];
+    return icons[index % icons.length];
+};
+
+const scrollToBottom = async () => {
+    await nextTick();
+    if (messagesContainer.value) {
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+    }
+};
+
+const showErrorMessage = (message) => {
+    errorMessage.value = message;
+    showError.value = true;
+};
+
+// Initialize chat on mount
+onMounted(() => {
+    initializeChat();
+});
+
+// Watch for new messages and scroll
+watch(messages, () => {
+    nextTick(() => {
+        scrollToBottom();
+    });
+}, { deep: true });
+</script>
+
+<style scoped>
+.chat-app {
+    background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+    min-height: 100vh;
+}
+
+.chat-header {
+    backdrop-filter: blur(10px);
+}
+
+.welcome-card {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.gradient-text {
+    background: linear-gradient(135deg, #E9A5F1, #C68EFD);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.suggestion-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important;
+}
+
+.start-chat-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(233, 165, 241, 0.6) !important;
+}
+
+.message-input >>> .v-field {
+    border-radius: 25px !important;
+}
+
+.text-white-70 {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Typing indicator animation */
+.typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.typing-indicator span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #C68EFD;
+    animation: typing-bounce 1.4s infinite ease-in-out both;
+}
+
+.typing-indicator span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.typing-indicator span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes typing-bounce {
+    0%, 80%, 100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Scrollbar styling */
+.messages-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+
+.messages-scroll::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.messages-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #E9A5F1, #C68EFD);
+    border-radius: 10px;
+}
+
+.messages-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, #C68EFD, #8F87F1);
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+    .chat-container {
+        margin: 0 !important;
+        border-radius: 0 !important;
+        height: calc(100vh - 120px) !important;
+    }
+    
+    .welcome-section {
+        padding: 24px 16px !important;
+    }
+    
+    .gradient-text {
+        font-size: 1.8rem !important;
+    }
+}
+</style>
+    }
+};
+
+// Close chat
+const closeChat = async () => {
+    try {
+        await axios.post("/api/chat/close", {
+            session_id: getSessionId(),
+        });
+        localStorage.removeItem("chat_session_id");
+        messages.value = [];
+        chatSession.value = null;
+        await initializeChat();
+    } catch (error) {
+        console.error("Error closing chat:", error);
+    }
+};
+
+// Scroll to bottom
+const scrollToBottom = async () => {
+    await nextTick();
+    if (messagesContainer.value) {
+        messagesContainer.value.scrollTop =
+            messagesContainer.value.scrollHeight;
+    }
+};
+
+

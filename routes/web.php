@@ -18,13 +18,21 @@ Route::middleware([
     config('jetstream.auth_session'),
     'verified',
 ])->group(function () {
-    Route::get('/', function () {
-        return redirect()->route('dashboard');
-    });
+    // Route::get('/', function () {
+    //     return redirect()->route('dashboard');
+    // });
     Route::get('/dashboard', function () {
         return Inertia::render('Dashboard');
     })->name('dashboard');
     Route::get('/products', function () {
         return Inertia::render('Products/Index');
     })->name('products.index');
+    Route::get('/chat', function () {
+        return Inertia::render('Chat/Index');
+    })->name('chat');
 });
+
+// Public chat route (accessible without login for public service)
+Route::get('/customer-service', function () {
+    return Inertia::render('Chat/Index');
+})->name('customer-service');
