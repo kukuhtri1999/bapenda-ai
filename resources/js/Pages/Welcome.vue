@@ -261,6 +261,16 @@ function handleImageError() {
                                         size="x-large"
                                         color="white"
                                         variant="outlined"
+                                        class="me-4 mb-4"
+                                        :href="route('pkb.index')"
+                                    >
+                                        <v-icon left>mdi-car</v-icon>
+                                        Cek PKB
+                                    </v-btn>
+                                    <v-btn
+                                        size="x-large"
+                                        color="white"
+                                        variant="outlined"
                                         class="mb-4"
                                         @click="scrollToServices"
                                     >
@@ -315,9 +325,65 @@ function handleImageError() {
 
                 <!-- Floating Elements -->
                 <div class="floating-elements">
-                    <div class="floating-circle circle-1"></div>
-                    <div class="floating-circle circle-2"></div>
-                    <div class="floating-circle circle-3"></div>
+                    <!-- Animated Geometric Shapes -->
+                    <div class="geometric-shape shape-1"></div>
+                    <div class="geometric-shape shape-2"></div>
+                    <div class="geometric-shape shape-3"></div>
+                    <div class="geometric-shape shape-4"></div>
+                    <div class="geometric-shape shape-5"></div>
+                    <div class="geometric-shape shape-6"></div>
+
+                    <!-- Floating Particles -->
+                    <div class="particles-container">
+                        <div class="particle particle-1"></div>
+                        <div class="particle particle-2"></div>
+                        <div class="particle particle-3"></div>
+                        <div class="particle particle-4"></div>
+                        <div class="particle particle-5"></div>
+                        <div class="particle particle-6"></div>
+                        <div class="particle particle-7"></div>
+                        <div class="particle particle-8"></div>
+                        <div class="particle particle-9"></div>
+                        <div class="particle particle-10"></div>
+                    </div>
+
+                    <!-- Gradient Orbs -->
+                    <div class="gradient-orb orb-1"></div>
+                    <div class="gradient-orb orb-2"></div>
+                    <div class="gradient-orb orb-3"></div>
+
+                    <!-- Tech Grid Lines -->
+                    <div class="tech-grid">
+                        <div class="grid-line horizontal line-1"></div>
+                        <div class="grid-line horizontal line-2"></div>
+                        <div class="grid-line vertical line-3"></div>
+                        <div class="grid-line vertical line-4"></div>
+                    </div>
+
+                    <!-- Animated Dots Pattern -->
+                    <div class="dots-pattern">
+                        <div class="dot-row row-1">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                        <div class="dot-row row-2">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                        <div class="dot-row row-3">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -636,6 +702,31 @@ function handleImageError() {
     overflow: hidden;
 }
 
+.hero-section::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(
+            circle at 20% 80%,
+            rgba(255, 255, 255, 0.1) 0%,
+            transparent 50%
+        ),
+        radial-gradient(
+            circle at 80% 20%,
+            rgba(255, 255, 255, 0.08) 0%,
+            transparent 50%
+        ),
+        radial-gradient(
+            circle at 40% 40%,
+            rgba(255, 255, 255, 0.05) 0%,
+            transparent 50%
+        );
+    z-index: 1;
+}
+
 .landing-navbar {
     background: rgba(233, 165, 241, 0.95) !important;
     backdrop-filter: blur(10px);
@@ -658,10 +749,22 @@ function handleImageError() {
     text-transform: none;
     font-weight: 600;
     padding: 12px 32px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.hero-actions .v-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
 }
 
 .stat-item {
     padding: 16px;
+    transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+    transform: translateY(-3px);
 }
 
 /* Floating Elements */
@@ -675,44 +778,411 @@ function handleImageError() {
     z-index: 1;
 }
 
-.floating-circle {
+/* Geometric Shapes */
+.geometric-shape {
     position: absolute;
-    border-radius: 50%;
     background: rgba(255, 255, 255, 0.1);
-    animation: float 6s ease-in-out infinite;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.circle-1 {
-    width: 200px;
-    height: 200px;
-    top: 10%;
-    left: 10%;
-    animation-delay: -2s;
-}
-
-.circle-2 {
-    width: 150px;
-    height: 150px;
-    top: 60%;
-    right: 20%;
-    animation-delay: -4s;
-}
-
-.circle-3 {
-    width: 100px;
-    height: 100px;
-    top: 30%;
-    right: 10%;
+.shape-1 {
+    width: 80px;
+    height: 80px;
+    top: 15%;
+    left: 8%;
+    border-radius: 20px;
+    animation: float-rotate 8s ease-in-out infinite;
     animation-delay: -1s;
 }
 
-@keyframes float {
+.shape-2 {
+    width: 60px;
+    height: 60px;
+    top: 25%;
+    right: 15%;
+    border-radius: 50%;
+    animation: float-scale 6s ease-in-out infinite;
+    animation-delay: -2s;
+}
+
+.shape-3 {
+    width: 100px;
+    height: 100px;
+    bottom: 20%;
+    left: 12%;
+    border-radius: 16px;
+    animation: float-rotate 10s ease-in-out infinite reverse;
+    animation-delay: -3s;
+}
+
+.shape-4 {
+    width: 40px;
+    height: 40px;
+    top: 35%;
+    left: 25%;
+    border-radius: 8px;
+    animation: float-scale 7s ease-in-out infinite;
+    animation-delay: -1.5s;
+}
+
+.shape-5 {
+    width: 70px;
+    height: 70px;
+    bottom: 30%;
+    right: 8%;
+    border-radius: 50%;
+    animation: float-rotate 9s ease-in-out infinite;
+    animation-delay: -4s;
+}
+
+.shape-6 {
+    width: 50px;
+    height: 50px;
+    top: 60%;
+    right: 25%;
+    border-radius: 12px;
+    animation: float-scale 5s ease-in-out infinite;
+    animation-delay: -2.5s;
+}
+
+/* Particles */
+.particles-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.particle {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    animation: particle-float 12s linear infinite;
+}
+
+.particle-1 {
+    width: 4px;
+    height: 4px;
+    top: 10%;
+    left: 5%;
+    animation-delay: 0s;
+}
+.particle-2 {
+    width: 6px;
+    height: 6px;
+    top: 20%;
+    left: 15%;
+    animation-delay: -2s;
+}
+.particle-3 {
+    width: 3px;
+    height: 3px;
+    top: 30%;
+    left: 25%;
+    animation-delay: -4s;
+}
+.particle-4 {
+    width: 5px;
+    height: 5px;
+    top: 40%;
+    left: 35%;
+    animation-delay: -1s;
+}
+.particle-5 {
+    width: 4px;
+    height: 4px;
+    top: 50%;
+    left: 45%;
+    animation-delay: -3s;
+}
+.particle-6 {
+    width: 6px;
+    height: 6px;
+    top: 60%;
+    left: 55%;
+    animation-delay: -5s;
+}
+.particle-7 {
+    width: 3px;
+    height: 3px;
+    top: 70%;
+    left: 65%;
+    animation-delay: -2.5s;
+}
+.particle-8 {
+    width: 5px;
+    height: 5px;
+    top: 80%;
+    left: 75%;
+    animation-delay: -1.5s;
+}
+.particle-9 {
+    width: 4px;
+    height: 4px;
+    top: 15%;
+    right: 15%;
+    animation-delay: -3.5s;
+}
+.particle-10 {
+    width: 6px;
+    height: 6px;
+    top: 45%;
+    right: 25%;
+    animation-delay: -4.5s;
+}
+
+/* Gradient Orbs */
+.gradient-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(40px);
+    opacity: 0.6;
+    animation: orb-pulse 8s ease-in-out infinite;
+}
+
+.orb-1 {
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.3) 0%,
+        transparent 70%
+    );
+    top: 10%;
+    right: 10%;
+    animation-delay: 0s;
+}
+
+.orb-2 {
+    width: 150px;
+    height: 150px;
+    background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.2) 0%,
+        transparent 70%
+    );
+    bottom: 20%;
+    left: 15%;
+    animation-delay: -3s;
+}
+
+.orb-3 {
+    width: 120px;
+    height: 120px;
+    background: radial-gradient(
+        circle,
+        rgba(255, 255, 255, 0.25) 0%,
+        transparent 70%
+    );
+    top: 50%;
+    left: 50%;
+    animation-delay: -1.5s;
+}
+
+/* Tech Grid Lines */
+.tech-grid {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    opacity: 0.1;
+}
+
+.grid-line {
+    position: absolute;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.5) 50%,
+        transparent 100%
+    );
+    animation: grid-pulse 4s ease-in-out infinite;
+}
+
+.grid-line.horizontal {
+    height: 1px;
+    width: 100%;
+}
+
+.grid-line.vertical {
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(
+        0deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.5) 50%,
+        transparent 100%
+    );
+}
+
+.line-1 {
+    top: 25%;
+    animation-delay: 0s;
+}
+.line-2 {
+    top: 75%;
+    animation-delay: -2s;
+}
+.line-3 {
+    left: 30%;
+    animation-delay: -1s;
+}
+.line-4 {
+    right: 25%;
+    animation-delay: -3s;
+}
+
+/* Dots Pattern */
+.dots-pattern {
+    position: absolute;
+    top: 15%;
+    right: 5%;
+    opacity: 0.3;
+}
+
+.dot-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.dot {
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    animation: dot-blink 3s ease-in-out infinite;
+}
+
+.row-1 .dot:nth-child(1) {
+    animation-delay: 0s;
+}
+.row-1 .dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+.row-1 .dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+.row-1 .dot:nth-child(4) {
+    animation-delay: 0.6s;
+}
+.row-1 .dot:nth-child(5) {
+    animation-delay: 0.8s;
+}
+
+.row-2 .dot:nth-child(1) {
+    animation-delay: 1s;
+}
+.row-2 .dot:nth-child(2) {
+    animation-delay: 1.2s;
+}
+.row-2 .dot:nth-child(3) {
+    animation-delay: 1.4s;
+}
+.row-2 .dot:nth-child(4) {
+    animation-delay: 1.6s;
+}
+.row-2 .dot:nth-child(5) {
+    animation-delay: 1.8s;
+}
+
+.row-3 .dot:nth-child(1) {
+    animation-delay: 2s;
+}
+.row-3 .dot:nth-child(2) {
+    animation-delay: 2.2s;
+}
+.row-3 .dot:nth-child(3) {
+    animation-delay: 2.4s;
+}
+.row-3 .dot:nth-child(4) {
+    animation-delay: 2.6s;
+}
+.row-3 .dot:nth-child(5) {
+    animation-delay: 2.8s;
+}
+
+/* Animations */
+@keyframes float-rotate {
     0%,
     100% {
         transform: translateY(0px) rotate(0deg);
+        opacity: 0.7;
+    }
+    25% {
+        transform: translateY(-15px) rotate(90deg);
+        opacity: 1;
     }
     50% {
-        transform: translateY(-20px) rotate(180deg);
+        transform: translateY(-10px) rotate(180deg);
+        opacity: 0.8;
+    }
+    75% {
+        transform: translateY(-20px) rotate(270deg);
+        opacity: 0.9;
+    }
+}
+
+@keyframes float-scale {
+    0%,
+    100% {
+        transform: translateY(0px) scale(1);
+        opacity: 0.6;
+    }
+    50% {
+        transform: translateY(-25px) scale(1.1);
+        opacity: 1;
+    }
+}
+
+@keyframes particle-float {
+    0% {
+        transform: translateY(0px) translateX(0px);
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+    }
+    90% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-100vh) translateX(20px);
+        opacity: 0;
+    }
+}
+
+@keyframes orb-pulse {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.4;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+}
+
+@keyframes grid-pulse {
+    0%,
+    100% {
+        opacity: 0.1;
+    }
+    50% {
+        opacity: 0.3;
+    }
+}
+
+@keyframes dot-blink {
+    0%,
+    70%,
+    100% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+    35% {
+        opacity: 1;
+        transform: scale(1.2);
     }
 }
 
@@ -789,8 +1259,18 @@ function handleImageError() {
         margin-bottom: 16px;
     }
 
-    .floating-circle {
+    /* Reduce animation complexity on mobile */
+    .geometric-shape,
+    .gradient-orb {
         display: none;
+    }
+
+    .particles-container .particle:nth-child(n + 6) {
+        display: none;
+    }
+
+    .tech-grid {
+        opacity: 0.05;
     }
 }
 
@@ -805,6 +1285,16 @@ function handleImageError() {
 
     .text-h6 {
         font-size: 1.1rem !important;
+    }
+
+    /* Hide complex animations on small screens */
+    .dots-pattern,
+    .tech-grid {
+        display: none;
+    }
+
+    .particles-container .particle:nth-child(n + 4) {
+        display: none;
     }
 }
 </style>

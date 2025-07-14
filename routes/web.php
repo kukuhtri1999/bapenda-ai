@@ -36,3 +36,18 @@ Route::middleware([
 Route::get('/customer-service', function () {
     return Inertia::render('Chat/Index');
 })->name('customer-service');
+
+// PKB routes (accessible without login for public service)
+Route::get('/cek-pkb', [App\Http\Controllers\PkbController::class, 'index'])->name('pkb.index');
+
+// Test route for WebDriver
+if (app()->environment('local')) {
+    include __DIR__ . '/test.php';
+    include __DIR__ . '/debug.php';
+
+    // Route untuk cleanup PKB sessions
+    Route::get('/cleanup-pkb-sessions', function () {
+        App\Services\PkbScrapingService::cleanupExpiredSessions();
+        return response()->json(['message' => 'PKB sessions cleaned up successfully']);
+    });
+}

@@ -72,6 +72,7 @@ class ChatController extends Controller
         $validator = Validator::make($request->all(), [
             'session_id' => 'required|string',
             'message' => 'required|string|max:2000',
+            'is_context' => 'sometimes|boolean'
         ]);
 
         if ($validator->fails()) {
@@ -91,27 +92,40 @@ class ChatController extends Controller
             ], 404);
         }
 
-        // Save user message
+        $isContext = $request->boolean('is_context');
+
+        // Save user message (mark as context if it's PKB data)
         $userMessage = ChatMessage::create([
             'chat_id' => $chat->id,
-            'role' => 'user',
+            'role' => $isContext ? 'context' : 'user',
             'content' => $request->message,
             'sent_at' => now(),
+            'metadata' => [
+                'is_context' => $isContext
+            ]
         ]);
 
         // Update chat activity
         $chat->updateLastActivity();
 
+        // If it's just context, don't generate AI response
+        if ($isContext) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Context saved successfully'
+            ]);
+        }
+
         // Get conversation history for context (specific to this session only)
         $recentMessages = $chat->messages()
-            ->whereIn('role', ['user', 'assistant'])
+            ->whereIn('role', ['user', 'assistant', 'context'])
             ->orderBy('sent_at', 'desc')
-            ->limit(8) // Reduce to 8 for better context management
+            ->limit(10) // Include more messages to capture context
             ->get()
             ->reverse()
             ->map(function ($msg) {
                 return [
-                    'role' => $msg->role,
+                    'role' => $msg->role === 'context' ? 'system' : $msg->role,
                     'content' => $msg->content,
                     'timestamp' => $msg->sent_at->toISOString()
                 ];

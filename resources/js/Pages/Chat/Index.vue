@@ -535,30 +535,34 @@ const startNewChat = async () => {
 };
 
 // Send message
-const sendMessage = async () => {
-    const messageText = currentMessage.value.trim();
-    if (!messageText || isLoading.value) return;
+const sendMessage = async (messageText = null, isContext = false) => {
+    const text = messageText || currentMessage.value.trim();
+    if (!text || isLoading.value) return;
 
-    currentMessage.value = "";
+    if (!messageText) {
+        currentMessage.value = "";
+    }
 
     // Initialize chat if needed
     if (!chatSession.value) {
         await initializeChat();
     }
 
-    // Add user message to UI immediately
-    const userMessage = {
-        role: "user",
-        content: messageText,
-        sent_at: new Date().toISOString(),
-        id:
-            "user_" +
-            Date.now() +
-            "_" +
-            Math.random().toString(36).substr(2, 9),
-    };
-    messages.value.push(userMessage);
-    await scrollToBottom();
+    // Add user message to UI immediately (skip for context messages)
+    if (!isContext) {
+        const userMessage = {
+            role: "user",
+            content: text,
+            sent_at: new Date().toISOString(),
+            id:
+                "user_" +
+                Date.now() +
+                "_" +
+                Math.random().toString(36).substr(2, 9),
+        };
+        messages.value.push(userMessage);
+        await scrollToBottom();
+    }
 
     try {
         isLoading.value = true;
@@ -566,22 +570,26 @@ const sendMessage = async () => {
 
         const response = await axios.post("/api/chat/message", {
             session_id: getSessionId(),
-            message: messageText,
+            message: text,
+            is_context: isContext,
         });
 
         isTyping.value = false;
 
         if (response.data.success) {
-            const assistantMessage = {
-                ...response.data.assistant_message,
-                id:
-                    "assistant_" +
-                    Date.now() +
-                    "_" +
-                    Math.random().toString(36).substr(2, 9),
-            };
-            messages.value.push(assistantMessage);
-            await scrollToBottom();
+            // Only show AI response if it's not a context message
+            if (!isContext) {
+                const assistantMessage = {
+                    ...response.data.assistant_message,
+                    id:
+                        "assistant_" +
+                        Date.now() +
+                        "_" +
+                        Math.random().toString(36).substr(2, 9),
+                };
+                messages.value.push(assistantMessage);
+                await scrollToBottom();
+            }
         } else {
             showErrorMessage(response.data.message || "Gagal mengirim pesan");
         }
@@ -662,6 +670,27 @@ const showErrorMessage = (message) => {
 // Initialize on mount
 onMounted(() => {
     initializeChat();
+
+    // Check for PKB context from PKB form
+    const pkbContext = localStorage.getItem("pkb_context");
+    if (pkbContext) {
+        // Remove from localStorage
+        localStorage.removeItem("pkb_context");
+
+        // Send PKB context as first message
+        setTimeout(() => {
+            sendMessage(pkbContext, true); // true indicates this is context, not user message
+        }, 1000);
+    }
+
+    // Check for initial question
+    const initialQuestion = localStorage.getItem("initial_question");
+    if (initialQuestion) {
+        localStorage.removeItem("initial_question");
+        setTimeout(() => {
+            sendQuickMessage(initialQuestion);
+        }, 500);
+    }
 });
 
 // Watch for new messages and scroll

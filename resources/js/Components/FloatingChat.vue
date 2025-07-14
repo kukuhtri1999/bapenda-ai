@@ -175,6 +175,29 @@
                             </v-chip>
                         </div>
                     </div>
+
+                    <!-- Action Buttons -->
+                    <div class="mb-3">
+                        <v-btn
+                            @click="goToPkbCheck"
+                            :style="{
+                                background:
+                                    'linear-gradient(135deg, #4CAF50, #45a049)',
+                                borderRadius: '20px',
+                                textTransform: 'none',
+                                marginBottom: '8px',
+                                width: '100%',
+                                boxShadow: '0 4px 12px rgba(76, 175, 80, 0.3)',
+                            }"
+                            color="white"
+                            class="text-white font-weight-medium"
+                            size="small"
+                            elevation="0"
+                        >
+                            <v-icon left size="16">mdi-car</v-icon>
+                            Cek PKB Kendaraan
+                        </v-btn>
+                    </div>
                 </div>
 
                 <!-- Messages -->
@@ -598,6 +621,11 @@ const sendMessage = async () => {
 const sendQuickMessage = (message) => {
     currentMessage.value = message;
     sendMessage();
+};
+
+// Navigate to PKB check page
+const goToPkbCheck = () => {
+    window.location.href = "/cek-pkb";
 };
 
 // Handle Enter key

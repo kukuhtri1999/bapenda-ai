@@ -15,3 +15,12 @@ Route::prefix('chat')->group(function () {
     Route::get('/history', [ChatController::class, 'getChatHistory']);
     Route::post('/close', [ChatController::class, 'closeChat']);
 });
+
+// PKB API Routes
+Route::prefix('pkb')->group(function () {
+    Route::post('/check', [App\Http\Controllers\PkbController::class, 'check']);
+    Route::post('/save-captcha-answer', [App\Http\Controllers\PkbController::class, 'saveCaptchaAnswer']);
+    Route::post('/submit-captcha', [App\Http\Controllers\PkbController::class, 'submitCaptcha']);
+    Route::post('/confirm', [App\Http\Controllers\PkbController::class, 'confirmData']);
+    Route::get('/data/{id}', [App\Http\Controllers\PkbController::class, 'getPkbData']);
+});
