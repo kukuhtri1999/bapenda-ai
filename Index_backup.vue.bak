@@ -81,10 +81,10 @@
                                             Samsat Lamongan
                                         </h3>
                                         <p class="text-h6 text-grey-700 mb-6 mx-auto" style="max-width: 500px;">
-                                            Saya siap membantu Anda dengan informasi seputar pajak kendaraan,
+                                            Saya siap membantu Anda dengan informasi seputar pajak kendaraan, 
                                             STNK, dan layanan Samsat lainnya 24/7.
                                         </p>
-
+                                        
                                         <!-- Quick Suggestions dengan styling baru -->
                                         <div class="mb-6">
                                             <h4 class="text-h6 mb-4 text-grey-800">Pertanyaan Populer:</h4>
@@ -107,9 +107,9 @@
                                                         hover
                                                         variant="flat"
                                                     >
-                                                        <v-icon
-                                                            :icon="getSuggestionIcon(index)"
-                                                            color="white"
+                                                        <v-icon 
+                                                            :icon="getSuggestionIcon(index)" 
+                                                            color="white" 
                                                             size="32"
                                                             class="mb-2"
                                                         ></v-icon>
@@ -192,7 +192,7 @@
                                                     variant="outlined"
                                                 >
                                                     <v-card-text class="pa-4">
-                                                        <div
+                                                        <div 
                                                             class="message-content text-grey-800"
                                                             v-html="formatMessage(message.content)"
                                                         ></div>
@@ -274,7 +274,7 @@
                                         </v-btn>
                                     </v-col>
                                 </v-row>
-
+                                
                                 <!-- Quick Actions -->
                                 <div class="mt-3" v-if="messages.length > 0">
                                     <v-chip-group>
@@ -533,10 +533,10 @@ const startNewChat = async () => {
         // Clear existing data
         messages.value = [];
         chatSession.value = null;
-
+        
         // Generate new session ID
         const sessionId = getSessionId(true);
-
+        
         // Initialize new chat
         await initializeChat();
     } catch (error) {
@@ -807,11 +807,11 @@ watch(messages, () => {
         border-radius: 0 !important;
         height: calc(100vh - 120px) !important;
     }
-
+    
     .welcome-section {
         padding: 24px 16px !important;
     }
-
+    
     .gradient-text {
         font-size: 1.8rem !important;
     }

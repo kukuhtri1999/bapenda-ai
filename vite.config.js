@@ -16,8 +16,21 @@ export default defineConfig({
           base: null,
           includeAbsolute: false,
         },
+        compilerOptions: {
+          isCustomElement: (tag) => false,
+          whitespace: 'preserve',
+        },
       },
     }),
     vuetify(),
   ],
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // Skip certain warnings
+        if (warning.code === 'UNUSED_EXTERNAL_IMPORT') return;
+        warn(warning);
+      },
+    },
+  },
 });
