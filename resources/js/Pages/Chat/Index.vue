@@ -22,12 +22,24 @@
                             class="me-2"
                         ></v-btn>
                         <v-app-bar-title class="text-white">
-                            <v-icon left color="white" size="28"
-                                >mdi-robot</v-icon
-                            >
-                            <span class="font-weight-bold"
-                                >Asisten AI Bapenda Samsat</span
-                            >
+                            <div class="d-flex align-center">
+                                <v-icon left color="white" size="28"
+                                    >mdi-robot</v-icon
+                                >
+                                <div class="ml-2">
+                                    <div class="font-weight-bold">
+                                        Asisten AI Bapenda Samsat
+                                    </div>
+                                    <div
+                                        v-if="props.wajibPajakData"
+                                        class="text-caption opacity-90"
+                                    >
+                                        {{ props.wajibPajakData.nama }} ({{
+                                            props.wajibPajakData.nopol
+                                        }})
+                                    </div>
+                                </div>
+                            </div>
                         </v-app-bar-title>
                         <v-spacer></v-spacer>
                         <v-btn
@@ -452,6 +464,14 @@
 import { ref, onMounted, nextTick, watch } from "vue";
 import { router, Head } from "@inertiajs/vue3";
 import axios from "axios";
+
+// Props for user data from session
+const props = defineProps({
+    wajibPajakData: {
+        type: Object,
+        default: null,
+    },
+});
 
 // Reactive data
 const chatSession = ref(null);

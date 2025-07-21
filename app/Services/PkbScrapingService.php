@@ -63,6 +63,15 @@ class PkbScrapingService
         } catch (\Exception $e) {
             Log::error('Failed to initialize WebDriver: ' . $e->getMessage());
             Log::error('Stack trace: ' . $e->getTraceAsString());
+
+            // Check if it's a connection refused error (ChromeDriver not running)
+            if (
+                strpos($e->getMessage(), 'Connection refused') !== false ||
+                strpos($e->getMessage(), 'Failed to connect') !== false
+            ) {
+                Log::error('ChromeDriver is not running. Please start it with: C:\chromedriver\chromedriver.exe --port=9515');
+            }
+
             Log::error('Make sure ChromeDriver is running: C:\chromedriver\chromedriver.exe --port=9515');
             return false;
         }

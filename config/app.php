@@ -123,4 +123,21 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Browserless Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for browserless.io service integration.
+    | This service is used for automated web scraping with captcha solving.
+    |
+    */
+
+    'browserless' => [
+        'api_token' => env('BROWSERLESS_API_TOKEN'),
+        'base_url' => env('BROWSERLESS_BASE_URL', 'https://production-sfo.browserless.io'),
+        'timeout' => env('BROWSERLESS_TIMEOUT', 60),
+        'max_retries' => env('BROWSERLESS_MAX_RETRIES', 3),
+    ],
+
 ];

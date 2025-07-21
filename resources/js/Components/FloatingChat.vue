@@ -529,6 +529,38 @@ const initializeChat = async () => {
 // Toggle chat
 const toggleChat = async () => {
     if (!isChatOpen.value) {
+        // Check if user has filled wajib pajak data
+        try {
+            const response = await fetch("/api/check-wajib-pajak-session", {
+                method: "GET",
+                headers: {
+                    Accept: "application/json",
+                    "X-CSRF-TOKEN":
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute("content") || "",
+                },
+            });
+
+            const data = await response.json();
+
+            if (!data.hasSession) {
+                // Show alert that user needs to fill data first
+                alert(
+                    "Silakan isi data wajib pajak terlebih dahulu untuk menggunakan chat AI.",
+                );
+
+                // Redirect to wajib pajak form
+                window.location.href = "/wajib-pajak";
+                return;
+            }
+        } catch (error) {
+            console.error("Error checking session:", error);
+            // If error, redirect to form to be safe
+            window.location.href = "/wajib-pajak";
+            return;
+        }
+
         isChatOpen.value = true;
         isMinimized.value = false;
         unreadCount.value = 0;

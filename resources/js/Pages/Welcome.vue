@@ -109,14 +109,14 @@ const services = ref([
 
 // Methods
 const startChat = () => {
-    // Navigate to customer service page
-    router.visit("/customer-service");
+    // Navigate to wajib pajak form first
+    router.visit("/wajib-pajak");
 };
 
 const askQuestion = (question) => {
-    // Store question in localStorage and navigate to chat
+    // Store question in localStorage and navigate to wajib pajak form
     localStorage.setItem("initial_question", question);
-    router.visit("/customer-service");
+    router.visit("/wajib-pajak");
 };
 
 const scrollToServices = () => {
@@ -257,7 +257,7 @@ function handleImageError() {
                                         >
                                         Tanya AI Sekarang
                                     </v-btn>
-                                    <v-btn
+                                    <!-- <v-btn
                                         size="x-large"
                                         color="white"
                                         variant="outlined"
@@ -266,7 +266,7 @@ function handleImageError() {
                                     >
                                         <v-icon left>mdi-car</v-icon>
                                         Cek PKB
-                                    </v-btn>
+                                    </v-btn> -->
                                     <v-btn
                                         size="x-large"
                                         color="white"
