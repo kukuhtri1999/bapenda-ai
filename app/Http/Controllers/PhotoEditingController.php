@@ -1,0 +1,257 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
+use Carbon\Carbon;
+use Inertia\Inertia;
+use ZipArchive;
+
+class PhotoEditingController extends Controller
+{
+    public function showLogin()
+    {
+        return Inertia::render('PhotoEditing/Login');
+    }
+
+    public function index()
+    {
+        return Inertia::render('PhotoEditing/Index');
+    }
+
+    public function upload(Request $request)
+    {
+        $request->validate([
+            'photos' => 'required|array|max:100',
+            'photos.*' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:2048'
+        ]);
+
+        $sessionId = session()->getId();
+        $uploadedPhotos = [];
+
+        // Clean old photos for this session
+        $this->cleanupExpiredPhotos($sessionId);
+
+        foreach ($request->file('photos') as $photo) {
+            // Store original file
+            $originalPath = $photo->store('temp/originals', 'public');
+
+            // Process the image with random edits
+            $editedPath = $this->processImageWithRandomEdits($photo, $originalPath);
+
+            // Get edited filename from the path
+            $editedFilename = basename($editedPath);
+
+            // Save to database using DB facade
+            $tempPhotoId = DB::table('temporary_photos')->insertGetId([
+                'session_id' => $sessionId,
+                'original_filename' => $photo->getClientOriginalName(),
+                'original_path' => $originalPath,
+                'edited_filename' => $editedFilename,
+                'edited_path' => $editedPath,
+                'file_size' => $photo->getSize(),
+                'mime_type' => $photo->getMimeType(),
+                'edit_details' => json_encode($this->getRandomEditDetails()),
+                'expires_at' => now()->addHours(2),
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            $uploadedPhotos[] = [
+                'id' => $tempPhotoId,
+                'original_filename' => $photo->getClientOriginalName(),
+                'original_url' => Storage::url($originalPath),
+                'edited_url' => Storage::url($editedPath),
+                'edit_details' => $this->getRandomEditDetails()
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'photos' => $uploadedPhotos
+        ]);
+    }
+
+    public function downloadAll()
+    {
+        $sessionId = session()->getId();
+        $photos = DB::table('temporary_photos')
+            ->where('session_id', $sessionId)
+            ->where('expires_at', '>=', now())
+            ->get();
+
+        if ($photos->isEmpty()) {
+            return response()->json(['error' => 'No photos found'], 404);
+        }
+
+        // Create ZIP file
+        $zipFileName = 'edited_photos_' . date('Y-m-d_H-i-s') . '.zip';
+        $zipPath = storage_path('app/temp/' . $zipFileName);
+
+        // Ensure temp directory exists
+        if (!file_exists(storage_path('app/temp'))) {
+            mkdir(storage_path('app/temp'), 0755, true);
+        }
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE) === TRUE) {
+            foreach ($photos as $photo) {
+                $filePath = storage_path('app/public/' . $photo->edited_path);
+                if (file_exists($filePath)) {
+                    $zip->addFile($filePath, $photo->original_filename);
+                }
+            }
+            $zip->close();
+        }
+
+        return response()->download($zipPath, $zipFileName)->deleteFileAfterSend(true);
+    }
+
+    public function getPhotos()
+    {
+        $sessionId = session()->getId();
+        $photos = DB::table('temporary_photos')
+            ->where('session_id', $sessionId)
+            ->where('expires_at', '>=', now())
+            ->get();
+
+        return response()->json([
+            'photos' => $photos->map(function ($photo) {
+                return [
+                    'id' => $photo->id,
+                    'original_filename' => $photo->original_filename,
+                    'original_url' => Storage::url($photo->original_path),
+                    'edited_url' => Storage::url($photo->edited_path),
+                    'edit_details' => json_decode($photo->edit_details, true)
+                ];
+            })
+        ]);
+    }
+
+    public function deletePhoto($id)
+    {
+        $sessionId = session()->getId();
+        $photo = DB::table('temporary_photos')
+            ->where('session_id', $sessionId)
+            ->where('id', $id)
+            ->first();
+
+        if (!$photo) {
+            return response()->json(['error' => 'Photo not found'], 404);
+        }
+
+        // Delete files
+        Storage::disk('public')->delete([$photo->original_path, $photo->edited_path]);
+
+        // Delete record
+        DB::table('temporary_photos')->where('id', $id)->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    private function processImageWithRandomEdits($photo, $originalPath)
+    {
+        $manager = new ImageManager(new Driver());
+        $image = $manager->read($photo->getPathname());
+
+        // Apply random edits
+        $edits = $this->getRandomEditDetails();
+
+        if ($edits['brightness'] !== 0) {
+            $image->brightness($edits['brightness']);
+        }
+
+        if ($edits['contrast'] !== 0) {
+            $image->contrast($edits['contrast']);
+        }
+
+        if ($edits['saturation'] !== 0) {
+            $image->colorize($edits['saturation'], 0, 0);
+        }
+
+        // Apply color temperature effect
+        if ($edits['temperature'] !== 0) {
+            $temperature = $edits['temperature'];
+            if ($temperature > 0) {
+                // Warm effect: add red/orange, reduce blue
+                $image->colorize($temperature, $temperature / 2, -$temperature / 2);
+            } else {
+                // Cool effect: add blue, reduce red
+                $image->colorize($temperature / 2, $temperature, abs($temperature));
+            }
+        }
+
+        if ($edits['blur'] > 0) {
+            $image->blur($edits['blur']);
+        }
+
+        // Save edited image
+        $editedFileName = 'photo    _' . time() . '_' . uniqid() . '.jpg';
+        $editedPath = 'temp/edited/' . $editedFileName;
+
+        // Ensure directory exists
+        $fullEditedPath = storage_path('app/public/' . $editedPath);
+        $editedDir = dirname($fullEditedPath);
+        if (!file_exists($editedDir)) {
+            mkdir($editedDir, 0755, true);
+        }
+
+        $image->save($fullEditedPath);
+
+        return $editedPath;
+    }
+
+    private function getRandomEditDetails()
+    {
+        // Random color temperature: either warm (+5 to +10) or cool (-10 to -5)
+        $temperature = rand(0, 1) ? rand(5, 10) : rand(-10, -5);
+
+        return [
+            'brightness' => rand(-20, 20),
+            'contrast' => rand(-15, 15),
+            'saturation' => rand(-10, 10),
+            'temperature' => $temperature,
+            'blur' => rand(0, 2),
+            'timestamp' => now()->toDateTimeString()
+        ];
+    }
+
+    private function cleanupExpiredPhotos($sessionId = null)
+    {
+        // Use direct query instead of model
+        $query = DB::table('temporary_photos')
+            ->where('expires_at', '<', now());
+
+        if ($sessionId) {
+            $query->where('session_id', $sessionId);
+        }
+
+        $expiredPhotos = $query->get();
+
+        if ($expiredPhotos->isNotEmpty()) {
+            // Collect all file paths for batch deletion
+            $filesToDelete = [];
+            $idsToDelete = [];
+
+            foreach ($expiredPhotos as $photo) {
+                $filesToDelete[] = $photo->original_path;
+                $filesToDelete[] = $photo->edited_path;
+                $idsToDelete[] = $photo->id;
+            }
+
+            // Batch delete files
+            if (!empty($filesToDelete)) {
+                Storage::disk('public')->delete($filesToDelete);
+            }
+
+            // Batch delete records
+            if (!empty($idsToDelete)) {
+                DB::table('temporary_photos')->whereIn('id', $idsToDelete)->delete();
+            }
+        }
+    }
+}

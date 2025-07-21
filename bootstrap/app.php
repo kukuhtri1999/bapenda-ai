@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Register custom middleware aliases
         $middleware->alias([
             'ensure.wajib.pajak' => \App\Http\Middleware\EnsureWajibPajakData::class,
+            'secret.photo.access' => \App\Http\Middleware\EnsureSecretPhotoAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

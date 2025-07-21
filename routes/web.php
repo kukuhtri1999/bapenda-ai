@@ -4,6 +4,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\WajibPajakController;
+use App\Http\Controllers\PhotoEditingController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -44,3 +45,14 @@ Route::middleware('ensure.wajib.pajak')->get('/customer-service', function () {
         'wajibPajakData' => session('wajib_pajak_data')
     ]);
 })->name('customer-service');
+
+// Secret Photo Editing Routes
+Route::get('/edit-foto/login', [PhotoEditingController::class, 'showLogin'])->name('photo.login');
+
+Route::middleware('secret.photo.access')->group(function () {
+    Route::get('/edit-foto', [PhotoEditingController::class, 'index'])->name('photo.edit');
+    Route::post('/edit-foto/upload', [PhotoEditingController::class, 'upload'])->name('photo.upload');
+    Route::get('/edit-foto/photos', [PhotoEditingController::class, 'getPhotos'])->name('photo.list');
+    Route::get('/edit-foto/download', [PhotoEditingController::class, 'downloadAll'])->name('photo.download');
+    Route::delete('/edit-foto/photos/{id}', [PhotoEditingController::class, 'deletePhoto'])->name('photo.delete');
+});
