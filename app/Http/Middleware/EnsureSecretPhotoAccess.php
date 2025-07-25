@@ -21,7 +21,7 @@ class EnsureSecretPhotoAccess
         // Check for password in request
         $password = $request->input('password');
 
-        if ($password === 'megilan') {
+        if ($password === 'L4M0n64N6M361L4N') {
             session(['photo_access_verified' => true]);
             return $next($request);
         }

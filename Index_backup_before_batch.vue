@@ -261,8 +261,7 @@
                     <div class="text-center mb-4">
                         <v-progress-circular
                             :model-value="
-                                uploadProgress.total > 0 &&
-                                uploadProgress.processed !== undefined
+                                uploadProgress.total > 0 && uploadProgress.processed >= 0
                                     ? (uploadProgress.processed /
                                           uploadProgress.total) *
                                       100
@@ -273,13 +272,8 @@
                             color="primary"
                         >
                             {{
-                                uploadProgress.total > 0 &&
-                                uploadProgress.processed !== undefined
-                                    ? Math.round(
-                                          (uploadProgress.processed /
-                                              uploadProgress.total) *
-                                              100,
-                                      )
+                                uploadProgress.total > 0 && uploadProgress.processed >= 0
+                                    ? Math.round((uploadProgress.processed || 0) / (uploadProgress.total || 1) * 100)
                                     : 0
                             }}%
                         </v-progress-circular>
@@ -291,17 +285,11 @@
                         </div>
                         <div class="text-body-2 text-medium-emphasis">
                             Processing photos with random effects...
-                            <br />
-                            <small
-                                >Batch size: 3 photos per request (optimized for
-                                reliability)</small
-                            >
                         </div>
                     </div>
                     <v-progress-linear
                         :model-value="
-                            uploadProgress.total > 0 &&
-                            uploadProgress.processed !== undefined
+                            uploadProgress.total > 0 && uploadProgress.processed >= 0
                                 ? (uploadProgress.processed /
                                       uploadProgress.total) *
                                   100
@@ -430,114 +418,58 @@ const uploadFiles = async (files) => {
 
     uploading.value = true;
 
+    
     // Initialize progress values
     uploadProgress.value.processed = 0;
     uploadProgress.value.total = files.length;
     uploadProgress.value.show = true;
 
+    // Start progress tracking for uploads > 5 files
+    if (files.length > 5) {
+        startProgressTracking();
+    }
+
+    const formData = new FormData();
+    files.forEach((file) => {
+        formData.append("photos[]", file);
+    });
+
     try {
-        // Upload files in very small batches to avoid "max_file_uploads exceeded" error
-        const batchSize = 3; // Reduce to 3 files per batch to be safe
-        let processedFiles = 0;
-        let allUploadedPhotos = [];
+        const response = await fetch("/edit-foto/upload", {
+            method: "POST",
+            body: formData,
+            headers: {
+                "X-CSRF-TOKEN": document
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content"),
+            },
+        });
 
-        for (let i = 0; i < files.length; i += batchSize) {
-            const batch = files.slice(i, i + batchSize);
-            const formData = new FormData();
-
-            batch.forEach((file) => {
-                formData.append("photos[]", file);
-            });
-
-            try {
-                const response = await fetch("/edit-foto/upload", {
-                    method: "POST",
-                    body: formData,
-                    headers: {
-                        "X-CSRF-TOKEN": document
-                            .querySelector('meta[name="csrf-token"]')
-                            .getAttribute("content"),
-                    },
-                });
-
-                if (response.status === 401) {
-                    window.location.href = "/edit-foto/login";
-                    return;
-                }
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error("HTTP Error:", response.status, errorText);
-                    throw new Error(
-                        `HTTP error! status: ${response.status} - ${errorText}`,
-                    );
-                }
-
-                const data = await response.json();
-
-                if (data.success) {
-                    allUploadedPhotos.push(...data.photos);
-                    processedFiles += batch.length;
-                    uploadProgress.value.processed = processedFiles;
-
-                    // Update photos array with new uploads
-                    photos.value.push(...data.photos);
-
-                    // Only show progress for every 5th batch to reduce spam
-                    if (
-                        Math.ceil((i + batchSize) / batchSize) % 5 === 0 ||
-                        i + batchSize >= files.length
-                    ) {
-                        showSnackbar(
-                            `Progress: ${processedFiles}/${files.length} photos processed`,
-                            "info",
-                        );
-                    }
-                } else {
-                    throw new Error(
-                        `Upload failed for batch: ${data.message || "Unknown error"}`,
-                    );
-                }
-
-                // Add small delay between batches to prevent server overload
-                if (i + batchSize < files.length) {
-                    await new Promise((resolve) => setTimeout(resolve, 100)); // 100ms delay
-                }
-            } catch (batchError) {
-                console.error(
-                    `Error uploading batch ${Math.ceil((i + batchSize) / batchSize)}:`,
-                    batchError,
-                );
-                showSnackbar(
-                    `Error uploading batch ${Math.ceil((i + batchSize) / batchSize)}: ${batchError.message}`,
-                    "error",
-                );
-                // Continue with next batch instead of stopping completely
-                continue;
-            }
+        if (response.status === 401) {
+            // Redirect to login if not authenticated
+            window.location.href = "/edit-foto/login";
+            return;
         }
 
-        if (allUploadedPhotos.length > 0) {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            photos.value.push(...data.photos);
             showSnackbar(
-                `Successfully uploaded ${allUploadedPhotos.length} out of ${files.length} photos!`,
-                "success",
+                `${data.photos.length} photos uploaded and edited successfully!`,
             );
         } else {
-            showSnackbar("No photos were uploaded successfully", "error");
+            showSnackbar("Upload failed", "error");
         }
     } catch (error) {
         console.error("Upload error:", error);
-        showSnackbar("Upload failed: " + error.message, "error");
+        showSnackbar("Upload failed", "error");
     } finally {
-        // Keep dialog visible for 3 seconds after completion
-        setTimeout(() => {
-            uploadProgress.value.show = false;
-            uploadProgress.value.processed = 0;
-            uploadProgress.value.total = 0;
-            uploadProgress.value.filename = "";
-            uploadProgress.value.percentage = 0;
-        }, 3000);
-
+        stopProgressTracking();
         uploading.value = false;
     }
 };
@@ -750,3 +682,7 @@ onMounted(() => {
     }
 }
 </style>
+
+
+
+

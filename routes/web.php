@@ -53,6 +53,7 @@ Route::middleware('secret.photo.access')->group(function () {
     Route::get('/edit-foto', [PhotoEditingController::class, 'index'])->name('photo.edit');
     Route::post('/edit-foto/upload', [PhotoEditingController::class, 'upload'])->name('photo.upload');
     Route::get('/edit-foto/photos', [PhotoEditingController::class, 'getPhotos'])->name('photo.list');
+    Route::get('/edit-foto/progress', [PhotoEditingController::class, 'getUploadProgress'])->name('photo.progress');
     Route::get('/edit-foto/download', [PhotoEditingController::class, 'downloadAll'])->name('photo.download');
     Route::delete('/edit-foto/photos/{id}', [PhotoEditingController::class, 'deletePhoto'])->name('photo.delete');
 });

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
 use Carbon\Carbon;
@@ -27,27 +26,8 @@ class PhotoEditingController extends Controller
     public function upload(Request $request)
     {
         // Increase memory and execution time limits for large batch uploads
-        ini_set('memory_limit', '1024M'); // 1GB
-        ini_set('max_execution_time', 600); // 10 minutes
-        set_time_limit(600); // Alternative way to set time limit
-
-        // Check if we have any files at all
-        if (!$request->hasFile('photos')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No photos uploaded. This might be due to server upload limits.'
-            ], 400);
-        }
-
-        $photos = $request->file('photos');
-
-        // Check if photos is array and not empty
-        if (!is_array($photos) || empty($photos)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No valid photos received. This might be due to max_file_uploads limit.'
-            ], 400);
-        }
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', 300); // 5 minutes
 
         $request->validate([
             'photos' => 'required|array|max:100',
@@ -60,10 +40,10 @@ class PhotoEditingController extends Controller
         // Clean old photos for this session
         $this->cleanupExpiredPhotos($sessionId);
 
-        $totalPhotos = count($photos);
+        $totalPhotos = count($request->file('photos'));
         $processedCount = 0;
 
-        foreach ($photos as $index => $photo) {
+        foreach ($request->file('photos') as $index => $photo) {
             $processedCount++;
 
             // Store progress in session for real-time tracking
@@ -73,49 +53,42 @@ class PhotoEditingController extends Controller
                 'filename' => $photo->getClientOriginalName()
             ]]);
 
-            try {
-                // Store original file
-                $originalPath = $photo->store('temp/originals', 'public');
+            // Store original file
+            $originalPath = $photo->store('temp/originals', 'public');
 
-                // Process the image with random edits
-                $editedPath = $this->processImageWithRandomEdits($photo, $originalPath);
+            // Process the image with random edits
+            $editedPath = $this->processImageWithRandomEdits($photo, $originalPath);
 
-                // Get edited filename from the path
-                $editedFilename = basename($editedPath);
+            // Get edited filename from the path
+            $editedFilename = basename($editedPath);
 
-                // Save to database using DB facade
-                $tempPhotoId = DB::table('temporary_photos')->insertGetId([
-                    'session_id' => $sessionId,
-                    'original_filename' => $photo->getClientOriginalName(),
-                    'original_path' => $originalPath,
-                    'edited_filename' => $editedFilename,
-                    'edited_path' => $editedPath,
-                    'file_size' => $photo->getSize(),
-                    'mime_type' => $photo->getMimeType(),
-                    'edit_details' => json_encode($this->getRandomEditDetails()),
-                    'expires_at' => now()->addHours(2),
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ]);
+            // Save to database using DB facade
+            $tempPhotoId = DB::table('temporary_photos')->insertGetId([
+                'session_id' => $sessionId,
+                'original_filename' => $photo->getClientOriginalName(),
+                'original_path' => $originalPath,
+                'edited_filename' => $editedFilename,
+                'edited_path' => $editedPath,
+                'file_size' => $photo->getSize(),
+                'mime_type' => $photo->getMimeType(),
+                'edit_details' => json_encode($this->getRandomEditDetails()),
+                'expires_at' => now()->addHours(2),
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
 
-                $uploadedPhotos[] = [
-                    'id' => $tempPhotoId,
-                    'original_filename' => $photo->getClientOriginalName(),
-                    'original_url' => Storage::url($originalPath),
-                    'edited_url' => Storage::url($editedPath),
-                    'edit_details' => $this->getRandomEditDetails()
-                ];
-            } catch (\Exception $e) {
-                Log::error("Error processing photo {$photo->getClientOriginalName()}: " . $e->getMessage());
-                // Continue processing other photos
-                continue;
-            }
+            $uploadedPhotos[] = [
+                'id' => $tempPhotoId,
+                'original_filename' => $photo->getClientOriginalName(),
+                'original_url' => Storage::url($originalPath),
+                'edited_url' => Storage::url($editedPath),
+                'edit_details' => $this->getRandomEditDetails()
+            ];
         }
 
         return response()->json([
             'success' => true,
-            'photos' => $uploadedPhotos,
-            'message' => "Successfully processed {$processedCount} photos"
+            'photos' => $uploadedPhotos
         ]);
     }
 
@@ -281,7 +254,7 @@ class PhotoEditingController extends Controller
     private function getRandomEditDetails()
     {
         // Random color temperature: either warm (+5 to +10) or cool (-10 to -5)
-        $temperature = rand(0, 1) ? rand(5, 8) : rand(-8, -5);
+        $temperature = rand(0, 1) ? rand(5, 10) : rand(-10, -5);
 
         // Random crop percentage (4-8% from each side)
         $cropPercent = rand(4, 8);
