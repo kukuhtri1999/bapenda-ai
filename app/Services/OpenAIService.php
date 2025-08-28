@@ -99,19 +99,22 @@ class OpenAIService
             return [];
         }
 
-        // Search knowledge base
+        // Search knowledge base using new structure
         $knowledge = KnowledgeBase::active()
+            ->published()
             ->where(function ($query) use ($keywords) {
                 foreach ($keywords as $keyword) {
                     $query->orWhere('title', 'LIKE', "%{$keyword}%")
-                        ->orWhere('question', 'LIKE', "%{$keyword}%")
-                        ->orWhere('answer', 'LIKE', "%{$keyword}%")
-                        ->orWhereJsonContains('keywords', $keyword);
+                        ->orWhere('content', 'LIKE', "%{$keyword}%")
+                        ->orWhere('excerpt', 'LIKE', "%{$keyword}%")
+                        ->orWhere('search_content', 'LIKE', "%{$keyword}%");
                 }
             })
-            ->byPriority()
-            ->limit(3)
-            ->get(['title', 'question', 'answer', 'category'])
+            ->orWhereRaw('MATCH(title, search_content) AGAINST(? IN NATURAL LANGUAGE MODE)', [implode(' ', $keywords)])
+            ->orderByDesc('priority')
+            ->orderByDesc('view_count')
+            ->limit(5)
+            ->get(['title', 'content', 'excerpt', 'category', 'type', 'tags'])
             ->toArray();
 
         return $knowledge;
@@ -246,15 +249,44 @@ Jawab berdasarkan pengetahuan yang akurat dan terkini tentang layanan Samsat. Ji
 
         // Add relevant knowledge if available
         if (!empty($relevantKnowledge)) {
-            $basePrompt .= "\n\nINFORMASI REFERENSI RESMI:\nGunakan informasi berikut sebagai referensi untuk menjawab pertanyaan:\n\n";
+            $basePrompt .= "\n\nINFORMASI REFERENSI RESMI DARI KNOWLEDGE BASE:\nGunakan informasi berikut sebagai referensi utama untuk menjawab pertanyaan:\n\n";
 
-            foreach ($relevantKnowledge as $knowledge) {
-                $basePrompt .= "**{$knowledge['title']}**\n";
-                $basePrompt .= "Q: {$knowledge['question']}\n";
-                $basePrompt .= "A: {$knowledge['answer']}\n\n";
+            foreach ($relevantKnowledge as $index => $knowledge) {
+                $basePrompt .= "**Referensi " . ($index + 1) . ": {$knowledge['title']}**\n";
+                $basePrompt .= "Kategori: {$knowledge['category']}\n";
+                $basePrompt .= "Tipe: {$knowledge['type']}\n";
+
+                if (!empty($knowledge['excerpt'])) {
+                    $basePrompt .= "Ringkasan: {$knowledge['excerpt']}\n";
+                }
+
+                if (!empty($knowledge['content'])) {
+                    // Limit content length to avoid token overflow
+                    $content = strlen($knowledge['content']) > 800
+                        ? substr($knowledge['content'], 0, 800) . '...'
+                        : $knowledge['content'];
+                    $basePrompt .= "Konten: {$content}\n";
+                }
+
+                if (!empty($knowledge['tags'])) {
+                    $tags = is_array($knowledge['tags']) ? implode(', ', $knowledge['tags']) : $knowledge['tags'];
+                    $basePrompt .= "Tags: {$tags}\n";
+                }
+
+                $basePrompt .= "\n";
             }
 
-            $basePrompt .= "Pastikan jawaban Anda konsisten dengan informasi referensi di atas dan SPESIFIK untuk pertanyaan yang diajukan.";
+            $basePrompt .= "PENTING: \n";
+            $basePrompt .= "- Prioritaskan informasi dari Knowledge Base di atas untuk menjawab pertanyaan\n";
+            $basePrompt .= "- Jika informasi tidak ada di Knowledge Base, berikan jawaban umum yang akurat\n";
+            $basePrompt .= "- Jika tidak yakin dengan jawaban, arahkan user untuk bertanya langsung ke petugas Samsat atau social media resmi kami\n";
+            $basePrompt .= "- Selalu berikan sumber informasi yang jelas dan terpercaya\n\n";
+        } else {
+            $basePrompt .= "\n\nCATATAN: Tidak ada informasi spesifik di Knowledge Base untuk pertanyaan ini.\n";
+            $basePrompt .= "Berikan jawaban umum yang akurat, atau arahkan user untuk menghubungi:\n";
+            $basePrompt .= "- Petugas Samsat Lamongan langsung\n";
+            $basePrompt .= "- Social media resmi Bapenda Lamongan\n";
+            $basePrompt .= "- Call center resmi Samsat\n\n";
         }
 
         if ($context) {

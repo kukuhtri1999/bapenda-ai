@@ -5,6 +5,9 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\WajibPajakController;
 use App\Http\Controllers\PhotoEditingController;
+use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\KnowledgeBaseController;
+use App\Http\Controllers\AppSettingController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -31,6 +34,23 @@ Route::middleware([
     Route::get('/chat', function () {
         return Inertia::render('Chat/Index');
     })->name('chat');
+
+    // User Management Routes
+    Route::resource('users', UserManagementController::class);
+    Route::post('/users/{user}/toggle-status', [UserManagementController::class, 'toggleStatus'])->name('users.toggle-status');
+
+    // Knowledge Base Routes
+    Route::resource('knowledge-base', KnowledgeBaseController::class);
+    Route::post('/knowledge-base/{knowledgeBase}/toggle-status', [KnowledgeBaseController::class, 'index'])->name('knowledge-base.index');
+    Route::post('/knowledge-base/{knowledgeBase}/toggle-status', [KnowledgeBaseController::class, 'toggleStatus'])->name('knowledge-base.toggle-status');
+    Route::post('/knowledge-base/bulk-action', [KnowledgeBaseController::class, 'bulkAction'])->name('knowledge-base.bulk-action');
+    Route::get('/knowledge-base/{knowledgeBase}/download', [KnowledgeBaseController::class, 'downloadFile'])->name('knowledge-base.download');
+
+    // App Settings Routes
+    Route::resource('settings', AppSettingController::class);
+    Route::put('/settings/{setting}/value', [AppSettingController::class, 'updateValue'])->name('settings.update-value');
+    Route::post('/settings/bulk-update', [AppSettingController::class, 'bulkUpdate'])->name('settings.bulk-update');
+    Route::delete('/settings/cache', [AppSettingController::class, 'clearCache'])->name('settings.clear-cache');
 });
 
 // Public Wajib Pajak routes (entry point for chat)

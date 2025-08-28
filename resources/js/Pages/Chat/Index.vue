@@ -358,14 +358,16 @@
                                                 elevation="0"
                                             >
                                                 <div class="typing-indicator">
-                                                    <span></span>
-                                                    <span></span>
-                                                    <span></span>
+                                                    <div class="typing-dots">
+                                                        <span></span>
+                                                        <span></span>
+                                                        <span></span>
+                                                    </div>
                                                     <span
-                                                        class="ms-2 text-grey-600 text-caption"
-                                                        >sedang
-                                                        mengetik...</span
+                                                        class="typing-text ms-2 text-grey-600 text-caption"
                                                     >
+                                                        sedang mengetik...
+                                                    </span>
                                                 </div>
                                             </v-card>
                                         </div>
@@ -801,20 +803,37 @@ watch(
     gap: 4px;
 }
 
-.typing-indicator span {
+.typing-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.typing-dots span {
     width: 6px;
     height: 6px;
     border-radius: 50%;
     background-color: #c68efd;
     animation: typing-bounce 1.4s infinite ease-in-out both;
+    display: inline-block;
 }
 
-.typing-indicator span:nth-child(1) {
+.typing-dots span:nth-child(1) {
     animation-delay: -0.32s;
 }
 
-.typing-indicator span:nth-child(2) {
+.typing-dots span:nth-child(2) {
     animation-delay: -0.16s;
+}
+
+.typing-dots span:nth-child(3) {
+    animation-delay: 0s;
+}
+
+.typing-text {
+    font-size: 12px;
+    color: #666;
+    margin-left: 8px;
 }
 
 @keyframes typing-bounce {

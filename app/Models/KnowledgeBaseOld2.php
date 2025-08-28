@@ -135,9 +135,9 @@ class KnowledgeBase extends Model
     {
         return $query->where(function ($q) use ($term) {
             $q->where('title', 'LIKE', "%{$term}%")
-                ->orWhere('excerpt', 'LIKE', "%{$term}%")
-                ->orWhere('content', 'LIKE', "%{$term}%")
-                ->orWhere('search_content', 'LIKE', "%{$term}%");
+              ->orWhere('excerpt', 'LIKE', "%{$term}%")
+              ->orWhere('content', 'LIKE', "%{$term}%")
+              ->orWhere('search_content', 'LIKE', "%{$term}%");
         });
     }
 
@@ -152,15 +152,15 @@ class KnowledgeBase extends Model
     public function getFormattedSizeAttribute()
     {
         if (!$this->file_size) return null;
-
+        
         $bytes = floatval($this->file_size);
         $units = ['B', 'KB', 'MB', 'GB'];
         $precision = 2;
-
+        
         for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
             $bytes /= 1024;
         }
-
+        
         return round($bytes, $precision) . ' ' . $units[$i];
     }
 

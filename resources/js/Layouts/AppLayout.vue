@@ -36,6 +36,24 @@ const navLinks = ref([
         value: "chat",
         href: route("chat"),
     },
+    {
+        icon: "mdi-account-group",
+        title: "User Management",
+        value: "users.index",
+        href: route("users.index"),
+    },
+    {
+        icon: "mdi-book-open-variant",
+        title: "Knowledge Base",
+        value: "knowledge-base.index",
+        href: route("knowledge-base.index"),
+    },
+    {
+        icon: "mdi-cog",
+        title: "App Settings",
+        value: "settings.index",
+        href: route("settings.index"),
+    },
 ]);
 
 watchEffect(() => {

@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { router, Head } from "@inertiajs/vue3";
 
 const props = defineProps({
@@ -25,9 +25,23 @@ const form = ref({
     nomer_wa: props.existingData?.nomer_wa || "",
 });
 
-const formValid = ref(false);
+const formRef = ref(null);
 const loading = ref(false);
 const errors = ref({});
+
+// Computed property for form validation
+// const isFormValid = computed(() => {
+//     const namaValid = form.value.nama && form.value.nama.trim() !== "";
+//     const nopolValid = form.value.nopol && form.value.nopol.trim() !== "";
+//     const waValid =
+//         form.value.nomer_wa &&
+//         form.value.nomer_wa.trim() !== "" &&
+//         /^[0-9+\-\s\(\)]+$/.test(form.value.nomer_wa.trim());
+
+//     return namaValid && nopolValid && waValid;
+// });
+// Always enable the button - no validation checks
+const isFormValid = ref(true);
 
 // Snackbar
 const snackbar = ref({
@@ -64,9 +78,12 @@ const formatNopol = () => {
 };
 
 const startChatSession = async () => {
+    // Clear previous errors
+    errors.value = {};
+
+    // No validation checks - just proceed directly
     try {
         loading.value = true;
-        errors.value = {};
 
         const csrfToken = getCsrfToken();
 
@@ -217,8 +234,8 @@ const proceedToChat = () => {
 
                             <!-- Form input -->
                             <v-form
+                                ref="formRef"
                                 @submit.prevent="startChatSession"
-                                v-model="formValid"
                                 v-show="
                                     !canProceedToChat ||
                                     (form.nama === '' &&
@@ -234,11 +251,7 @@ const proceedToChat = () => {
                                             prepend-inner-icon="mdi-account"
                                             variant="outlined"
                                             :error-messages="errors.nama"
-                                            :rules="[
-                                                (v) =>
-                                                    !!v || 'Nama wajib diisi',
-                                            ]"
-                                            required
+                                            placeholder="Masukkan nama lengkap"
                                         ></v-text-field>
                                     </v-col>
 
@@ -249,14 +262,8 @@ const proceedToChat = () => {
                                             prepend-inner-icon="mdi-car-info"
                                             variant="outlined"
                                             :error-messages="errors.nopol"
-                                            :rules="[
-                                                (v) =>
-                                                    !!v ||
-                                                    'Nomor polisi wajib diisi',
-                                            ]"
                                             @input="formatNopol"
                                             placeholder="AA 0000 ZZZ"
-                                            required
                                         ></v-text-field>
                                     </v-col>
 
@@ -267,16 +274,9 @@ const proceedToChat = () => {
                                             prepend-inner-icon="mdi-whatsapp"
                                             variant="outlined"
                                             :error-messages="errors.nomer_wa"
-                                            :rules="[
-                                                (v) =>
-                                                    !!v ||
-                                                    'Nomor WhatsApp wajib diisi',
-                                                (v) =>
-                                                    /^[0-9+\-\s]+$/.test(v) ||
-                                                    'Format nomor tidak valid',
-                                            ]"
-                                            placeholder="08xxxxxxxxxx"
-                                            required
+                                            placeholder="08xxxxxxxxxx atau +62xxxxxxxxxx"
+                                            hint="Contoh: 08123456789 atau +6281234567890"
+                                            persistent-hint
                                         ></v-text-field>
                                     </v-col>
 
@@ -286,10 +286,10 @@ const proceedToChat = () => {
                                             color="primary"
                                             size="x-large"
                                             :loading="loading"
-                                            :disabled="!formValid"
+                                            :disabled="!isFormValid"
                                             class="px-8"
                                         >
-                                            <v-icon left>mdi-chat</v-icon>
+                                            <v-icon left>mdi-wchat</v-icon>
                                             Mulai Chat AI
                                         </v-btn>
                                     </v-col>
