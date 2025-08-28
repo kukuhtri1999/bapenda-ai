@@ -20,11 +20,11 @@ return new class extends Migration
             $table->string('type')->default('faq'); // 'faq', 'sop', 'regulation'
             $table->json('keywords')->nullable(); // For better search
             $table->boolean('is_active')->default(true);
-            $table->integer('priority')->default(0); // Higher priority shown first
+            // $table->integer('priority')->default(0); // Higher priority shown first
             $table->timestamps();
 
             $table->index(['category', 'type', 'is_active']);
-            $table->index('priority');
+            // $table->index('priority');
         });
     }
 
