@@ -1,0 +1,197 @@
+<template>
+  <div class="lotre-page">
+    <div class="container mx-auto p-4">
+      <div class="bg-white rounded-lg shadow p-4 max-w-md mx-auto">
+        <h1 class="text-2xl font-semibold mb-2 text-center">Lotre Undian</h1>
+
+        <div class="picker-area mb-4">
+          <div class="picker-window">
+            <div class="picker-list">
+              <div class="picker-list-inner" :style="animationStyle">
+                <div
+                  v-for="(p, i) in visiblePool"
+                  :key="`pool-${i}`"
+                  class="picker-item"
+                  :class="{ 'picker-center': i === centerIndex, 'picker-winner': i === centerIndex && revealedCenter }
+                  "
+                >
+                  <div class="text-sm font-medium">{{ p?.nama || 'Anon' }}</div>
+                  <div class="text-xs text-gray-500">{{ p?.nopol || '' }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-center gap-3 mt-3">
+            <button @click="startSpin" :disabled="spinning || currentWinnerIndex >= winners.length" class="btn-primary">
+              {{ spinning ? 'Berputar...' : 'Putar' }}
+            </button>
+            <button @click="hardReset" class="btn-secondary">Reset</button>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <h3 class="text-lg font-medium mb-2">Pemenang (urutan)</h3>
+          <ol class="list-decimal pl-5 space-y-2">
+            <li v-for="w in winners" :key="w.id" class="p-2 rounded" :class="{ 'bg-green-100': revealed.has(w.id), 'opacity-60': !revealed.has(w.id) }">
+              <div class="font-medium">
+                <template v-if="revealed.has(w.id)">{{ w.nama || 'Anon' }} <span class="text-xs text-gray-500">{{ w.nopol }}</span></template>
+                <template v-else><span class="text-sm text-gray-600 italic">TBD</span></template>
+              </div>
+              <div class="text-xs text-gray-500" v-if="revealed.has(w.id)">Urutan: {{ w.urutan_menang }}</div>
+            </li>
+          </ol>
+        </div>
+
+        <div id="confetti-root" class="pointer-events-none fixed inset-0 z-50"></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, nextTick } from 'vue';
+
+// constants
+const VISIBLE_ROWS = 7;
+const ROW_HEIGHT = 50; // px
+const CENTER_INDEX = Math.floor(VISIBLE_ROWS / 2);
+const SPIN_MS = 10000; // 10 seconds
+
+// reactive state
+const participants = ref([]);
+const winners = ref([]);
+const visiblePool = ref([]); // array displayed inside picker-list-inner
+const spinning = ref(false);
+const currentWinnerIndex = ref(0);
+const revealed = ref(new Set());
+const translateY = ref(0);
+const revealedCenter = ref(false);
+
+const animationStyle = computed(() => ({
+  transform: `translateY(${translateY.value}px)`,
+  transition: spinning.value ? `transform ${SPIN_MS}ms cubic-bezier(.25,.46,.45,.94)` : 'none'
+}));
+
+// helpers
+const fetchParticipants = async () => {
+  const res = await fetch('/api/lotre/participants');
+  const data = await res.json();
+  participants.value = data.data || data || [];
+};
+const fetchWinners = async () => {
+  const res = await fetch('/api/lotre/winners');
+  winners.value = await res.json();
+};
+
+const shuffle = (arr) => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+// Build a large pool and insert target deterministically
+const buildPool = (target) => {
+  const base = (participants.value.length ? participants.value : winners.value).filter(p => p.id !== target.id);
+  let pool = [];
+  while (pool.length < 300) pool = pool.concat(shuffle(base));
+  const insertPos = Math.max(10, Math.floor(pool.length * 0.7));
+  pool.splice(insertPos, 0, target);
+  return { pool, insertPos };
+};
+
+// draw flow
+const startSpin = async () => {
+  if (spinning.value) return;
+  if (!winners.value.length) return;
+
+  const target = winners.value[currentWinnerIndex.value];
+  if (!target) return;
+
+  spinning.value = true;
+  revealedCenter.value = false;
+
+  // prepare the pool and visible slice
+  const { pool, insertPos } = buildPool(target);
+
+  // We'll display only the portion necessary for visual consistency: center +/- VISIBLE_ROWS
+  // But we'll build a long pool and position it via translateY
+  visiblePool.value = pool;
+
+  // reset translate
+  translateY.value = 0;
+  await nextTick();
+
+  const centerOffset = CENTER_INDEX * ROW_HEIGHT;
+  const finalTranslate = -(insertPos * ROW_HEIGHT) + centerOffset;
+
+  // apply translate after small delay to trigger transition
+  setTimeout(() => { translateY.value = finalTranslate; }, 50);
+
+  // complete after SPIN_MS
+  setTimeout(() => {
+    // mark revealed
+    revealed.value.add(target.id);
+    revealedCenter.value = true;
+    currentWinnerIndex.value++;
+    spinning.value = false;
+    // confetti
+    runConfetti();
+  }, SPIN_MS + 100);
+};
+
+const hardReset = async () => {
+  spinning.value = false;
+  visiblePool.value = [];
+  translateY.value = 0;
+  currentWinnerIndex.value = 0;
+  revealed.value = new Set();
+  revealedCenter.value = false;
+  await fetchParticipants();
+  await fetchWinners();
+};
+
+const runConfetti = () => {
+  const root = document.getElementById('confetti-root');
+  if (!root) return;
+  for (let i = 0; i < 40; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti';
+    el.style.left = `${Math.random() * 100}vw`;
+    el.style.background = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1'][Math.floor(Math.random() * 4)];
+    root.appendChild(el);
+    setTimeout(() => el.remove(), 4500);
+  }
+};
+
+onMounted(async () => {
+  await fetchParticipants();
+  await fetchWinners();
+  // initial visible pool
+  if (participants.value.length) {
+    visiblePool.value = [...participants.value].slice(0, 50);
+  } else if (winners.value.length) {
+    visiblePool.value = [...winners.value];
+  } else {
+    visiblePool.value = Array(VISIBLE_ROWS).fill({ nama: 'Loading...' });
+  }
+});
+</script>
+
+<style scoped>
+.picker-area { text-align: center; }
+.picker-window { width: 320px; height: calc(50px * 7); margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #fff; }
+.picker-list { height: 100%; overflow: hidden; position: relative; }
+.picker-list-inner { position: relative; width: 100%; }
+.picker-item { height: 50px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-bottom:1px solid #f3f4f6; background:#fff; box-sizing:border-box; }
+.picker-item.picker-center { background:#dbeafe; transform:scale(1.03); border:2px solid #3b82f6; }
+.picker-item.picker-winner { background:#fef3c7; border:2px solid #f59e0b; }
+.btn-primary { background:#2563eb; color:#fff; padding:8px 14px; border-radius:6px; }
+.btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+.btn-secondary { background:#e5e7eb; padding:8px 12px; border-radius:6px; }
+.confetti { position:fixed; top:-10px; width:10px; height:14px; z-index:9999; animation:cf 4s linear forwards; }
+@keyframes cf { to { transform: translateY(110vh) rotate(720deg); opacity:0; } }
+</style>

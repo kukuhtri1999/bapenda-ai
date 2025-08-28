@@ -59,6 +59,9 @@ Route::post('/api/wajib-pajak/start-chat', [WajibPajakController::class, 'startC
 Route::post('/api/wajib-pajak/clear-session', [WajibPajakController::class, 'clearSession'])->name('wajib-pajak.clear-session');
 Route::get('/api/check-wajib-pajak-session', [WajibPajakController::class, 'checkSession'])->name('wajib-pajak.check-session');
 
+// Public lottery page
+Route::get('/lotre-undian', [App\Http\Controllers\LotreController::class, 'index'])->name('lotre.index');
+
 // Public chat route (accessible without login for public service) - REQUIRES WAJIB PAJAK DATA
 Route::middleware('ensure.wajib.pajak')->get('/customer-service', function () {
     return Inertia::render('Chat/Index', [
