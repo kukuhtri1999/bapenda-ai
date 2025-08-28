@@ -13,6 +13,7 @@ class AdHocPesertaLotSeeder extends Seeder
             PesertaLotre::create([
                 'nama' => 'Peserta' . ($i + 1),
                 'nopol' => 'L' . str_pad($i + 1, 4, '0', STR_PAD_LEFT),
+                'alamat' => 'Alamat ' . ($i + 1),
                 'apakah_menang' => false,
             ]);
         }

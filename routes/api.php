@@ -28,5 +28,7 @@ Route::prefix('settings')->group(function () {
 Route::prefix('lotre')->group(function () {
     Route::get('/participants', [LotreController::class, 'list']);
     Route::get('/winners', [LotreController::class, 'winners']);
+    Route::post('/pick', [LotreController::class, 'pick']);
+    Route::post('/reset', [LotreController::class, 'resetWinners']);
     Route::post('/participants', [LotreController::class, 'store']);
 });

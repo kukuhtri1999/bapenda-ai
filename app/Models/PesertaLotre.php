@@ -14,6 +14,7 @@ class PesertaLotre extends Model
   protected $fillable = [
     'nama',
     'nopol',
+    'alamat',
     'apakah_menang',
     'urutan_menang',
   ];
@@ -21,5 +22,6 @@ class PesertaLotre extends Model
   protected $casts = [
     'apakah_menang' => 'boolean',
     'urutan_menang' => 'integer',
+    'alamat' => 'string',
   ];
 }

@@ -20,7 +20,10 @@
                   :class="{ 'picker-winner': revealed.has(p?.id) }"
                 >
                   <div class="text-sm font-medium">{{ p?.nama || 'Anon' }}</div>
-                  <div class="text-xs text-gray-500">{{ p?.nopol || '' }}</div>
+                  <div class="text-xs text-gray-500">
+                    {{ p?.nopol || ''
+                    }}<span v-if="p?.alamat"> — {{ p.alamat }}</span>
+                  </div>
                 </div>
               </div>
               <!-- center overlay: visual guide for the center row -->
@@ -31,12 +34,18 @@
           <div class="flex justify-center gap-3 mt-3">
             <button
               @click="spin"
-              :disabled="spinning || currentWinnerIndex >= winners.length"
+              :disabled="spinning || resetting"
               class="btn-primary"
             >
               {{ spinning ? 'Berputar...' : 'Putar' }}
             </button>
-            <button @click="resetAll" class="btn-secondary">Reset</button>
+            <button
+              @click="confirmReset"
+              :disabled="spinning || resetting"
+              class="btn-secondary"
+            >
+              {{ resetting ? 'Resetting...' : 'Reset' }}
+            </button>
           </div>
         </div>
 
@@ -53,17 +62,16 @@
               }"
             >
               <div class="font-medium">
-                <template v-if="revealed.has(w.id)"
-                  >{{ w.nama || 'Anon' }}
-                  <span class="text-xs text-gray-500">{{
-                    w.nopol
-                  }}</span></template
-                >
-                <template v-else
-                  ><span class="text-sm text-gray-600 italic"
-                    >TBD</span
-                  ></template
-                >
+                <template v-if="revealed.has(w.id)">
+                  {{ w.nama || 'Anon' }}
+                  <span class="text-xs text-gray-500"
+                    >{{ w.nopol
+                    }}<span v-if="w.alamat"> — {{ w.alamat }}</span></span
+                  >
+                </template>
+                <template v-else>
+                  <span class="text-sm text-gray-600 italic">TBD</span>
+                </template>
               </div>
               <div class="text-xs text-gray-500" v-if="revealed.has(w.id)">
                 Urutan: {{ w.urutan_menang }}
@@ -86,6 +94,8 @@ import {
   ref, computed, onMounted, nextTick,
 } from 'vue';
 import { Head } from '@inertiajs/vue3';
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
 
 // Settings
 const VISIBLE_COUNT = 7;
@@ -98,6 +108,7 @@ const participants = ref([]);
 const winners = ref([]);
 const displayPool = ref([]); // full pool we translate
 const spinning = ref(false);
+const resetting = ref(false);
 const currentWinnerIndex = ref(0);
 const revealed = ref(new Set());
 const translateY = ref(0);
@@ -126,7 +137,14 @@ const fetchParticipants = async () => {
 const fetchWinners = async () => {
   try {
     const res = await fetch('/api/lotre/winners');
-    winners.value = await res.json();
+    const data = await res.json();
+    winners.value = data || [];
+    // mark already-picked winners as revealed so they show after reload
+    try {
+      revealed.value = new Set((winners.value || []).map((x) => x.id));
+    } catch (e) {
+      revealed.value = new Set();
+    }
   } catch (e) {
     winners.value = [];
   }
@@ -156,15 +174,24 @@ const buildPoolForWinner = (target) => {
 
 const spin = async () => {
   if (spinning.value) return;
-  if (!winners.value.length) return;
 
-  // select winners in reverse order: first spin -> last winner, then second -> second-last, etc.
-  const reversedIndex = winners.value.length - 1 - currentWinnerIndex.value;
-  if (reversedIndex < 0) return;
-  const target = winners.value[reversedIndex];
-  if (!target) return;
+  // request backend to pick a random non-winning participant
+  let picked;
+  try {
+    spinning.value = true;
+    const res = await fetch('/api/lotre/pick', { method: 'POST' });
+    if (!res.ok) {
+      // no eligible participant
+      spinning.value = false;
+      return;
+    }
+    picked = await res.json();
+  } catch (e) {
+    spinning.value = false;
+    return;
+  }
 
-  // clear any leftover timers from previous runs
+  // clear timers
   if (spinTimer) {
     clearTimeout(spinTimer);
     spinTimer = null;
@@ -174,16 +201,14 @@ const spin = async () => {
     finishTimer = null;
   }
 
-  // prepare pool without enabling transition
-  const { pool, pos } = buildPoolForWinner(target);
+  // build a pool that includes the picked participant
+  const { pool, pos } = buildPoolForWinner(picked);
   displayPool.value = pool;
 
-  // ensure no transition while setting initial position
+  // initial reset without transition
   spinning.value = false;
   translateY.value = 0;
   await nextTick();
-
-  // force reflow so the browser acknowledges the initial state
   try {
     void innerRef.value?.offsetHeight;
   } catch (e) {}
@@ -191,20 +216,22 @@ const spin = async () => {
   const centerOffset = CENTER_ROW_INDEX * ITEM_H;
   const final = -(pos * ITEM_H) + centerOffset;
 
-  // enable transition and then set final translate (small delay to ensure style updated)
+  // start transition
   spinning.value = true;
   spinTimer = setTimeout(() => {
     translateY.value = final;
-  }, 30);
+  }, 40);
 
-  // finish after SPIN_MS
-  finishTimer = setTimeout(() => {
-    revealed.value.add(target.id);
+  // reveal after SPIN_MS, refresh winners list
+  finishTimer = setTimeout(async () => {
+    // mark revealed locally (server already set apakah_menang)
+    revealed.value.add(picked.id);
     spinning.value = false;
-    currentWinnerIndex.value++;
     runConfetti();
     spinTimer = null;
     finishTimer = null;
+    // refresh winners list from server to get urutan_menang values
+    await fetchWinners();
   }, SPIN_MS + 150);
 };
 
@@ -218,6 +245,13 @@ const resetAll = async () => {
     clearTimeout(finishTimer);
     finishTimer = null;
   }
+  // call backend to clear winner flags
+  try {
+    await fetch('/api/lotre/reset', { method: 'POST' });
+  } catch (e) {
+    // ignore
+  }
+
   spinning.value = false;
   displayPool.value = [];
   translateY.value = 0;
@@ -225,6 +259,35 @@ const resetAll = async () => {
   revealed.value = new Set();
   await fetchParticipants();
   await fetchWinners();
+};
+
+// Confirmation wrapper around resetAll using SweetAlert2
+const confirmReset = async () => {
+  const result = await Swal.fire({
+    title: 'Konfirmasi Reset',
+    text: 'Reset akan menghapus semua status pemenang. Anda yakin ingin melanjutkan?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Ya, reset',
+    cancelButtonText: 'Batal',
+    reverseButtons: true,
+  });
+
+  if (result.isConfirmed) {
+    try {
+      resetting.value = true;
+      await resetAll();
+      resetting.value = false;
+      await Swal.fire('Direset', 'Semua pemenang telah direset.', 'success');
+    } catch (e) {
+      resetting.value = false;
+      await Swal.fire(
+        'Gagal',
+        'Terjadi kesalahan saat mereset. Silakan coba lagi.',
+        'error',
+      );
+    }
+  }
 };
 
 const runConfetti = () => {
@@ -332,4 +395,3 @@ onMounted(async () => {
   }
 }
 </style>
-};
