@@ -158,7 +158,10 @@ const spin = async () => {
   if (spinning.value) return;
   if (!winners.value.length) return;
 
-  const target = winners.value[currentWinnerIndex.value];
+  // select winners in reverse order: first spin -> last winner, then second -> second-last, etc.
+  const reversedIndex = winners.value.length - 1 - currentWinnerIndex.value;
+  if (reversedIndex < 0) return;
+  const target = winners.value[reversedIndex];
   if (!target) return;
 
   // clear any leftover timers from previous runs
