@@ -130,30 +130,26 @@
         class="mt-6 bg-white p-4 rounded shadow"
       >
         <h3 class="font-medium mb-3">AI Insights</h3>
-        <div class="grid grid-cols-2 gap-6">
-          <div>
-            <h4 class="font-medium">Top Topics</h4>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="col-span-1 lg:col-span-1">
+            <h4 class="font-medium mb-2">Chats per Category</h4>
             <div
               v-if="
-                reportSummary.summary_json &&
-                reportSummary.summary_json.topics &&
-                reportSummary.summary_json.topics.length
+                reportSummary?.summary_json?.categories &&
+                reportSummary.summary_json.categories.length
               "
+              class="mb-4"
             >
-              <div v-for="t in topicBars" :key="t.label" class="my-2">
-                <div class="flex justify-between text-sm">
-                  <div>{{ t.label }}</div>
-                  <div class="text-gray-500">{{ t.count }}</div>
-                </div>
-                <div class="w-full bg-gray-200 rounded h-3 mt-1">
-                  <div
-                    :style="{ width: t.width + '%' }"
-                    class="bg-blue-600 h-3 rounded"
-                  ></div>
-                </div>
-              </div>
+              <ApexChart
+                type="bar"
+                height="520"
+                :options="categoryChartOptions"
+                :series="categorySeries"
+              />
             </div>
-            <div v-else class="text-sm text-gray-500">No topics found.</div>
+            <div v-else class="text-sm text-gray-500 mb-4">
+              No category data.
+            </div>
           </div>
 
           <div>
@@ -169,24 +165,39 @@
               </div>
             </div>
 
-            <h4 class="font-medium mt-4">Top Cities</h4>
-            <div
-              v-if="
-                reportSummary.summary_json?.geo_counts &&
-                Object.keys(reportSummary.summary_json.geo_counts).length
-              "
-            >
-              <div
-                v-for="(c, city) in reportSummary.summary_json.geo_counts"
-                :key="city"
-                class="flex justify-between text-sm my-1"
-              >
-                <div>{{ city }}</div>
-                <div class="text-gray-500">{{ c }}</div>
-              </div>
+            <h4 class="font-medium mt-4">Recommendations (Summary)</h4>
+            <div class="mt-2">
+              <ul class="list-decimal pl-6">
+                <li
+                  v-for="rec in reportSummary.summary_json?.recommendations ||
+                  []"
+                  :key="rec"
+                  class="text-sm mb-1"
+                >
+                  {{ rec }}
+                </li>
+              </ul>
             </div>
-            <div v-else class="text-sm text-gray-500">No geo data.</div>
           </div>
+        </div>
+
+        <!-- <div class="mt-4">
+          <h4 class="font-medium mb-2">Chats per Category</h4>
+          <div
+            v-if="
+              reportSummary?.summary_json?.categories &&
+              reportSummary.summary_json.categories.length
+            "
+            class="mb-4"
+          >
+            <ApexChart
+              type="bar"
+              height="360"
+              :options="categoryChartOptions"
+              :series="categorySeries"
+            />
+          </div>
+          <div v-else class="text-sm text-gray-500 mb-4">No category data.</div>
         </div>
 
         <div class="mt-4">
@@ -233,7 +244,7 @@
               </tbody>
             </table>
           </div>
-        </div>
+        </div> -->
       </div>
     </div>
   </AppLayout>
@@ -241,7 +252,10 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
+import VueApexCharts from 'vue3-apexcharts';
 import AppLayout from '@/Layouts/AppLayout.vue';
+
+const ApexChart = VueApexCharts;
 
 const startDate = ref('');
 const endDate = ref('');
@@ -319,6 +333,32 @@ const topicBars = computed(() => {
     count: t.count,
     width: Math.round((t.count / max) * 100),
   }));
+});
+
+const categoryChartOptions = computed(() => {
+  const cats = (reportSummary.value?.summary_json?.categories || [])
+    .slice()
+    .sort((a, b) => b.count - a.count);
+  const labels = cats.map((c) => c.label || c.name);
+  const data = cats.map((c) => c.count);
+  return {
+    chart: { type: 'bar', toolbar: { show: false } },
+    plotOptions: {
+      bar: { horizontal: true, distributed: false, borderRadius: 6 },
+    },
+    dataLabels: { enabled: false },
+    xaxis: { categories: labels, labels: { style: { fontSize: '13px' } } },
+    yaxis: { labels: { style: { fontSize: '13px' } } },
+    responsive: [{ breakpoint: 1024, options: { chart: { height: 420 } } }],
+    colors: ['#2563eb'],
+  };
+});
+
+const categorySeries = computed(() => {
+  const cats = (reportSummary.value?.summary_json?.categories || [])
+    .slice()
+    .sort((a, b) => b.count - a.count);
+  return [{ name: 'Messages', data: cats.map((c) => c.count) }];
 });
 
 // (single confirmStart above includes sample flag and starts polling tokenized)

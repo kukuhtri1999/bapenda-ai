@@ -44,7 +44,7 @@ class OpenAIService
                     ['role' => 'user', 'content' => $payload],
                 ],
                 // reduce token budget to cut cost and latency for analytics
-                'max_tokens' => 512,
+                'max_completion_tokens' => 512,
                 'temperature' => 0.0,
             ]);
 
@@ -62,6 +62,300 @@ class OpenAIService
             Log::error('AI analytics error: ' . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage(), 'json' => null];
         }
+    }
+
+    /**
+     * Generate a 500-600 word Indonesian insight summary and strategic recommendations
+     * using the aggregated analytics text provided.
+     * Returns plain text (string) or null on failure.
+     */
+    public function generateInsightSummary(string $aggText, array $categoryLabels = []): ?string
+    {
+        try {
+            $model = 'gpt-5-mini';
+
+            $labelsText = "Categories and labels:\n";
+            foreach ($categoryLabels as $k => $lbl) {
+                $labelsText .= "- {$k}: {$lbl}\n";
+            }
+
+            $instruction = "Anda adalah analis transformasi digital untuk layanan publik (Samsat/Bapenda). Berikan sebuah INSIGHT SUMMARY dalam Bahasa Indonesia sepanjang sekitar 500 sampai 600 kata yang merangkum temuan dari data agregat berikut, menyoroti prioritas strategis untuk era digital modern, langkah aksi konkrit (short-term dan mid-term), metrik keberhasilan yang disarankan, dan rekomendasi kanal/teknologi untuk implementasi (mis. mobile apps, pembayaran elektronik, RAG/knowledge base, social media, automation). Jangan sertakan JSON atau meta; balas hanya teks naratif dalam Bahasa Indonesia.";
+
+            $userContent = $instruction . "\n\n" . $labelsText . "\nAGGREGATES:\n" . $aggText;
+
+            $callParams = [
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are a senior public sector digital transformation analyst, concise and practical.'],
+                    ['role' => 'user', 'content' => $userContent]
+                ],
+                'max_completion_tokens' => min(1600, $this->maxTokens),
+            ];
+            // omit temperature for gpt-5-mini
+            $response = $this->client->chat()->create($callParams);
+            $text = trim($response->choices[0]->message->content ?? '');
+            // log usage if present
+            try {
+                if (isset($response->usage)) Log::info('OpenAIService::generateInsightSummary - usage', (array)$response->usage);
+            } catch (\Throwable $t) {
+            }
+            return $text ?: null;
+        } catch (Exception $e) {
+            Log::error('AI generateInsightSummary error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Classify individual chats into categories & sentiments.
+     * @param array $chats Each: ['chat_id' => string|int, 'text' => string]
+     * @param array $categoryLabels key => human label
+     * @return array ['success'=>bool,'message'=>string,'data'=>array|null]
+     */
+    public function classifyChats(array $chats, array $categoryLabels): array
+    {
+        try {
+            if (empty($chats)) {
+                return ['success' => true, 'message' => 'No chats', 'data' => []];
+            }
+
+            $model = 'gpt-5-mini';
+            // Category meta (descriptions + indicative keywords) to guide the model
+            $categoryMeta = [
+                'tanya_cara_bayar_pajak' => ['desc' => 'Pertanyaan cara/metode/langkah pembayaran pajak kendaraan.', 'kw' => ['cara bayar', 'bagaimana bayar', 'gimana bayar', 'metode bayar', 'pembayaran pajak', 'bayar pajak online', 'bayar pajak dimana']],
+                'tanya_syarat_bayar_pajak' => ['desc' => 'Menanyakan syarat/dokumen untuk membayar atau perpanjang pajak.', 'kw' => ['syarat bayar', 'dokumen', 'berkas', 'persyaratan', 'butuh apa', 'apa saja dibawa']],
+                'denda_keterlambatan' => ['desc' => 'Pertanyaan atau keluhan tentang denda karena terlambat bayar.', 'kw' => ['denda', 'terlambat', 'telat', 'keterlambatan', 'dendanya']],
+                'informasi_stnk' => ['desc' => 'Terkait STNK: perpanjangan, hilang, ganti.', 'kw' => ['stnk', 'perpanjang stnk', 'stnk hilang', 'stnk baru']],
+                'informasi_bpkb' => ['desc' => 'Pertanyaan tentang BPKB.', 'kw' => ['bpkb', 'bpkb hilang', 'bpkb baru']],
+                'balik_nama_mutasi' => ['desc' => 'Balik nama atau mutasi kendaraan.', 'kw' => ['balik nama', 'mutasi', 'ganti nama']],
+                'pembayaran_online' => ['desc' => 'Masalah atau cara pembayaran pajak via online / channel digital.', 'kw' => ['pembayaran online', 'bayar online', 'mobile', 'aplikasi', 'website', 'e samsat', 'e-samsat']],
+                'e_samsat_aplikasi' => ['desc' => 'Fokus pada aplikasi e-samsat khusus.', 'kw' => ['aplikasi e samsat', 'app samsat', 'login aplikasi', 'error aplikasi']],
+                'lokasi_jam_operasional' => ['desc' => 'Menanyakan lokasi atau jam buka / operasional layanan.', 'kw' => ['jam buka', 'jam operasional', 'lokasi', 'alamat', 'buka jam', 'tutup jam']],
+                'biaya_tarif' => ['desc' => 'Menanyakan biaya atau tarif pajak/proses.', 'kw' => ['biaya', 'tarif', 'harga', 'berapa bayar', 'berapa biaya']],
+                'jadwal_pelayanan' => ['desc' => 'Menanyakan jadwal layanan termasuk samsat keliling.', 'kw' => ['jadwal', 'kapan ada', 'hari apa', 'samsat keliling']],
+                'tanya_samsat_keliling' => ['desc' => 'Tanya tentang layanan samsat keliling.', 'kw' => ['samsat keliling', 'samkel', 'keliling']],
+                'samsat_keliling_malam' => ['desc' => 'Tanya samsat keliling malam hari.', 'kw' => ['samsat keliling malam', 'malam']],
+                'verifikasi_dokumen' => ['desc' => 'Verifikasi/pengecekan keaslian dokumen.', 'kw' => ['verifikasi', 'cek dokumen', 'keaslian']],
+                'komplain_pelayanan' => ['desc' => 'Keluhan terhadap kualitas layanan / antrian / petugas.', 'kw' => ['keluh', 'komplain', 'susah', 'lama', 'antri', 'antre', 'ribet']],
+                'informasi_pendaftaran' => ['desc' => 'Informasi pendaftaran awal / registrasi.', 'kw' => ['pendaftaran', 'daftar pertama', 'registrasi']],
+                'cek_tagihan_pajak' => ['desc' => 'Cek jumlah/tagihan pajak.', 'kw' => ['cek pajak', 'cek tagihan', 'jumlah pajak', 'berapa pajak']],
+                'syarat_pengurusan' => ['desc' => 'Syarat umum pengurusan dokumen pajak kendaraan.', 'kw' => ['syarat pengurusan', 'dokumen apa', 'berkas apa']],
+                'informasi_pembayaran_bank' => ['desc' => 'Pembayaran melalui bank/VA.', 'kw' => ['bank', 'virtual account', 'va', 'atm']],
+                'panduan_online' => ['desc' => 'Tanya panduan/tutorial online (bukan sekedar cara bayar).', 'kw' => ['panduan online', 'tutorial', 'cara menggunakan']],
+                'layanan_bantuan_rumah' => ['desc' => 'Layanan jemput bola / bantuan ke rumah.', 'kw' => ['jemput bola', 'datang ke rumah', 'layanan rumah']],
+                'permintaan_sosialisasi' => ['desc' => 'Permintaan materi sosialisasi / edukasi.', 'kw' => ['sosialisasi', 'edukasi', 'penyuluhan']],
+                'pertanyaan_umum' => ['desc' => 'Pertanyaan umum di luar kategori spesifik lain.', 'kw' => ['?']],
+                'tanya_pelayanan_pajak' => ['desc' => 'Pertanyaan tentang layanan pajak secara umum.', 'kw' => ['layanan pajak', 'pelayanan pajak']],
+                'lain_lain' => ['desc' => 'Hanya gunakan jika tidak cocok dengan kategori manapun.', 'kw' => []],
+            ];
+
+            // Build list string for prompt
+            $categoriesList = [];
+            foreach ($categoryLabels as $k => $lbl) {
+                $meta = $categoryMeta[$k] ?? ['desc' => 'Pertanyaan terkait ' . $lbl, 'kw' => []];
+                $categoriesList[] = $k . ' | ' . $lbl . ' | ' . $meta['desc'] . ' | keywords: ' . implode(', ', array_slice($meta['kw'], 0, 8));
+            }
+            if (!isset($categoryLabels['lain_lain'])) {
+                $categoriesList[] = 'lain_lain | Lain-lain | Gunakan hanya jika tidak ada kategori lain yang relevan | keywords: (none)';
+            }
+
+            // Truncate and prepare chats
+            $prepared = [];
+            foreach ($chats as $c) {
+                $txt = (string)$c['text'];
+                $norm = preg_replace('/\s+/', ' ', $txt);
+                $prepared[] = [
+                    'chat_id' => (string)$c['chat_id'],
+                    'text' => mb_substr($norm, 0, 1400)
+                ];
+            }
+
+            // Few-shot examples (cover several categories)
+            $fewShots = [
+                ['chat_id' => 'ex1', 'text' => 'Bagaimana cara bayar pajak kendaraan online? apakah lewat aplikasi atau website?', 'category' => 'tanya_cara_bayar_pajak', 'sentiment' => 'neutral'],
+                ['chat_id' => 'ex2', 'text' => 'Syarat apa saja untuk perpanjang STNK? perlu fotokopi BPKB?', 'category' => 'tanya_syarat_bayar_pajak', 'sentiment' => 'neutral'],
+                ['chat_id' => 'ex3', 'text' => 'Denda saya berapa kalau telat 2 bulan bayar pajak?', 'category' => 'denda_keterlambatan', 'sentiment' => 'neutral'],
+                ['chat_id' => 'ex4', 'text' => 'STNK saya hilang, bagaimana proses buat baru?', 'category' => 'informasi_stnk', 'sentiment' => 'negative'],
+                ['chat_id' => 'ex5', 'text' => 'Kenapa antriannya lama sekali hari ini, pelayanan lambat', 'category' => 'komplain_pelayanan', 'sentiment' => 'negative'],
+                ['chat_id' => 'ex6', 'text' => 'Lokasi samsat keliling hari Sabtu di mana ya?', 'category' => 'tanya_samsat_keliling', 'sentiment' => 'neutral'],
+            ];
+
+            $baseInstruction = "Klasifikasikan setiap chat ke salah satu CATEGORY KEY yang paling relevan. Gunakan 'lain_lain' HANYA jika TIDAK ada kecocokan kuat dengan kategori lain. Jika ada kata kunci spesifik yang cocok, pilih kategori terkait (jangan 'lain_lain'). Tentukan sentiment (positive|neutral|negative) secara sederhana berdasarkan nada pengguna. Berikan confidence 0-1 (0.1 sangat ragu, 0.9+ sangat yakin). Balas HANYA JSON array tanpa teks tambahan.";
+
+            $promptPayload = [
+                'task' => $baseInstruction,
+                'categories' => $categoriesList,
+                'few_shot_examples' => $fewShots,
+                'schema' => [
+                    'chat_id' => 'string',
+                    'category' => 'one CATEGORY KEY exactly',
+                    'sentiment' => 'positive|neutral|negative',
+                    'confidence' => 'float 0-1',
+                    'snippet' => '<=200 chars excerpt'
+                ],
+                'chats' => $prepared
+            ];
+
+            $messages = [
+                ['role' => 'system', 'content' => 'You are a precise JSON-only classification engine. Respond ONLY with JSON array. Temperature=0.'],
+                ['role' => 'user', 'content' => json_encode($promptPayload, JSON_UNESCAPED_UNICODE)]
+            ];
+
+            $callParams = [
+                'model' => $model,
+                'messages' => $messages,
+                'max_completion_tokens' => 1200,
+            ];
+            // some models don't accept temperature=0; omit when using gpt-5-mini
+            if ($model !== 'gpt-5-mini') $callParams['temperature'] = 0.0;
+            $response = $this->client->chat()->create($callParams);
+
+            Log::info('OpenAIService::classifyChats - calling model', ['model' => $model, 'count_chats' => count($prepared)]);
+            $text = trim($response->choices[0]->message->content ?? '');
+            // capture usage if available
+            try {
+                if (isset($response->usage)) Log::info('OpenAIService::classifyChats - usage', (array)$response->usage);
+            } catch (\Throwable $t) {
+                Log::warning('OpenAIService::classifyChats - usage log failed', ['err' => $t->getMessage()]);
+            }
+            $data = $this->tryParseJsonArray($text);
+
+            // Retry strategy if over-using lain_lain (>80%)
+            if (is_array($data) && count($data) > 5) {
+                $lainCount = 0;
+                foreach ($data as $d) {
+                    if (($d['category'] ?? '') === 'lain_lain') $lainCount++;
+                }
+                if ($lainCount / max(1, count($data)) > 0.8) {
+                    Log::warning('AI classification overused lain_lain, retrying with stronger instruction');
+                    $promptPayload['task'] .= "\nPENTING: Anda terlalu sering menggunakan 'lain_lain'. Pada percobaan ini, pilih kategori spesifik jika ada kata terkait sedikit saja.";
+                    $messages[1]['content'] = json_encode($promptPayload, JSON_UNESCAPED_UNICODE);
+                    $callParams['messages'] = $messages;
+                    $response2 = $this->client->chat()->create($callParams);
+                    $text2 = trim($response2->choices[0]->message->content ?? '');
+                    $parsed2 = $this->tryParseJsonArray($text2);
+                    if (is_array($parsed2)) {
+                        $text .= "\n--- RETRY ---\n" . $text2;
+                        $data = $parsed2;
+                    }
+                }
+            }
+
+            // Keyword corrective fallback for items still lain_lain
+            if (is_array($data)) {
+                foreach ($data as &$row) {
+                    if (($row['category'] ?? '') === 'lain_lain') {
+                        $txt = mb_strtolower(($row['snippet'] ?? '') . ' ' . ($this->findChatText($prepared, $row['chat_id']) ?? ''));
+                        foreach ($categoryMeta as $ck => $meta) {
+                            if ($ck === 'lain_lain') continue;
+                            $hits = 0;
+                            foreach ($meta['kw'] as $kw) {
+                                if ($kw && mb_stripos($txt, $kw) !== false) {
+                                    $hits++;
+                                    if ($hits >= 1) break;
+                                }
+                            }
+                            if ($hits >= 1) {
+                                $row['category'] = $ck;
+                                $row['confidence'] = max((float)($row['confidence'] ?? 0.3), 0.55);
+                                break; // stop after first match
+                            }
+                        }
+                    }
+                }
+                unset($row);
+            }
+
+            // Heuristic emergency fallback if AI failed OR >90% still lain_lain
+            if (!is_array($data) || (count($data) > 0 && $this->proportionLainLain($data) > 0.9)) {
+                Log::warning('Applying heuristic fallback classification (AI parse failure or excessive lain_lain)');
+                $heuristic = [];
+                $positive = ['terima kasih', 'bagus', 'puas', 'mantap', 'sukses'];
+                $negative = ['lama', 'telat', 'denda', 'gagal', 'hilang', 'susah', 'ribet', 'error', 'komplain'];
+                foreach ($prepared as $p) {
+                    $txt = mb_strtolower($p['text']);
+                    $assigned = 'lain_lain';
+                    foreach ($categoryMeta as $ck => $meta) {
+                        if ($ck === 'lain_lain') continue;
+                        foreach ($meta['kw'] as $kw) {
+                            if ($kw && mb_stripos($txt, $kw) !== false) {
+                                $assigned = $ck;
+                                break 2;
+                            }
+                        }
+                    }
+                    $sent = 'neutral';
+                    foreach ($positive as $pw) {
+                        if (mb_stripos($txt, $pw) !== false) {
+                            $sent = 'positive';
+                            break;
+                        }
+                    }
+                    if ($sent === 'neutral') {
+                        foreach ($negative as $nw) {
+                            if (mb_stripos($txt, $nw) !== false) {
+                                $sent = 'negative';
+                                break;
+                            }
+                        }
+                    }
+                    $heuristic[] = [
+                        'chat_id' => $p['chat_id'],
+                        'category' => $assigned,
+                        'sentiment' => $sent,
+                        'confidence' => $assigned === 'lain_lain' ? 0.4 : 0.65,
+                        'snippet' => mb_substr($p['text'], 0, 200)
+                    ];
+                }
+                $data = $heuristic;
+                $text .= "\n[HeuristicFallbackApplied]";
+            }
+
+            return ['success' => true, 'message' => $text, 'data' => $data];
+        } catch (Exception $e) {
+            Log::error('AI classify error: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage(), 'data' => null];
+        }
+    }
+
+    /**
+     * Attempt to parse a JSON array (primary) from raw model output
+     */
+    private function tryParseJsonArray(string $text): ?array
+    {
+        $trim = trim($text);
+        $j = json_decode($trim, true);
+        if (is_array($j)) return $j;
+        $s = strpos($trim, '[');
+        $e = strrpos($trim, ']');
+        if ($s !== false && $e !== false && $e > $s) {
+            $maybe = substr($trim, $s, $e - $s + 1);
+            $j2 = json_decode($maybe, true);
+            if (is_array($j2)) return $j2;
+        }
+        return null;
+    }
+
+    /**
+     * Find the full original (prepared) chat text by id.
+     */
+    private function findChatText(array $prepared, string $chatId): ?string
+    {
+        foreach ($prepared as $p) {
+            if ($p['chat_id'] === $chatId) return $p['text'];
+        }
+        return null;
+    }
+
+    private function proportionLainLain(array $rows): float
+    {
+        $total = count($rows);
+        if ($total === 0) return 0.0;
+        $lain = 0;
+        foreach ($rows as $r) {
+            if (($r['category'] ?? '') === 'lain_lain') $lain++;
+        }
+        return $lain / $total;
     }
 
     /**
@@ -92,7 +386,7 @@ class OpenAIService
             $response = $this->client->chat()->create([
                 'model' => $this->model,
                 'messages' => $apiMessages,
-                'max_tokens' => $this->maxTokens,
+                'max_completion_tokens' => $this->maxTokens,
                 'temperature' => 0.8, // Increase for more variety
                 'top_p' => 0.9,
                 'frequency_penalty' => 0.3, // Reduce repetition
