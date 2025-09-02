@@ -51,6 +51,12 @@ Route::middleware([
     Route::put('/settings/{setting}/value', [AppSettingController::class, 'updateValue'])->name('settings.update-value');
     Route::post('/settings/bulk-update', [AppSettingController::class, 'bulkUpdate'])->name('settings.bulk-update');
     Route::delete('/settings/cache', [AppSettingController::class, 'clearCache'])->name('settings.clear-cache');
+
+    // Admin AI Analytics UI
+    Route::get('/admin/analytics', [App\Http\Controllers\Admin\AnalyticsController::class, 'indexPage'])->name('admin.analytics');
+
+    // Admin Wajib Pajak listing
+    Route::get('/admin/wajib-pajak', [App\Http\Controllers\Admin\WajibPajakController::class, 'index'])->name('admin.wajib-pajak.index');
 });
 
 // Public Wajib Pajak routes (entry point for chat)

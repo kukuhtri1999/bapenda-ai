@@ -7,6 +7,7 @@ use OpenAI\Client;
 use Illuminate\Support\Facades\Log;
 use App\Models\KnowledgeBase;
 use Exception;
+use Illuminate\Support\Str;
 
 class OpenAIService
 {
@@ -21,6 +22,46 @@ class OpenAIService
         $this->model = config('services.openai.model', 'gpt-4o-mini');
         $this->maxTokens = config('services.openai.max_tokens', 1500);
         $this->temperature = config('services.openai.temperature', 0.7);
+    }
+
+    /**
+     * Analyze an array of conversation transcripts using GPT-5-mini with a strict JSON schema.
+     * Input: array of strings (transcripts)
+     * Output: ['success' => bool, 'message' => string, 'json' => array|null]
+     */
+    public function analyzeConversations(array $transcripts): array
+    {
+        try {
+            $payload = "You are an analytics assistant. Given these conversation transcripts, return ONLY a JSON object (no surrounding text) with the following keys:\n- topics: array of {label: string, count: int}\n- sentiments: {positive:int, neutral:int, negative:int}\n- geo_counts: object mapping city->count (if city info unavailable return empty object)\n- common_issues: array of {text:string, count:int}\n- recommendations: array of strings\n\nTranscripts:\n" . implode("\n---\n", array_slice($transcripts, 0, 100));
+
+            // force use of GPT-5-mini for analytics as requested
+            $model = 'gpt-5-mini';
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are a helpful data analysis assistant.'],
+                    ['role' => 'user', 'content' => $payload],
+                ],
+                // reduce token budget to cut cost and latency for analytics
+                'max_tokens' => 512,
+                'temperature' => 0.0,
+            ]);
+
+            $text = trim($response->choices[0]->message->content ?? '');
+            $json = null;
+            $start = strpos($text, '{');
+            $end = strrpos($text, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $maybe = substr($text, $start, $end - $start + 1);
+                $json = json_decode($maybe, true);
+            }
+
+            return ['success' => true, 'message' => $text, 'json' => $json];
+        } catch (Exception $e) {
+            Log::error('AI analytics error: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage(), 'json' => null];
+        }
     }
 
     /**

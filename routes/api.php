@@ -18,6 +18,15 @@ Route::prefix('chat')->group(function () {
     Route::post('/close', [ChatController::class, 'closeChat']);
 });
 
+// Admin analytics
+use App\Http\Controllers\Admin\AnalyticsController;
+
+Route::prefix('admin/analytics')->group(function () {
+    Route::post('/start', [AnalyticsController::class, 'start']);
+    Route::get('/reports', [AnalyticsController::class, 'index']);
+    Route::get('/reports/{id}', [AnalyticsController::class, 'show']);
+});
+
 // Public App Settings API Routes
 Route::prefix('settings')->group(function () {
     Route::get('/public', [AppSettingController::class, 'getPublic']);
