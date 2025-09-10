@@ -19,5 +19,6 @@ class AnalysisReport extends Model
     'summary_json' => 'array',
     'start_date' => 'datetime',
     'end_date' => 'datetime',
+    'notes' => 'array',
   ];
 }

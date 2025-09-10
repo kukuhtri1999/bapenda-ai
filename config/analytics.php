@@ -30,4 +30,7 @@ return [
     'panduan_online',
     'lain_lain', // fallback bucket
   ],
+  // Processing controls
+  'batch_size' => env('ANALYTICS_BATCH_SIZE', 20),
+  'rebatch_size' => env('ANALYTICS_REBATCH_SIZE', 30),
 ];

@@ -15,6 +15,7 @@ class OpenAIService
     private string $model;
     private int $maxTokens;
     private float $temperature;
+    private int $defaultTimeout;
 
     public function __construct()
     {
@@ -22,6 +23,26 @@ class OpenAIService
         $this->model = config('services.openai.model', 'gpt-4o-mini');
         $this->maxTokens = config('services.openai.max_tokens', 1500);
         $this->temperature = config('services.openai.temperature', 0.7);
+        $this->defaultTimeout = (int) config('services.openai.request_timeout', 30); // seconds
+    }
+
+    /**
+     * Retry wrapper for API calls with simple exponential backoff.
+     * Accepts a callable that performs the API call and returns the response.
+     */
+    private function retryRequest(callable $fn, int $attempts = 3, int $baseDelay = 500)
+    {
+        $tries = 0;
+        do {
+            try {
+                $tries++;
+                return $fn();
+            } catch (Exception $e) {
+                Log::warning('OpenAIService::retryRequest attempt ' . $tries . ' failed: ' . $e->getMessage());
+                if ($tries >= $attempts) throw $e;
+                usleep($baseDelay * 1000 * $tries); // backoff
+            }
+        } while ($tries < $attempts);
     }
 
     /**
@@ -37,16 +58,21 @@ class OpenAIService
             // force use of GPT-5-mini for analytics as requested
             $model = 'gpt-5-mini';
 
-            $response = $this->client->chat()->create([
-                'model' => $model,
-                'messages' => [
-                    ['role' => 'system', 'content' => 'You are a helpful data analysis assistant.'],
-                    ['role' => 'user', 'content' => $payload],
-                ],
-                // reduce token budget to cut cost and latency for analytics
-                'max_completion_tokens' => 512,
-                'temperature' => 0.0,
-            ]);
+            $call = function () use ($model, $payload) {
+                return $this->client->chat()->create([
+                    'model' => $model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are a helpful data analysis assistant.'],
+                        ['role' => 'user', 'content' => $payload],
+                    ],
+                    // reduce token budget to cut cost and latency for analytics
+                    'max_completion_tokens' => 512,
+                    // pass timeout if SDK supports it
+                    'timeout' => $this->defaultTimeout,
+                    'connect_timeout' => min(5, $this->defaultTimeout),
+                ]);
+            };
+            $response = $this->retryRequest($call);
 
             $text = trim($response->choices[0]->message->content ?? '');
             $json = null;
@@ -102,6 +128,174 @@ class OpenAIService
             return $text ?: null;
         } catch (Exception $e) {
             Log::error('AI generateInsightSummary error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Generate a detailed Indonesian analysis (~1000 words) with actions & strategy.
+     * Includes prioritized roadmap, risks/mitigations, channels/technologies, and KPIs.
+     * Returns plain text or null on failure.
+     */
+    public function generateDetailedAnalysis(string $aggText, array $categoryLabels = [], ?array $derived = null): ?string
+    {
+        try {
+            $model = 'gpt-5-mini';
+
+            $labelsText = "Categories and labels:\n";
+            foreach ($categoryLabels as $k => $lbl) {
+                $labelsText .= "- {$k}: {$lbl}\n";
+            }
+
+            $derivedJson = $derived ? json_encode($derived, JSON_UNESCAPED_UNICODE) : '{}';
+
+            $instruction = "Anda bertindak sebagai konsultan strategi layanan publik digital untuk Samsat/Bapenda. Buat ANALISIS TERPERINCI sekitar 900-1100 kata (target ~1000 kata) dalam Bahasa Indonesia berdasarkan data agregat dan ringkasan berikut. Sertakan: (1) temuan kunci yang didukung data (kategori, tren, sentimen, isu umum, wilayah jika ada), (2) rekomendasi aksi prioritas jangka pendek (0-3 bulan) dan menengah (3-12 bulan) yang spesifik dan dapat dieksekusi, (3) strategi kanal/teknologi (mobile/web, pembayaran elektronik, chatbot/RAG, media sosial, loket digital, integrasi bank/VA), (4) metrik/KPI yang dapat dipantau, (5) risiko & mitigasi, (6) dampak yang diharapkan pada kepuasan wajib pajak dan efisiensi operasional. Tulis naratif yang mengalir, tanpa poin numerik berlebihan, namun boleh menggunakan bullet seperlunya. Hindari JSON atau markup; balas hanya teks naratif.";
+
+            $userContent = $instruction
+                . "\n\n" . $labelsText
+                . "\nAGGREGATES (ringkas):\n" . $aggText
+                . "\n\nDERIVED_JSON (opsional):\n" . $derivedJson . "\n";
+
+            $callParams = [
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are a senior digital strategy consultant for public services.'],
+                    ['role' => 'user', 'content' => $userContent]
+                ],
+                'max_completion_tokens' => min(2000, max(1400, $this->maxTokens)),
+            ];
+            $response = $this->client->chat()->create($callParams);
+            $text = trim($response->choices[0]->message->content ?? '');
+            try {
+                if (isset($response->usage)) Log::info('OpenAIService::generateDetailedAnalysis - usage', (array)$response->usage);
+            } catch (\Throwable $t) {
+            }
+            return $text ?: null;
+        } catch (Exception $e) {
+            Log::error('AI generateDetailedAnalysis error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Generate dynamic AI recommendations based on aggregates and category counts.
+     * Returns ['recommendations'=>array, 'recommendations_detailed'=>array] or null on failure.
+     */
+    public function generateRecommendations(array $categoryCounts, array $commonIssues, array $sentiments, array $categoryLabels = []): ?array
+    {
+        try {
+            $model = 'gpt-5-mini';
+
+            // Prepare compact context
+            $cats = [];
+            foreach ($categoryCounts as $k => $v) {
+                $cats[] = $k . ':' . (int)$v;
+            }
+            $issues = [];
+            foreach ($commonIssues as $k => $v) {
+                $issues[] = $k . ':' . (int)$v;
+            }
+            $sent = [];
+            foreach ($sentiments as $k => $v) {
+                $sent[] = $k . ':' . (int)$v;
+            }
+
+            $labelsText = [];
+            foreach ($categoryLabels as $k => $lbl) {
+                $labelsText[] = $k . ' = ' . $lbl;
+            }
+
+            $instruction = "Kembalikan HANYA JSON (tanpa teks lain) dengan struktur: {\n  \"recommendations\": [string],\n  \"recommendations_detailed\": [{\n    \"category\": string (category key),\n    \"label\": string (human label),\n    \"count\": number,\n    \"rationale\": string (Bahasa Indonesia),\n    \"actions\": [string pendek],\n    \"priority\": \"low\"|\"medium\"|\"high\",\n    \"effort_estimate\": string pendek\n  }]\n}. Fokus pada strategi era digital: kanal online, mobile/web, e-payment, chatbot/RAG, otomasi antrean, sosmed, integrasi bank/VA. Jumlahkan 5-10 rekomendasi ringkas dan 5-8 entri rekomendasi_detailed sesuai kategori dengan count tertinggi. Gunakan label manusia yang sesuai. Jangan membuat angka baru; gunakan count yang ada. Bahasa Indonesia. JSON valid saja.";
+
+            $payload = [
+                'labels' => implode("; ", $labelsText),
+                'category_counts' => implode(", ", $cats),
+                'common_issues' => implode(", ", $issues),
+                'sentiments' => implode(", ", $sent),
+            ];
+
+            $messages = [
+                ['role' => 'system', 'content' => 'You are an analytics recommender that outputs strict JSON only.'],
+                ['role' => 'user', 'content' => $instruction . "\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)]
+            ];
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => $messages,
+                'max_completion_tokens' => 900,
+            ]);
+            $text = trim($response->choices[0]->message->content ?? '');
+            $start = strpos($text, '{');
+            $end = strrpos($text, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $json = json_decode(substr($text, $start, $end - $start + 1), true);
+                if (is_array($json)) return $json;
+            }
+            return null;
+        } catch (Exception $e) {
+            // fallback and log
+            Log::error('generateRecommendations error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Generate super-detailed strategy actions for the top topics.
+     * Expects $topTopics = array of ['key'=>..., 'label'=>..., 'count'=>int]
+     * Returns array keyed by topic key with detailed strategy objects.
+     */
+    public function generateTopTopicStrategies(array $topTopics, string $aggText, array $categoryLabels = []): ?array
+    {
+        try {
+            if (empty($topTopics)) return null;
+            $model = 'gpt-5-mini';
+
+            $topicsBrief = [];
+            foreach ($topTopics as $t) {
+                $topicsBrief[] = ($t['key'] ?? $t['name'] ?? '') . ':' . ($t['label'] ?? '') . ':' . (int)($t['count'] ?? 0);
+            }
+
+            $instruction = "Return ONLY valid JSON (no extra text). For each TOPIC (we will provide only the top 3 topics), produce a detailed strategy object. Output structure: { \n  \"strategies\": [ {\n    \"topic_key\": string,\n    \"label\": string,\n    \"count\": number,\n    \"short_summary\": string (Indonesian, 2-3 sentences),\n    \"detailed_strategy\": string (Indonesian, 5-8 paragraphs or long text describing strategy and rationale),\n    \"implementation_steps\": [string] (ordered, actionable steps, each 8-120 chars),\n    \"suggested_owners\": [string] (roles/departments),\n    \"timeline\": string (short: e.g. \"0-3 months\", \"3-12 months\"),\n    \"kpis\": [string],\n    \"estimated_cost\": string (very short),\n    \"dependencies\": [string] \n  } ]\n}\nUse Bahasa Indonesia. Use the provided AGGREGATES as context to tailor recommendations. Be concrete: for each implementation step include at least one technical or operational detail (eg: \"integrasi VA bank X, endpoint Y, batch job nightly\"). Do not invent unrealistic numbers.\n";
+
+            $payload = [
+                'top_topics' => $topicsBrief,
+                'aggregates' => $aggText
+            ];
+
+            $messages = [
+                ['role' => 'system', 'content' => 'You are a senior public sector digital strategy consultant. Output strict JSON only.'],
+                ['role' => 'user', 'content' => $instruction . "\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)]
+            ];
+
+            $call = function () use ($model, $messages) {
+                return $this->client->chat()->create([
+                    'model' => $model,
+                    'messages' => $messages,
+                    'max_completion_tokens' => 2000,
+                    'timeout' => $this->defaultTimeout,
+                    'connect_timeout' => min(5, $this->defaultTimeout),
+                ]);
+            };
+
+            $response = $this->retryRequest($call);
+            $text = trim($response->choices[0]->message->content ?? '');
+            $start = strpos($text, '{');
+            $end = strrpos($text, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $maybe = substr($text, $start, $end - $start + 1);
+                $json = json_decode($maybe, true);
+                if (is_array($json) && isset($json['strategies'])) {
+                    // key by topic_key
+                    $out = [];
+                    foreach ($json['strategies'] as $s) {
+                        if (isset($s['topic_key'])) $out[$s['topic_key']] = $s;
+                    }
+                    return $out;
+                }
+            }
+            return null;
+        } catch (Exception $e) {
+            Log::error('generateTopTopicStrategies error: ' . $e->getMessage());
             return null;
         }
     }
@@ -499,7 +693,6 @@ class OpenAIService
             'e-samsat',
             'motor',
             'mobil',
-            'kendaraan',
             'roda',
             'pkb',
             'swdkllj',
@@ -547,11 +740,16 @@ TUGAS UTAMA:
 3. Memberikan informasi jadwal, lokasi, dan syarat-syarat layanan
 4. Membantu dengan prosedur pembayaran pajak kendaraan
 5. Memberikan informasi umum tentang STNK, BPKB, dan dokumen kendaraan
-
-GAYA KOMUNIKASI:
-- Selalu sapa dengan ramah (contoh: 'Halo! Ada yang bisa saya bantu terkait layanan Samsat Lamongan?')
-- Gunakan bahasa yang sopan dan mudah dipahami
-- Berikan jawaban yang akurat dan faktual
+                    $call = function() use ($model, $messages) {
+                        return $this->client->chat()->create([
+                            'model' => $model,
+                            'messages' => $messages,
+                            'max_completion_tokens' => 900,
+                            'timeout' => $this->defaultTimeout,
+                            'connect_timeout' => min(5, $this->defaultTimeout),
+                        ]);
+                    };
+                    $response = $this->retryRequest($call);
 - Jika tidak tahu jawaban pasti, arahkan untuk menghubungi petugas langsung
 - Selalu tutup dengan menawarkan bantuan lebih lanjut
 
@@ -592,15 +790,8 @@ Jawab berdasarkan pengetahuan yang akurat dan terkini tentang layanan Samsat. Ji
                 $basePrompt .= "Tipe: {$knowledge['type']}\n";
 
                 if (!empty($knowledge['excerpt'])) {
-                    $basePrompt .= "Ringkasan: {$knowledge['excerpt']}\n";
-                }
-
-                if (!empty($knowledge['content'])) {
-                    // Limit content length to avoid token overflow
-                    $content = strlen($knowledge['content']) > 800
-                        ? substr($knowledge['content'], 0, 800) . '...'
-                        : $knowledge['content'];
-                    $basePrompt .= "Konten: {$content}\n";
+                    $excerpt = strlen($knowledge['excerpt']) > 400 ? substr($knowledge['excerpt'], 0, 400) . '...' : $knowledge['excerpt'];
+                    $basePrompt .= "Ringkasan: {$excerpt}\n";
                 }
 
                 if (!empty($knowledge['tags'])) {

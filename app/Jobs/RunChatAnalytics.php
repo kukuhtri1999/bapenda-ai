@@ -27,6 +27,11 @@ class RunChatAnalytics implements ShouldQueue
     public function handle(OpenAIService $ai)
     {
         try {
+            // allow long-running job (avoid PHP max execution time fatal on heavy analytics)
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(0);
+            }
+
             $this->report->update(['status' => 'running']);
 
             $start = $this->report->start_date;
@@ -246,7 +251,8 @@ class RunChatAnalytics implements ShouldQueue
             // If AI fails for a batch/chat we'll mark it as 'lain_lain' with neutral sentiment and low confidence.
 
             // Initial AI classification using dedicated classifyChats method
-            $initialBatches = array_chunk($perChat, 40);
+            $batchSize = config('analytics.batch_size', 20);
+            $initialBatches = array_chunk($perChat, $batchSize);
             foreach ($initialBatches as $ib) {
                 $res = $ai->classifyChats($ib, $categoryLabels);
                 // capture raw AI output for diagnostics
@@ -292,7 +298,8 @@ class RunChatAnalytics implements ShouldQueue
                 // second pass: reclass those with low confidence or 'lain_lain'
                 $toRe = array_filter($per_chat_sample, fn($r) => ($r['category'] === 'lain_lain') || ($r['confidence'] < 0.55));
                 if (!empty($toRe)) {
-                    $chunks2 = array_chunk($toRe, 30);
+                    $reBatchSize = config('analytics.rebatch_size', 30);
+                    $chunks2 = array_chunk($toRe, $reBatchSize);
                     $notes = is_array($notes) ? $notes : [];
                     foreach ($chunks2 as $c2) {
                         $payload = [];
@@ -407,6 +414,36 @@ class RunChatAnalytics implements ShouldQueue
                 $this->report->save();
             }
 
+            // Generate a more detailed analysis (~1000 words) and attach
+            try {
+                // build local categories array from current counts for derived context
+                $catsLocal = [];
+                foreach ($categoryCounts as $name => $c) {
+                    if (empty($c) || $c <= 0) continue;
+                    $catsLocal[] = [
+                        'name' => $name,
+                        'label' => $categoryLabels[$name] ?? $name,
+                        'count' => $c
+                    ];
+                }
+                usort($catsLocal, fn($a, $b) => $b['count'] <=> $a['count']);
+                $derived = [
+                    'sentiments' => $sentiments,
+                    'categories' => $catsLocal,
+                    'geo_counts' => $summary['geo_counts'] ?? new \stdClass(),
+                    'common_issues' => $summary['common_issues'] ?? [],
+                ];
+                $detailed = $ai->generateDetailedAnalysis($aggText, $categoryLabels, $derived);
+                if ($detailed) {
+                    $summary['detailed_analysis'] = $detailed;
+                }
+            } catch (\Throwable $e) {
+                $notes = is_array($notes) ? $notes : [];
+                $notes['detailed_error'] = $e->getMessage();
+                $this->report->notes = json_encode($notes);
+                $this->report->save();
+            }
+
             // Ensure categories array exists in summary (from categoryCounts)
             $catsArr = [];
             foreach ($categoryCounts as $name => $c) {
@@ -427,16 +464,24 @@ class RunChatAnalytics implements ShouldQueue
             }
 
             // include a small per_chat sample when AI classifications exist
-            // include a small per_chat sample from our deterministic classifier
             if (!empty($per_chat_sample)) {
                 $summary['per_chat'] = array_slice($per_chat_sample, 0, 200);
             }
 
-            // If AI did not produce recommendations, use fallback mapping from config
+            // Dynamic AI recommendations (JSON) - prefer AI; fallback to config if unavailable
+            $dynRecs = $ai->generateRecommendations($categoryCounts, $commonIssues, $sentiments, $categoryLabels);
+            if (is_array($dynRecs)) {
+                if (!empty($dynRecs['recommendations']) && is_array($dynRecs['recommendations'])) {
+                    $summary['recommendations'] = $dynRecs['recommendations'];
+                }
+                if (!empty($dynRecs['recommendations_detailed']) && is_array($dynRecs['recommendations_detailed'])) {
+                    $summary['recommendations_detailed'] = $dynRecs['recommendations_detailed'];
+                }
+            }
+            // Fallback if AI provided none
             if (empty($summary['recommendations'])) {
                 $recMap = config('analytics_recommendations.recommendations', []);
                 $recs = [];
-                // pick top 3 categories
                 arsort($categoryCounts);
                 $topCats = array_slice(array_keys($categoryCounts), 0, 3);
                 foreach ($topCats as $tc) {
@@ -446,28 +491,67 @@ class RunChatAnalytics implements ShouldQueue
                         }
                     }
                 }
-                // ensure unique and keep up to 5
-                $summary['recommendations'] = array_slice(array_values(array_unique($recs)), 0, 5);
+                $summary['recommendations'] = array_slice(array_values(array_unique($recs)), 0, 8);
             }
 
-            // Build detailed recommendations: rationale + action per top categories
-            $detailed = [];
-            $recMap = config('analytics_recommendations.recommendations', []);
-            $topCatsFull = array_slice($catsArr, 0, 5);
-            foreach ($topCatsFull as $tc) {
-                $name = $tc['name'];
-                $label = $tc['label'];
-                $count = $tc['count'];
-                $rlist = $recMap[$name] ?? [];
-                $detailed[] = [
-                    'category' => $name,
-                    'label' => $label,
-                    'count' => $count,
-                    'rationale' => "Kategori '{$label}' muncul dengan {$count} percakapan. Tinjau kebutuhan, keluhan, dan peluang perbaikan pada topik ini.",
-                    'actions' => $rlist,
-                ];
+            // If AI did not provide detailed recs, build a simple fallback from config
+            if (empty($summary['recommendations_detailed'])) {
+                $detailed = [];
+                $recMap = config('analytics_recommendations.recommendations', []);
+                $topCatsFull = array_slice($catsArr, 0, 5);
+                foreach ($topCatsFull as $tc) {
+                    $name = $tc['name'];
+                    $label = $tc['label'];
+                    $count = $tc['count'];
+                    $rlist = $recMap[$name] ?? [];
+                    $detailed[] = [
+                        'category' => $name,
+                        'label' => $label,
+                        'count' => $count,
+                        'rationale' => "Kategori '{$label}' muncul dengan {$count} percakapan. Tinjau kebutuhan, keluhan, dan peluang perbaikan pada topik ini.",
+                        'actions' => $rlist,
+                        'priority' => 'medium',
+                        'effort_estimate' => 'sedang',
+                    ];
+                }
+                $summary['recommendations_detailed'] = $detailed;
             }
-            $summary['recommendations_detailed'] = $detailed;
+
+            // Compute top 3 topics and request super-detailed strategies for them
+            $top3 = array_slice($catsArr, 0, 3);
+            $topTopics = [];
+            foreach ($top3 as $t) {
+                $topTopics[] = ['key' => $t['name'] ?? ($t['label'] ?? ''), 'label' => $t['label'] ?? ($t['name'] ?? ''), 'count' => $t['count'] ?? 0];
+            }
+            try {
+                $strategies = $ai->generateTopTopicStrategies($topTopics, $aggText, $categoryLabels);
+                if (is_array($strategies)) {
+                    $summary['top_topics_strategies'] = $strategies;
+                }
+            } catch (\Throwable $e) {
+                $notes = is_array($notes) ? $notes : [];
+                $notes['top_strategy_error'] = $e->getMessage();
+                $this->report->notes = json_encode($notes);
+                $this->report->save();
+            }
+
+            // Generate a more comprehensive ~1000-word analysis
+            try {
+                $derivedForDetail = [
+                    'categories' => $catsArr,
+                    'sentiments' => $summary['sentiments'] ?? $sentiments,
+                    'common_issues' => $summary['common_issues'] ?? array_map(fn($k, $v) => ['text' => $k, 'count' => $v], array_keys($commonIssues), $commonIssues),
+                ];
+                $detailedText = $ai->generateDetailedAnalysis($aggText, $categoryLabels, $derivedForDetail);
+                if ($detailedText) {
+                    $summary['detailed_analysis'] = $detailedText;
+                }
+            } catch (\Throwable $e) {
+                $notes = is_array($notes) ? $notes : [];
+                $notes['detailed_error'] = $e->getMessage();
+                $this->report->notes = json_encode($notes);
+                $this->report->save();
+            }
 
             $this->report->update(['summary_json' => $summary, 'status' => 'completed']);
         } catch (\Throwable $e) {

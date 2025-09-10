@@ -64,63 +64,6 @@
         </div>
       </div>
 
-      <div class="mt-6">
-        <h3 class="font-medium mb-2">Recent Reports</h3>
-        <ul>
-          <li v-for="r in reports" :key="r.id" class="p-3 border-b">
-            <div class="flex justify-between">
-              <div>
-                <div class="font-medium">Report #{{ r.id }}</div>
-                <div class="text-sm text-gray-500">
-                  {{ r.start_date }} → {{ r.end_date }}
-                </div>
-              </div>
-              <div class="text-right">
-                <div>{{ r.chat_count }} chats</div>
-                <div class="text-sm">{{ r.status }}</div>
-              </div>
-            </div>
-          </li>
-        </ul>
-      </div>
-
-      <div
-        v-if="showLoading"
-        class="fixed inset-0 bg-black/40 flex items-center justify-center"
-      >
-        <div class="bg-white p-6 rounded shadow w-96 text-center">
-          <div class="mb-4">
-            <svg
-              class="mx-auto animate-spin h-12 w-12 text-blue-600"
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <circle
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-                stroke-opacity="0.25"
-              />
-              <path
-                d="M22 12a10 10 0 00-10-10"
-                stroke="currentColor"
-                stroke-width="4"
-                stroke-linecap="round"
-              />
-            </svg>
-          </div>
-          <div class="text-lg font-medium">
-            Analyzing taxpayer conversations… please wait.
-          </div>
-          <div class="text-sm text-gray-500 mt-2">
-            This may take a while. You can close this modal and check reports
-            later.
-          </div>
-        </div>
-      </div>
-
       <div
         v-if="
           reportSummary &&
@@ -178,6 +121,77 @@
                 </li>
               </ul>
             </div>
+
+            <div
+              v-if="
+                reportSummary.summary_json?.recommendations_detailed?.length
+              "
+              class="mt-6"
+            >
+              <h4 class="font-medium">Rekomendasi Detail (AI)</h4>
+              <div class="mt-3 space-y-3">
+                <div
+                  v-for="(d, idx) in reportSummary.summary_json
+                    .recommendations_detailed"
+                  :key="idx"
+                  class="border rounded p-3 bg-white"
+                >
+                  <div class="flex justify-between items-start">
+                    <div>
+                      <div class="font-semibold">
+                        {{ d.label || d.category }}
+                      </div>
+                      <div class="text-xs text-gray-500">
+                        Count: {{ d.count }}
+                      </div>
+                    </div>
+                    <div class="text-xs">
+                      <span
+                        class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 mr-2"
+                        >Priority: {{ d.priority || 'medium' }}</span
+                      >
+                      <span
+                        class="px-2 py-0.5 rounded bg-gray-100 text-gray-700"
+                        >Effort: {{ d.effort_estimate || 'sedang' }}</span
+                      >
+                    </div>
+                  </div>
+                  <div class="text-sm text-gray-800 mt-2 whitespace-pre-line">
+                    {{ d.rationale }}
+                  </div>
+                  <ul
+                    v-if="d.actions?.length"
+                    class="list-disc pl-5 mt-2 text-sm"
+                  >
+                    <li v-for="(a, i) in d.actions" :key="i">{{ a }}</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <div
+              v-if="reportSummary.summary_json?.insight_summary"
+              class="mt-6"
+            >
+              <h4 class="font-medium">Insight Ringkas (AI)</h4>
+              <div
+                class="mt-2 whitespace-pre-line text-sm text-gray-800 bg-gray-50 p-3 rounded"
+              >
+                {{ reportSummary.summary_json.insight_summary }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="reportSummary.summary_json?.detailed_analysis" class="mt-8">
+          <h4 class="font-semibold text-lg">Analisis Terperinci (AI)</h4>
+          <p class="text-sm text-gray-500">
+            ~1000 kata tentang hasil analitik, strategi, dan rekomendasi aksi.
+          </p>
+          <div
+            class="mt-3 whitespace-pre-line text-gray-900 bg-white border rounded p-4 leading-7"
+          >
+            {{ reportSummary.summary_json.detailed_analysis }}
           </div>
         </div>
 
@@ -246,6 +260,158 @@
           </div>
         </div> -->
       </div>
+
+      <div class="mt-6">
+        <h3 class="font-medium mb-2">Recent Reports</h3>
+        <ul>
+          <li v-for="r in reports" :key="r.id" class="p-3 border-b">
+            <div class="flex justify-between">
+              <div>
+                <div class="font-medium">Report #{{ r.id }}</div>
+                <div class="text-sm text-gray-500">
+                  {{ humanDate(r.start_date) }} → {{ humanDate(r.end_date) }}
+                </div>
+              </div>
+              <div class="text-right">
+                <div>{{ r.chat_count }} chats</div>
+                <div class="text-sm">{{ r.status }}</div>
+                <div class="mt-2">
+                  <button
+                    @click="openReport(r.id)"
+                    class="px-3 py-1 bg-blue-600 text-white text-sm rounded"
+                  >
+                    View report
+                  </button>
+                </div>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Report modal -->
+      <div
+        v-if="modalOpen"
+        class="fixed inset-0 bg-black/50 flex items-start justify-center p-6"
+      >
+        <div
+          class="bg-white w-full max-w-5xl rounded shadow-lg overflow-auto max-h-[90vh]"
+        >
+          <div class="flex items-center justify-between p-4 border-b">
+            <div class="font-semibold">
+              Report #{{ modalReport.id }} —
+              {{ humanDate(modalReport.start_date) }} →
+              {{ humanDate(modalReport.end_date) }}
+            </div>
+            <button @click="closeModal" class="px-3 py-1 bg-gray-200 rounded">
+              Close
+            </button>
+          </div>
+          <div class="p-4">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div>
+                <h4 class="font-medium mb-2">Charts</h4>
+                <div v-if="modalReport.summary_json?.categories?.length">
+                  <ApexChart
+                    type="bar"
+                    height="420"
+                    :options="modalCategoryOptions"
+                    :series="modalCategorySeries"
+                  />
+                </div>
+                <div v-else class="text-sm text-gray-500">
+                  No category data.
+                </div>
+              </div>
+              <div>
+                <h4 class="font-medium mb-2">AI Analysis (Top strategies)</h4>
+                <div v-if="modalReport.summary_json?.top_topics_strategies">
+                  <div
+                    v-for="(s, key) in modalReport.summary_json
+                      .top_topics_strategies"
+                    :key="key"
+                    class="mb-4 border rounded p-3"
+                  >
+                    <div class="font-semibold">
+                      {{ s.label || s.topic_key }}
+                    </div>
+                    <div class="text-sm text-gray-500">
+                      Count: {{ s.count }}
+                    </div>
+                    <div class="mt-2 whitespace-pre-line text-sm">
+                      {{ s.detailed_strategy }}
+                    </div>
+                    <div class="mt-3">
+                      <div class="font-medium text-sm">
+                        Implementation Steps
+                      </div>
+                      <ul class="list-decimal pl-6 text-sm">
+                        <li
+                          v-for="(st, idx) in s.implementation_steps || []"
+                          :key="idx"
+                        >
+                          {{ st }}
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="text-sm text-gray-500">
+                  No top-topic strategies available.
+                </div>
+              </div>
+            </div>
+            <div
+              v-if="modalReport.summary_json?.detailed_analysis"
+              class="mt-6"
+            >
+              <h4 class="font-medium">Analisis Terperinci (AI)</h4>
+              <div
+                class="mt-2 whitespace-pre-line text-sm text-gray-800 bg-gray-50 p-3 rounded"
+              >
+                {{ modalReport.summary_json.detailed_analysis }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="showLoading"
+        class="fixed inset-0 bg-black/40 flex items-center justify-center"
+      >
+        <div class="bg-white p-6 rounded shadow w-96 text-center">
+          <div class="mb-4">
+            <svg
+              class="mx-auto animate-spin h-12 w-12 text-blue-600"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+                stroke-opacity="0.25"
+              />
+              <path
+                d="M22 12a10 10 0 00-10-10"
+                stroke="currentColor"
+                stroke-width="4"
+                stroke-linecap="round"
+              />
+            </svg>
+          </div>
+          <div class="text-lg font-medium">
+            Analyzing taxpayer conversations… please wait.
+          </div>
+          <div class="text-sm text-gray-500 mt-2">
+            This may take a while. You can close this modal and check reports
+            later.
+          </div>
+        </div>
+      </div>
     </div>
   </AppLayout>
 </template>
@@ -265,6 +431,8 @@ const showLoading = ref(false);
 const loading = ref(false);
 const fastMode = ref(true);
 const pollToken = ref(0);
+const modalOpen = ref(false);
+const modalReport = ref({});
 
 const loadReports = async () => {
   const res = await fetch('/api/admin/analytics/reports');
@@ -323,6 +491,65 @@ const pollReport = async (id, token) => {
 onMounted(() => {
   loadReports();
 });
+
+const humanDate = (iso) => {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  } catch (e) {
+    return iso;
+  }
+};
+
+const openReport = async (id) => {
+  modalOpen.value = true;
+  modalReport.value = { id };
+  const r = await fetch(`/api/admin/analytics/reports/${id}`);
+  modalReport.value = await r.json();
+};
+
+const closeModal = () => {
+  modalOpen.value = false;
+  modalReport.value = {};
+};
+
+const modalCategoryOptions = computed(() => {
+  const cats = (modalReport.value?.summary_json?.categories || [])
+    .slice()
+    .sort((a, b) => b.count - a.count);
+  const labels = cats.map((c) => c.label || c.name);
+  return {
+    chart: { type: 'bar', toolbar: { show: false } },
+    plotOptions: { bar: { horizontal: true, borderRadius: 6 } },
+    dataLabels: { enabled: false },
+    xaxis: { categories: labels },
+  };
+});
+
+const modalCategorySeries = computed(() => [
+  {
+    name: 'Messages',
+    data: (modalReport.value?.summary_json?.categories || []).map(
+      (c) => c.count,
+    ),
+  },
+]);
 
 const topicBars = computed(() => {
   const topics = reportSummary.value?.summary_json?.topics || [];
