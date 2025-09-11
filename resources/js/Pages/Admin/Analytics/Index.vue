@@ -108,7 +108,7 @@
               </div>
             </div>
 
-            <h4 class="font-medium mt-4">Recommendations (Summary)</h4>
+            <!-- <h4 class="font-medium mt-4">Recommendations (Summary)</h4>
             <div class="mt-2">
               <ul class="list-decimal pl-6">
                 <li
@@ -120,7 +120,7 @@
                   {{ rec }}
                 </li>
               </ul>
-            </div>
+            </div> -->
 
             <div
               v-if="
@@ -131,8 +131,7 @@
               <h4 class="font-medium">Rekomendasi Detail (AI)</h4>
               <div class="mt-3 space-y-3">
                 <div
-                  v-for="(d, idx) in reportSummary.summary_json
-                    .recommendations_detailed"
+                  v-for="(d, idx) in topDetailedRecs"
                   :key="idx"
                   class="border rounded p-3 bg-white"
                 >
@@ -192,6 +191,31 @@
             class="mt-3 whitespace-pre-line text-gray-900 bg-white border rounded p-4 leading-7"
           >
             {{ reportSummary.summary_json.detailed_analysis }}
+          </div>
+        </div>
+
+        <div v-if="perTopicInsightsLimited.length" class="mt-8">
+          <h4 class="font-semibold text-lg">Insight Per Topik (AI)</h4>
+          <div class="mt-3 space-y-6">
+            <div
+              v-for="(p, idx) in perTopicInsightsLimited"
+              :key="p.topic_key || p.label || idx"
+              class="bg-white border rounded p-4"
+            >
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="font-semibold">
+                    {{ p.label || p.topic_key || `Topik ${idx + 1}` }}
+                  </div>
+                  <div v-if="p.count" class="text-xs text-gray-500">
+                    Count: {{ p.count }}
+                  </div>
+                </div>
+              </div>
+              <div class="mt-3 whitespace-pre-line leading-7 text-gray-900">
+                {{ p.long_insight || p.insight || p.text }}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -370,6 +394,26 @@
                 class="mt-2 whitespace-pre-line text-sm text-gray-800 bg-gray-50 p-3 rounded"
               >
                 {{ modalReport.summary_json.detailed_analysis }}
+              </div>
+            </div>
+            <div v-if="modalPerTopicInsightsLimited.length" class="mt-6">
+              <h4 class="font-medium">Insight Per Topik (AI)</h4>
+              <div class="mt-3 space-y-4">
+                <div
+                  v-for="(p, idx) in modalPerTopicInsightsLimited"
+                  :key="p.topic_key || p.label || idx"
+                  class="border rounded p-3"
+                >
+                  <div class="font-semibold">
+                    {{ p.label || p.topic_key || `Topik ${idx + 1}` }}
+                  </div>
+                  <div v-if="p.count" class="text-xs text-gray-500">
+                    Count: {{ p.count }}
+                  </div>
+                  <div class="mt-2 whitespace-pre-line text-sm text-gray-800">
+                    {{ p.long_insight || p.insight || p.text }}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -589,6 +633,38 @@ const categorySeries = computed(() => {
 });
 
 // (single confirmStart above includes sample flag and starts polling tokenized)
+
+// UI constants and helpers
+const topCount = 3;
+
+const topDetailedRecs = computed(() => {
+  const recs = reportSummary.value?.summary_json?.recommendations_detailed || [];
+  return recs.slice(0, topCount);
+});
+
+const perTopicInsightsLimited = computed(() => {
+  const pti = reportSummary.value?.summary_json?.per_topic_insights;
+  const strategies = reportSummary.value?.summary_json?.top_topics_strategies || {};
+  const entries = pti && !Array.isArray(pti) ? Object.entries(pti) : [];
+  return entries.slice(0, topCount).map(([key, text]) => ({
+    topic_key: key,
+    label: strategies?.[key]?.label || key,
+    count: strategies?.[key]?.count,
+    text,
+  }));
+});
+
+const modalPerTopicInsightsLimited = computed(() => {
+  const pti = modalReport.value?.summary_json?.per_topic_insights;
+  const strategies = modalReport.value?.summary_json?.top_topics_strategies || {};
+  const entries = pti && !Array.isArray(pti) ? Object.entries(pti) : [];
+  return entries.slice(0, topCount).map(([key, text]) => ({
+    topic_key: key,
+    label: strategies?.[key]?.label || key,
+    count: strategies?.[key]?.count,
+    text,
+  }));
+});
 </script>
 
 <style scoped>

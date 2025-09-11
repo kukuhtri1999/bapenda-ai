@@ -88,6 +88,23 @@ class RunChatAnalytics implements ShouldQueue
                 $perChat[] = ['chat_id' => $cid, 'text' => implode("\n", $arr)];
             }
 
+            // Deduplicate identical transcripts to reduce AI calls and token usage
+            $uniqueMap = []; // text => ['text'=>..., 'count'=>n, 'rep_chat_id'=>id]
+            foreach ($perChat as $p) {
+                $t = trim(preg_replace('/\s+/', ' ', $p['text']));
+                if ($t === '') continue;
+                if (isset($uniqueMap[$t])) {
+                    $uniqueMap[$t]['count']++;
+                } else {
+                    $uniqueMap[$t] = ['text' => $t, 'count' => 1, 'rep_chat_id' => $p['chat_id']];
+                }
+            }
+            // Build reduced per-chat list for classification (representatives)
+            $perChatReduced = [];
+            foreach ($uniqueMap as $t => $meta) {
+                $perChatReduced[] = ['chat_id' => $meta['rep_chat_id'], 'text' => $meta['text'], 'multiplicity' => $meta['count']];
+            }
+
             if (empty($perChat)) {
                 $this->report->update(['summary_json' => ['topics' => [], 'sentiments' => [], 'geo' => [], 'recommendations' => []], 'status' => 'completed']);
                 return;
@@ -252,7 +269,7 @@ class RunChatAnalytics implements ShouldQueue
 
             // Initial AI classification using dedicated classifyChats method
             $batchSize = config('analytics.batch_size', 20);
-            $initialBatches = array_chunk($perChat, $batchSize);
+            $initialBatches = array_chunk($perChatReduced, $batchSize);
             foreach ($initialBatches as $ib) {
                 $res = $ai->classifyChats($ib, $categoryLabels);
                 // capture raw AI output for diagnostics
@@ -269,6 +286,17 @@ class RunChatAnalytics implements ShouldQueue
                         $sent = $row['sentiment'] ?? 'neutral';
                         if (!in_array($sent, ['positive', 'neutral', 'negative'])) $sent = 'neutral';
                         $conf = isset($row['confidence']) ? (float)$row['confidence'] : 0.0;
+                        // attach multiplicity if available from reduced set
+                        $mult = 1;
+                        if (is_array($row) && isset($row['chat_id'])) {
+                            // attempt to get multiplicity from reduced map
+                            foreach ($perChatReduced as $rpr) {
+                                if ((string)$rpr['chat_id'] === (string)$row['chat_id']) {
+                                    $mult = $rpr['multiplicity'] ?? 1;
+                                    break;
+                                }
+                            }
+                        }
                         $per_chat_sample[] = [
                             'chat_id' => $row['chat_id'],
                             'category' => $cat,
@@ -276,6 +304,7 @@ class RunChatAnalytics implements ShouldQueue
                             'confidence' => round($conf, 2),
                             'sentiment' => $sent,
                             'snippet' => mb_substr($row['snippet'] ?? ($row['text'] ?? ''), 0, 300),
+                            'multiplicity' => $mult,
                         ];
                     }
                 } else {
@@ -339,10 +368,11 @@ class RunChatAnalytics implements ShouldQueue
                 $sentiments = ['positive' => 0, 'neutral' => 0, 'negative' => 0];
                 foreach ($per_chat_sample as $p) {
                     $cat = $p['category'] ?? 'lain_lain';
+                    $mult = $p['multiplicity'] ?? 1;
                     if (!isset($categoryCounts[$cat])) $categoryCounts[$cat] = 0;
-                    $categoryCounts[$cat]++;
+                    $categoryCounts[$cat] += $mult;
                     $s = $p['sentiment'] ?? 'neutral';
-                    if (isset($sentiments[$s])) $sentiments[$s]++;
+                    if (isset($sentiments[$s])) $sentiments[$s] += $mult;
                 }
             }
 
@@ -483,7 +513,8 @@ class RunChatAnalytics implements ShouldQueue
                 $recMap = config('analytics_recommendations.recommendations', []);
                 $recs = [];
                 arsort($categoryCounts);
-                $topCats = array_slice(array_keys($categoryCounts), 0, 3);
+                $top_count = (int) config('analytics.top_count', 3);
+                $topCats = array_slice(array_keys($categoryCounts), 0, $top_count);
                 foreach ($topCats as $tc) {
                     if (isset($recMap[$tc])) {
                         foreach ($recMap[$tc] as $r) {
@@ -498,7 +529,8 @@ class RunChatAnalytics implements ShouldQueue
             if (empty($summary['recommendations_detailed'])) {
                 $detailed = [];
                 $recMap = config('analytics_recommendations.recommendations', []);
-                $topCatsFull = array_slice($catsArr, 0, 5);
+                $top_count = (int) config('analytics.top_count', 3);
+                $topCatsFull = array_slice($catsArr, 0, $top_count);
                 foreach ($topCatsFull as $tc) {
                     $name = $tc['name'];
                     $label = $tc['label'];
@@ -517,10 +549,17 @@ class RunChatAnalytics implements ShouldQueue
                 $summary['recommendations_detailed'] = $detailed;
             }
 
-            // Compute top 3 topics and request super-detailed strategies for them
-            $top3 = array_slice($catsArr, 0, 3);
+            // Trim recommendations_detailed to top_count to keep focused on highest topics
+            $top_count = (int) config('analytics.top_count', 3);
+            if (!empty($summary['recommendations_detailed']) && is_array($summary['recommendations_detailed'])) {
+                $summary['recommendations_detailed'] = array_slice($summary['recommendations_detailed'], 0, $top_count);
+            }
+
+            // Compute top N topics (from config) and request super-detailed strategies for them
+            $cfgTop = (int) config('analytics.top_count', 3);
+            $topN = array_slice($catsArr, 0, $cfgTop);
             $topTopics = [];
-            foreach ($top3 as $t) {
+            foreach ($topN as $t) {
                 $topTopics[] = ['key' => $t['name'] ?? ($t['label'] ?? ''), 'label' => $t['label'] ?? ($t['name'] ?? ''), 'count' => $t['count'] ?? 0];
             }
             try {
@@ -531,6 +570,34 @@ class RunChatAnalytics implements ShouldQueue
             } catch (\Throwable $e) {
                 $notes = is_array($notes) ? $notes : [];
                 $notes['top_strategy_error'] = $e->getMessage();
+                $this->report->notes = json_encode($notes);
+                $this->report->save();
+            }
+
+            // Per-topic long AI insights (~1000 words each) for the same top topics
+            try {
+                $perTopicInsights = [];
+                foreach ($topTopics as $topic) {
+                    // collect up to N representative snippets for this topic from per_chat_sample
+                    $examples = [];
+                    $cap = 6;
+                    foreach ($per_chat_sample as $row) {
+                        if (($row['category'] ?? null) === ($topic['key'] ?? $topic['label'])) {
+                            $examples[] = $row['snippet'] ?? '';
+                            if (count($examples) >= $cap) break;
+                        }
+                    }
+                    $insightText = $ai->generatePerTopicInsight($topic, $aggText, $categoryLabels, $examples);
+                    if ($insightText) {
+                        $perTopicInsights[$topic['key']] = $insightText;
+                    }
+                }
+                if (!empty($perTopicInsights)) {
+                    $summary['per_topic_insights'] = $perTopicInsights;
+                }
+            } catch (\Throwable $e) {
+                $notes = is_array($notes) ? $notes : [];
+                $notes['per_topic_insights_error'] = $e->getMessage();
                 $this->report->notes = json_encode($notes);
                 $this->report->save();
             }

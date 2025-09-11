@@ -5,6 +5,8 @@ namespace App\Services;
 use OpenAI;
 use OpenAI\Client;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 use App\Models\KnowledgeBase;
 use Exception;
 use Illuminate\Support\Str;
@@ -252,10 +254,11 @@ class OpenAIService
 
             $topicsBrief = [];
             foreach ($topTopics as $t) {
-                $topicsBrief[] = ($t['key'] ?? $t['name'] ?? '') . ':' . ($t['label'] ?? '') . ':' . (int)($t['count'] ?? 0);
+                $topicsBrief[] = ['key' => ($t['key'] ?? $t['name'] ?? ''), 'label' => ($t['label'] ?? ''), 'count' => (int)($t['count'] ?? 0)];
             }
 
-            $instruction = "Return ONLY valid JSON (no extra text). For each TOPIC (we will provide only the top 3 topics), produce a detailed strategy object. Output structure: { \n  \"strategies\": [ {\n    \"topic_key\": string,\n    \"label\": string,\n    \"count\": number,\n    \"short_summary\": string (Indonesian, 2-3 sentences),\n    \"detailed_strategy\": string (Indonesian, 5-8 paragraphs or long text describing strategy and rationale),\n    \"implementation_steps\": [string] (ordered, actionable steps, each 8-120 chars),\n    \"suggested_owners\": [string] (roles/departments),\n    \"timeline\": string (short: e.g. \"0-3 months\", \"3-12 months\"),\n    \"kpis\": [string],\n    \"estimated_cost\": string (very short),\n    \"dependencies\": [string] \n  } ]\n}\nUse Bahasa Indonesia. Use the provided AGGREGATES as context to tailor recommendations. Be concrete: for each implementation step include at least one technical or operational detail (eg: \"integrasi VA bank X, endpoint Y, batch job nightly\"). Do not invent unrealistic numbers.\n";
+            $wordGoal = (int) config('analytics.strategy_word_goal', 800);
+            $instruction = "Kembalikan HANYA JSON valid (tidak ada teks tambahan). Kita akan memberikan TOP " . count($topicsBrief) . " topik (maksimum 3). Untuk keseluruhan topik tersebut, buat STRATEGI TERPERINCI dalam Bahasa Indonesia dengan total kira-kira ~" . $wordGoal . " kata (bagi merata ke topik).\n\nOutput harus mengikuti struktur JSON: { \"strategies\": [ {\n  \"topic_key\": string,\n  \"label\": string,\n  \"count\": number,\n  \"short_summary\": string (2-3 kalimat),\n  \"detailed_strategy\": string panjang (sekitar 600-900 kata per topik) menjelaskan masalah, tujuan, pendekatan teknis & operasional, dan strategi peningkatan awareness digital,\n  \"implementation_steps\": [string] (urut, actionable, sertakan setidaknya 8 langkah teknis & operasional, masing-masing 40-160 karakter),\n  \"suggested_owners\": [string],\n  \"timeline\": string (mis. \"0-3 months\", \"3-12 months\"),\n  \"kpis\": [string],\n  \"estimated_cost\": string pendek,\n  \"dependencies\": [string]\n} ] }\n\nUntuk setiap langkah implementasi sertakan detail teknis nyata bila memungkinkan (mis. \"integrasi VA bank X, endpoint /payments/va, webhook pada /api/va/callback, job nightly sync\"). Fokus juga pada ROADMAP ACTION PLAN: prioritas jangka pendek (0-3 bulan), menengah (3-12 bulan), serta rencana komunikasi untuk meningkatkan awareness (channel, materi, kampanye). Jangan menambahkan angka inventif. Gunakan AGGREGATES yang diberikan sebagai konteks. Hanya JSON.\n";
 
             $payload = [
                 'top_topics' => $topicsBrief,
@@ -271,7 +274,7 @@ class OpenAIService
                 return $this->client->chat()->create([
                     'model' => $model,
                     'messages' => $messages,
-                    'max_completion_tokens' => 2000,
+                    'max_completion_tokens' => 2600,
                     'timeout' => $this->defaultTimeout,
                     'connect_timeout' => min(5, $this->defaultTimeout),
                 ]);
@@ -296,6 +299,72 @@ class OpenAIService
             return null;
         } catch (Exception $e) {
             Log::error('generateTopTopicStrategies error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Generate ~1000-word Indonesian insight for a single topic (problem, digital solution, roadmap, KPIs, risks, comms plan).
+     * $topic = ['key'=>..., 'label'=>..., 'count'=>int]
+     * $examples = array of representative snippets for this topic
+     */
+    public function generatePerTopicInsight(array $topic, string $aggText, array $categoryLabels = [], array $examples = []): ?string
+    {
+        try {
+            $model = 'gpt-5-mini';
+            $wordGoal = (int) config('analytics.per_topic_word_goal', 800);
+
+            $topicBrief = json_encode([
+                'key' => $topic['key'] ?? ($topic['name'] ?? ''),
+                'label' => $topic['label'] ?? ($topic['name'] ?? ''),
+                'count' => (int)($topic['count'] ?? 0),
+            ], JSON_UNESCAPED_UNICODE);
+
+            $examplesText = '';
+            if (!empty($examples)) {
+                $cap = min(8, count($examples));
+                $sel = array_slice($examples, 0, $cap);
+                $lines = [];
+                foreach ($sel as $sn) {
+                    $lines[] = '- ' . mb_substr($sn, 0, 280);
+                }
+                $examplesText = "\nREPRESENTATIVE_SNIPPETS (truncated):\n" . implode("\n", $lines) . "\n";
+            }
+
+            $instruction = "Tulis INSIGHT PER TOPIK sekitar ~" . $wordGoal . " kata (±10%) dalam Bahasa Indonesia untuk topik di bawah. Gunakan subjudul tegas berikut (dengan urutan yang sama) agar mudah dibaca dan dieksekusi:\n\n" .
+                "1. Latar Permasalahan\n" .
+                "2. Akar Penyebab & Analisis Pola Percakapan\n" .
+                "3. Solusi Digital yang Disarankan (teknis & operasional)\n" .
+                "4. Roadmap Aksi 0–3 Bulan (langkah teknis rinci)\n" .
+                "5. Roadmap Aksi 3–12 Bulan (langkah teknis rinci)\n" .
+                "6. Strategi Komunikasi & Edukasi (channel, pesan, kampanye)\n" .
+                "7. Metrik/KPI yang Dipantau\n" .
+                "8. Risiko Utama & Mitigasi\n" .
+                "9. Dampak yang Diharapkan\n\n" .
+                "Catatan penulisan: konkret, kaya detail, sebut contoh integrasi (mis. VA bank, webhook, endpoint), automasi (job/scheduler), dan tata kelola. Balas HANYA teks naratif dengan subjudul di atas; jangan gunakan JSON atau markup lain.";
+
+            $content = $instruction
+                . "\nTOPIC:\n" . $topicBrief
+                . "\nAGGREGATES (ringkas):\n" . $aggText
+                . $examplesText;
+
+            $call = function () use ($model, $content) {
+                return $this->client->chat()->create([
+                    'model' => $model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'You are a senior public-sector digital strategist writing long-form insights (~800 words).'],
+                        ['role' => 'user', 'content' => $content],
+                    ],
+                    'max_completion_tokens' => 1800,
+                    'timeout' => $this->defaultTimeout,
+                    'connect_timeout' => min(5, $this->defaultTimeout),
+                ]);
+            };
+            $response = $this->retryRequest($call);
+            $text = trim($response->choices[0]->message->content ?? '');
+            return $text ?: null;
+        } catch (Exception $e) {
+            Log::error('generatePerTopicInsight error: ' . $e->getMessage());
             return null;
         }
     }
@@ -355,23 +424,25 @@ class OpenAIService
 
             // Truncate and prepare chats
             $prepared = [];
+            $fast = (bool) config('analytics.fast_mode', true);
+            $snippetLen = $fast ? (int) config('analytics.fast_snippet_length', 400) : (int) config('analytics.full_snippet_length', 1400);
             foreach ($chats as $c) {
                 $txt = (string)$c['text'];
                 $norm = preg_replace('/\s+/', ' ', $txt);
                 $prepared[] = [
                     'chat_id' => (string)$c['chat_id'],
-                    'text' => mb_substr($norm, 0, 1400)
+                    'text' => mb_substr($norm, 0, $snippetLen)
                 ];
             }
 
             // Few-shot examples (cover several categories)
             $fewShots = [
-                ['chat_id' => 'ex1', 'text' => 'Bagaimana cara bayar pajak kendaraan online? apakah lewat aplikasi atau website?', 'category' => 'tanya_cara_bayar_pajak', 'sentiment' => 'neutral'],
-                ['chat_id' => 'ex2', 'text' => 'Syarat apa saja untuk perpanjang STNK? perlu fotokopi BPKB?', 'category' => 'tanya_syarat_bayar_pajak', 'sentiment' => 'neutral'],
-                ['chat_id' => 'ex3', 'text' => 'Denda saya berapa kalau telat 2 bulan bayar pajak?', 'category' => 'denda_keterlambatan', 'sentiment' => 'neutral'],
-                ['chat_id' => 'ex4', 'text' => 'STNK saya hilang, bagaimana proses buat baru?', 'category' => 'informasi_stnk', 'sentiment' => 'negative'],
-                ['chat_id' => 'ex5', 'text' => 'Kenapa antriannya lama sekali hari ini, pelayanan lambat', 'category' => 'komplain_pelayanan', 'sentiment' => 'negative'],
-                ['chat_id' => 'ex6', 'text' => 'Lokasi samsat keliling hari Sabtu di mana ya?', 'category' => 'tanya_samsat_keliling', 'sentiment' => 'neutral'],
+                ['chat_id' => 'ex1', 'text' => 'Bagaimana cara bayar pajak kendaraan online?', 'category' => 'tanya_cara_bayar_pajak', 'sentiment' => 'neutral'],
+                ['chat_id' => 'ex2', 'text' => 'Syarat apa saja untuk perpanjang STNK?', 'category' => 'tanya_syarat_bayar_pajak', 'sentiment' => 'neutral'],
+                ['chat_id' => 'ex3', 'text' => 'Denda saya berapa kalau telat bayar pajak?', 'category' => 'denda_keterlambatan', 'sentiment' => 'neutral'],
+                ['chat_id' => 'ex4', 'text' => 'STNK hilang, bagaimana proses buat baru?', 'category' => 'informasi_stnk', 'sentiment' => 'negative'],
+                ['chat_id' => 'ex5', 'text' => 'Antrian lama dan pelayanan lambat', 'category' => 'komplain_pelayanan', 'sentiment' => 'negative'],
+                ['chat_id' => 'ex6', 'text' => 'Lokasi samsat keliling hari Sabtu di mana?', 'category' => 'tanya_samsat_keliling', 'sentiment' => 'neutral'],
             ];
 
             $baseInstruction = "Klasifikasikan setiap chat ke salah satu CATEGORY KEY yang paling relevan. Gunakan 'lain_lain' HANYA jika TIDAK ada kecocokan kuat dengan kategori lain. Jika ada kata kunci spesifik yang cocok, pilih kategori terkait (jangan 'lain_lain'). Tentukan sentiment (positive|neutral|negative) secara sederhana berdasarkan nada pengguna. Berikan confidence 0-1 (0.1 sangat ragu, 0.9+ sangat yakin). Balas HANYA JSON array tanpa teks tambahan.";
@@ -395,9 +466,60 @@ class OpenAIService
                 ['role' => 'user', 'content' => json_encode($promptPayload, JSON_UNESCAPED_UNICODE)]
             ];
 
+            // Resolve cache for repeated texts to reduce API tokens
+            $useCache = (bool) config('analytics.enable_classification_cache', true);
+            $cacheTTL = (int) config('analytics.classification_cache_ttl_days', 90);
+            $now = now();
+            $preparedForApi = $prepared;
+            $cachedMap = [];
+            if ($useCache) {
+                try {
+                    // build hashes and fetch known ones
+                    $hashes = [];
+                    foreach ($prepared as $p) {
+                        $h = hash('sha256', mb_strtolower(trim($p['text'])));
+                        $hashes[$p['chat_id']] = $h;
+                    }
+                    if (!empty($hashes)) {
+                        $rows = DB::table('chat_classification_cache')
+                            ->whereIn('text_hash', array_values($hashes))
+                            ->get(['text_hash', 'category', 'sentiment', 'confidence', 'snippet', 'updated_at']);
+                        $existing = [];
+                        foreach ($rows as $r) {
+                            $existing[$r->text_hash] = $r;
+                        }
+                        $preparedForApi = [];
+                        foreach ($prepared as $p) {
+                            $h = $hashes[$p['chat_id']];
+                            $row = $existing[$h] ?? null;
+                            if ($row) {
+                                // fresh if within TTL
+                                if (!$cacheTTL || Carbon::parse($row->updated_at)->gt($now->copy()->subDays($cacheTTL))) {
+                                    $cachedMap[$p['chat_id']] = [
+                                        'chat_id' => $p['chat_id'],
+                                        'category' => $row->category,
+                                        'sentiment' => $row->sentiment,
+                                        'confidence' => (float)$row->confidence,
+                                        'snippet' => $row->snippet,
+                                    ];
+                                    continue; // skip API for this one
+                                }
+                            }
+                            $preparedForApi[] = $p;
+                        }
+                    }
+                } catch (\Throwable $t) {
+                    // silently ignore cache errors
+                }
+            }
+
             $callParams = [
                 'model' => $model,
-                'messages' => $messages,
+                'messages' => [
+                    $messages[0],
+                    // Replace chats with the ones that still need API classification
+                    ['role' => 'user', 'content' => json_encode(array_replace($promptPayload, ['chats' => $preparedForApi]), JSON_UNESCAPED_UNICODE)]
+                ],
                 'max_completion_tokens' => 1200,
             ];
             // some models don't accept temperature=0; omit when using gpt-5-mini
@@ -413,6 +535,14 @@ class OpenAIService
                 Log::warning('OpenAIService::classifyChats - usage log failed', ['err' => $t->getMessage()]);
             }
             $data = $this->tryParseJsonArray($text);
+            // Merge cached
+            if (is_array($data)) {
+                foreach ($cachedMap as $cid => $cached) {
+                    $data[] = $cached;
+                }
+            } elseif (!empty($cachedMap)) {
+                $data = array_values($cachedMap);
+            }
 
             // Retry strategy if over-using lain_lain (>80%)
             if (is_array($data) && count($data) > 5) {
@@ -503,6 +633,30 @@ class OpenAIService
                 }
                 $data = $heuristic;
                 $text .= "\n[HeuristicFallbackApplied]";
+            }
+
+            // Save newly classified to cache
+            if ($useCache && is_array($data)) {
+                try {
+                    foreach ($data as $row) {
+                        if (!isset($row['chat_id'])) continue;
+                        $txt = $this->findChatText($prepared, (string)$row['chat_id']);
+                        if (!$txt) continue;
+                        $h = hash('sha256', mb_strtolower(trim($txt)));
+                        DB::table('chat_classification_cache')->updateOrInsert(
+                            ['text_hash' => $h],
+                            [
+                                'category' => $row['category'] ?? 'lain_lain',
+                                'sentiment' => $row['sentiment'] ?? 'neutral',
+                                'confidence' => (float)($row['confidence'] ?? 0.0),
+                                'snippet' => mb_substr($txt, 0, 200),
+                                'updated_at' => now(),
+                                'last_used_at' => now(),
+                            ]
+                        );
+                    }
+                } catch (\Throwable $t) {
+                }
             }
 
             return ['success' => true, 'message' => $text, 'data' => $data];
@@ -740,16 +894,6 @@ TUGAS UTAMA:
 3. Memberikan informasi jadwal, lokasi, dan syarat-syarat layanan
 4. Membantu dengan prosedur pembayaran pajak kendaraan
 5. Memberikan informasi umum tentang STNK, BPKB, dan dokumen kendaraan
-                    $call = function() use ($model, $messages) {
-                        return $this->client->chat()->create([
-                            'model' => $model,
-                            'messages' => $messages,
-                            'max_completion_tokens' => 900,
-                            'timeout' => $this->defaultTimeout,
-                            'connect_timeout' => min(5, $this->defaultTimeout),
-                        ]);
-                    };
-                    $response = $this->retryRequest($call);
 - Jika tidak tahu jawaban pasti, arahkan untuk menghubungi petugas langsung
 - Selalu tutup dengan menawarkan bantuan lebih lanjut
 
