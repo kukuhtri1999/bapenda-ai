@@ -13,6 +13,9 @@ class ChatMessage extends Model
         'chat_id',
         'role',
         'content',
+        'answer',
+        'topic',
+        'sentiment',
         'metadata',
         'sent_at',
     ];

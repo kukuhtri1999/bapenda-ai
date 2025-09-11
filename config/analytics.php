@@ -23,9 +23,7 @@ return [
         'verifikasi_dokumen',
         'komplain_pelayanan',
         'informasi_pendaftaran',
-        'layanan_bantuan_rumah',
         'permintaan_sosialisasi',
-        'pertanyaan_umum',
         'informasi_pembayaran_bank',
         'panduan_online',
         'lain_lain', // fallback bucket

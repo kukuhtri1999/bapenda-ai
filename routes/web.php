@@ -8,6 +8,7 @@ use App\Http\Controllers\PhotoEditingController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\AppSettingController;
+use App\Http\Controllers\Admin\ChatImportController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -57,6 +58,12 @@ Route::middleware([
 
     // Admin Wajib Pajak listing
     Route::get('/admin/wajib-pajak', [App\Http\Controllers\Admin\WajibPajakController::class, 'index'])->name('admin.wajib-pajak.index');
+
+    // Admin Chat Import (XLSX) routes
+    Route::get('/admin/chat-import', function () {
+        return Inertia::render('Admin/ChatImport/Index');
+    })->name('admin.chat-import');
+    Route::post('/admin/chat-import', [ChatImportController::class, 'upload'])->name('admin.chat-import.upload');
 });
 
 // Public Wajib Pajak routes (entry point for chat)

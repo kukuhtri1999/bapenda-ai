@@ -22,6 +22,7 @@ Route::prefix('chat')->group(function () {
 use App\Http\Controllers\Admin\AnalyticsController;
 
 Route::prefix('admin/analytics')->group(function () {
+    Route::get('/count', [AnalyticsController::class, 'count']);
     Route::post('/start', [AnalyticsController::class, 'start']);
     Route::get('/reports', [AnalyticsController::class, 'index']);
     Route::get('/reports/{id}', [AnalyticsController::class, 'show']);

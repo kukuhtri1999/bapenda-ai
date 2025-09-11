@@ -60,7 +60,7 @@ class AnalyticsController extends Controller
         $syncThreshold = 300; // message count threshold for sync execution
         $runSync = $sample || $messageCount <= $syncThreshold || config('queue.default') === 'sync';
         $notes['processing_mode'] = $runSync ? 'sync' : 'queued';
-        $report->notes = json_encode($notes);
+        $report->notes = $notes;
         $report->save();
 
         if ($runSync) {
@@ -85,6 +85,22 @@ class AnalyticsController extends Controller
             'message_count' => $messageCount,
             'status' => 'pending',
             'processing_mode' => 'queued',
+        ]);
+    }
+
+    // Lightweight count endpoint for date-range pre-check
+    public function count(Request $request)
+    {
+        $data = $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date',
+        ]);
+        $start = $data['start_date'];
+        $end = $data['end_date'];
+        $q = ChatMessage::whereBetween('sent_at', [$start, $end]);
+        return response()->json([
+            'message_count' => $q->count(),
+            'chat_count' => (clone $q)->distinct('chat_id')->count('chat_id'),
         ]);
     }
 }

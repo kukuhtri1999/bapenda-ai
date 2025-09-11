@@ -35,7 +35,7 @@ class ChatMessageFactory extends Factory
       'Mohon maaf jika sistem sedang sibuk, coba kembali beberapa saat lagi atau datang ke kantor.',
     ];
 
-    // choose role
+    // choose role (favor user); generate inline answer/topic/sentiment when user
     $isUser = $this->faker->boolean(75); // 75% user messages
     $role = $isUser ? 'user' : 'assistant';
 
@@ -50,10 +50,42 @@ class ChatMessageFactory extends Factory
       $content .= ' - ' . $this->faker->randomElement($extras);
     }
 
+    $answer = null;
+    $topic = null;
+    $sentiment = null;
+    if ($isUser) {
+      // simple synthetic classification
+      $lc = mb_strtolower($content);
+      if (str_contains($lc, 'cara bayar') || str_contains($lc, 'bayar pajak')) {
+        $topic = 'tanya_cara_bayar_pajak';
+      } elseif (str_contains($lc, 'syarat')) {
+        $topic = 'tanya_syarat_bayar_pajak';
+      } elseif (str_contains($lc, 'denda') || str_contains($lc, 'telat')) {
+        $topic = 'denda_keterlambatan';
+      } elseif (str_contains($lc, 'stnk')) {
+        $topic = 'informasi_stnk';
+      } elseif (str_contains($lc, 'samsat keliling')) {
+        $topic = 'tanya_samsat_keliling';
+      } elseif (str_contains($lc, 'jam') && str_contains($lc, 'buka')) {
+        $topic = 'lokasi_jam_operasional';
+      } else {
+        $topic = 'lain_lain';
+      }
+      $sentiment = str_contains($lc, 'tolong') || str_contains($lc, 'gimana') ? 'neutral' : 'neutral';
+      if (str_contains($lc, 'terima kasih') || str_contains($lc, 'makasi')) $sentiment = 'positive';
+      if (str_contains($lc, 'susah') || str_contains($lc, 'error') || str_contains($lc, 'ribet')) $sentiment = 'negative';
+
+      // basic canned answer
+      $answer = $this->faker->randomElement($assistantTemplates);
+    }
+
     return [
       'chat_id' => $this->faker->numberBetween(1, 800),
       'role' => $role,
       'content' => $content,
+      'answer' => $isUser ? $answer : null,
+      'topic' => $isUser ? $topic : null,
+      'sentiment' => $isUser ? $sentiment : null,
       'metadata' => ['nopol' => $nopol],
       'sent_at' => now()->subMinutes($this->faker->numberBetween(0, 60 * 24 * 365)),
     ];

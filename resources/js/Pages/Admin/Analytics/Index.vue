@@ -1,23 +1,29 @@
 <template>
   <AppLayout title="AI Chat Analytics">
     <div class="p-6">
-      <h2 class="text-xl font-semibold mb-4">AI Chat Analytics</h2>
-
-      <div class="grid grid-cols-2 gap-4 mb-4">
-        <div>
-          <label class="block text-sm text-gray-600">Start date</label>
+      <div class="flex gap-4 mb-4">
+        <div class="w-1/2">
+          <label class="block text-sm text-gray-600"
+            >Start date (dd/mm/yyyy)</label
+          >
           <input
-            type="date"
-            v-model="startDate"
-            class="mt-1 p-2 border rounded w-full"
+            ref="startFlat"
+            type="text"
+            v-model="startDisplay"
+            placeholder="dd/mm/yyyy"
+            class="mt-1 p-2 border rounded w-full bg-white"
           />
         </div>
-        <div>
-          <label class="block text-sm text-gray-600">End date</label>
+        <div class="w-1/2">
+          <label class="block text-sm text-gray-600"
+            >End date (dd/mm/yyyy)</label
+          >
           <input
-            type="date"
-            v-model="endDate"
-            class="mt-1 p-2 border rounded w-full"
+            ref="endFlat"
+            type="text"
+            v-model="endDisplay"
+            placeholder="dd/mm/yyyy"
+            class="mt-1 p-2 border rounded w-full bg-white"
           />
         </div>
       </div>
@@ -37,31 +43,18 @@
           <input type="checkbox" v-model="fastMode" class="mr-2" />
           Fast (sample)
         </label>
-      </div>
 
-      <div
-        v-if="reportSummary"
-        class="mt-4 p-4 bg-white rounded shadow space-y-1"
-      >
-        <div>
-          {{ reportSummary.chat_count }} chats ({{
-            reportSummary.message_count || '—'
-          }}
-          messages) between {{ startDate }} - {{ endDate }}
-        </div>
-        <div class="text-sm">
-          Mode: {{ reportSummary.processing_mode || 'queued' }}
-        </div>
-        <div class="mt-1">Status: {{ reportSummary.status }}</div>
+        <!-- pre-count box -->
         <div
-          v-if="
-            reportSummary.processing_mode === 'sync' &&
-            reportSummary.status === 'completed'
-          "
-          class="text-xs text-green-600"
+          v-if="preCount"
+          class="ml-6 border-2 border-red-500 text-red-600 px-3 py-2 rounded"
         >
-          Processed instantly (sync)
+          {{ preCount.message_count }} messages Found
         </div>
+        <!-- <div class="mb-3 text-sm text-gray-700" v-if="preCount">
+          Data in range: {{ preCount.chat_count }} chats,
+          {{ preCount.message_count }} messages
+        </div> -->
       </div>
 
       <div
@@ -461,56 +454,97 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import {
+  ref, onMounted, computed, watch,
+} from 'vue';
+import axios from 'axios';
 import VueApexCharts from 'vue3-apexcharts';
+import flatpickr from 'flatpickr';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import 'flatpickr/dist/flatpickr.min.css';
 
 const ApexChart = VueApexCharts;
 
 const startDate = ref('');
 const endDate = ref('');
+const startIso = ref(null); // yyyy-mm-dd
+const endIso = ref(null);
+// Date objects used by Datepicker
+const startDateObj = ref(null);
+const endDateObj = ref(null);
+const startDateInput = ref(null);
+const endDateInput = ref(null);
+const startDisplay = ref('');
+const endDisplay = ref('');
+const startFlat = ref(null);
+const endFlat = ref(null);
 const reports = ref([]);
 const reportSummary = ref(null);
+const displayFormat = 'dd/MM/yyyy';
+const onIsoChange = () => {
+  /* noop - watcher handles updates */
+};
 const showLoading = ref(false);
 const loading = ref(false);
-const fastMode = ref(true);
+const fastMode = ref(false);
 const pollToken = ref(0);
 const modalOpen = ref(false);
 const modalReport = ref({});
+const preCount = ref(null);
 
 const loadReports = async () => {
   const res = await fetch('/api/admin/analytics/reports');
   reports.value = await res.json();
 };
 
+const updatePreCount = async () => {
+  preCount.value = null;
+  if (!startIso.value || !endIso.value) return;
+  if (startIso.value > endIso.value) return;
+  try {
+    const res = await axios.get('/api/admin/analytics/count', {
+      params: { start_date: startIso.value, end_date: endIso.value },
+    });
+    preCount.value = res.data;
+  } catch (e) {
+    console.warn('Pre-count failed', e?.message || e);
+  }
+};
+
 const confirmStart = async () => {
-  if (!startDate.value || !endDate.value) return alert('Pilih tanggal mulai dan selesai.');
-  if (startDate.value > endDate.value) return alert('Start harus sebelum End.');
-  if (!confirm(`Start analysis for ${startDate.value} → ${endDate.value}?`)) return;
+  if (!startIso.value || !endIso.value) return alert('Pilih tanggal mulai dan selesai.');
+  if (startIso.value > endIso.value) return alert('Start harus sebelum End.');
+  if (
+    !confirm(`Start analysis for ${startDisplay.value} → ${endDisplay.value}?`)
+  ) return;
   loading.value = true;
   showLoading.value = true;
-  const res = await fetch('/api/admin/analytics/start', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      start_date: startDate.value,
-      end_date: endDate.value,
+  try {
+    const res = await axios.post('/api/admin/analytics/start', {
+      start_date: startIso.value,
+      end_date: endIso.value,
       sample: fastMode.value,
-    }),
-  });
-  const j = await res.json();
-  reportSummary.value = j;
-  loading.value = false;
-  if (
-    j.processing_mode === 'sync'
-    && (j.status === 'completed' || j.summary_json)
-  ) {
+    });
+    const j = res.data;
+    reportSummary.value = j;
+    loading.value = false;
+    if (
+      j.processing_mode === 'sync'
+      && (j.status === 'completed' || j.summary_json)
+    ) {
+      showLoading.value = false;
+      await loadReports();
+      return;
+    }
+    pollToken.value++;
+    pollReport(j.report_id, pollToken.value);
+  } catch (e) {
+    loading.value = false;
     showLoading.value = false;
-    await loadReports();
-    return;
+    alert(
+      `Failed to start analysis: ${e?.response?.data?.message || e.message}`,
+    );
   }
-  pollToken.value++;
-  pollReport(j.report_id, pollToken.value);
 };
 
 const pollReport = async (id, token) => {
@@ -534,6 +568,152 @@ const pollReport = async (id, token) => {
 
 onMounted(() => {
   loadReports();
+  // initialize flatpickr on the two inputs
+  try {
+    if (startFlat.value) {
+      flatpickr(startFlat.value, {
+        dateFormat: 'd/m/Y',
+        allowInput: true,
+        defaultDate: startIso.value || null,
+        onChange: (selectedDates) => {
+          const d = selectedDates[0] || null;
+          startDateObj.value = d;
+          if (d) {
+            startDisplay.value = formatDisplay(d);
+            startIso.value = toIso(d);
+          } else {
+            startDisplay.value = '';
+            startIso.value = null;
+          }
+          updatePreCount();
+        },
+      });
+    }
+    if (endFlat.value) {
+      flatpickr(endFlat.value, {
+        dateFormat: 'd/m/Y',
+        allowInput: true,
+        defaultDate: endIso.value || null,
+        onChange: (selectedDates) => {
+          const d = selectedDates[0] || null;
+          endDateObj.value = d;
+          if (d) {
+            endDisplay.value = formatDisplay(d);
+            endIso.value = toIso(d);
+          } else {
+            endDisplay.value = '';
+            endIso.value = null;
+          }
+          updatePreCount();
+        },
+      });
+    }
+  } catch (e) {
+    console.warn('flatpickr init failed', e);
+  }
+});
+
+// helpers: format Date -> dd/MM/yyyy and to ISO yyyy-mm-dd
+const formatDisplay = (d) => {
+  if (!d) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const yr = d.getFullYear();
+  return `${day}/${mo}/${yr}`;
+};
+
+const toIso = (d) => {
+  if (!d) return null;
+  const day = String(d.getDate()).padStart(2, '0');
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const yr = d.getFullYear();
+  return `${yr}-${mo}-${day}`;
+};
+
+// (native date inputs are used; handlers below manage display ↔ ISO sync)
+
+// parse dd/mm/yyyy -> yyyy-mm-dd or return null
+const parseDisplayToIso = (s) => {
+  if (!s) return null;
+  const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const d = m[1].padStart(2, '0');
+  const mo = m[2].padStart(2, '0');
+  const y = m[3];
+  // simple validation
+  const iso = `${y}-${mo}-${d}`;
+  const dt = new Date(iso);
+  if (isNaN(dt.getTime())) return null;
+  return iso;
+};
+
+const onStartDisplayInput = () => {
+  const iso = parseDisplayToIso(startDisplay.value);
+  startIso.value = iso;
+};
+
+const onEndDisplayInput = () => {
+  const iso = parseDisplayToIso(endDisplay.value);
+  endIso.value = iso;
+};
+
+const openStartPicker = () => {
+  const el = startDateInput.value;
+  if (!el) return;
+  // modern browsers support showPicker()
+  if (typeof el.showPicker === 'function') {
+    try {
+      el.showPicker();
+      return;
+    } catch (e) {
+      /* fallthrough */
+    }
+  }
+  // fallback: focus the input to trigger the native UI
+  try {
+    el.focus();
+  } catch (e) {
+    /* ignore */
+  }
+};
+
+const openEndPicker = () => {
+  const el = endDateInput.value;
+  if (!el) return;
+  if (typeof el.showPicker === 'function') {
+    try {
+      el.showPicker();
+      return;
+    } catch (e) {
+      /* fallthrough */
+    }
+  }
+  try {
+    el.focus();
+  } catch (e) {
+    /* ignore */
+  }
+};
+
+// convert Date object -> ISO (yyyy-mm-dd)
+const dateToIso = (d) => {
+  if (!d) return null;
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+};
+
+watch([startDateObj, endDateObj], () => {
+  startIso.value = dateToIso(startDateObj.value);
+  endIso.value = dateToIso(endDateObj.value);
+  startDisplay.value = startIso.value
+    ? `${startIso.value.split('-')[2]}/${startIso.value.split('-')[1]}/${startIso.value.split('-')[0]}`
+    : '';
+  endDisplay.value = endIso.value
+    ? `${endIso.value.split('-')[2]}/${endIso.value.split('-')[1]}/${endIso.value.split('-')[0]}`
+    : '';
+  updatePreCount();
 });
 
 const humanDate = (iso) => {

@@ -13,8 +13,8 @@ class ExampleDataSeeder extends Seeder
 {
     public function run(): void
     {
-        // Create 1,023 wajib_pajak in bulk
-        $totalWajib = 1023;
+        // Create 233 wajib_pajak in bulk
+        $totalWajib = 233;
         $batch = 200;
         $wajib = [];
         // detect available columns to avoid inserting missing columns
@@ -34,8 +34,8 @@ class ExampleDataSeeder extends Seeder
         }
         if (!empty($wajib)) WajibPajak::insert($wajib);
 
-        // Create 2,365 chat messages in bulk
-        $totalMessages = 2365;
+        // Create 548 chat messages in bulk
+        $totalMessages = 548;
         $batchMsg = 500;
         $messages = [];
         $chatColumns = Schema::getColumnListing('chat_messages');
@@ -78,6 +78,25 @@ class ExampleDataSeeder extends Seeder
         for ($i = 0; $i < $totalMessages; $i++) {
             $m = ChatMessage::factory()->make()->toArray();
             $m = Arr::only($m, $chatColumns);
+            // Ensure we only insert user-role messages. If the factory produced an
+            // assistant row, move that text into the `answer` column and convert
+            // the row into a user message. This aligns with the new schema where
+            // assistant replies are stored inline in `answer` on the user message.
+            $originalRole = $m['role'] ?? null;
+            $originalContent = $m['content'] ?? null;
+            // convert to user role
+            $m['role'] = 'user';
+            if ($originalRole === 'assistant') {
+                // preserve the assistant text into `answer` if not already present
+                if (empty($m['answer']) && !empty($originalContent)) {
+                    $m['answer'] = $originalContent;
+                }
+                // ensure content contains a user-like message; if factory didn't
+                // provide one, insert a short placeholder question (harmless seed data)
+                if (empty($m['content']) || $m['content'] === $originalContent) {
+                    $m['content'] = 'Permintaan contoh tentang layanan Samsat (isi contoh).';
+                }
+            }
             // assign a valid chat_id to avoid FK constraint errors
             if (empty($m['chat_id']) || !in_array($m['chat_id'], $chatIds)) {
                 $m['chat_id'] = $chatIds[array_rand($chatIds)];

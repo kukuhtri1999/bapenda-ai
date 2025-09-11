@@ -405,9 +405,7 @@ class OpenAIService
                 'syarat_pengurusan' => ['desc' => 'Syarat umum pengurusan dokumen pajak kendaraan.', 'kw' => ['syarat pengurusan', 'dokumen apa', 'berkas apa']],
                 'informasi_pembayaran_bank' => ['desc' => 'Pembayaran melalui bank/VA.', 'kw' => ['bank', 'virtual account', 'va', 'atm']],
                 'panduan_online' => ['desc' => 'Tanya panduan/tutorial online (bukan sekedar cara bayar).', 'kw' => ['panduan online', 'tutorial', 'cara menggunakan']],
-                'layanan_bantuan_rumah' => ['desc' => 'Layanan jemput bola / bantuan ke rumah.', 'kw' => ['jemput bola', 'datang ke rumah', 'layanan rumah']],
                 'permintaan_sosialisasi' => ['desc' => 'Permintaan materi sosialisasi / edukasi.', 'kw' => ['sosialisasi', 'edukasi', 'penyuluhan']],
-                'pertanyaan_umum' => ['desc' => 'Pertanyaan umum di luar kategori spesifik lain.', 'kw' => ['?']],
                 'tanya_pelayanan_pajak' => ['desc' => 'Pertanyaan tentang layanan pajak secara umum.', 'kw' => ['layanan pajak', 'pelayanan pajak']],
                 'lain_lain' => ['desc' => 'Hanya gunakan jika tidak cocok dengan kategori manapun.', 'kw' => []],
             ];

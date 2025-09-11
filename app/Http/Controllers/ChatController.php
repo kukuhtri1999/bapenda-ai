@@ -58,9 +58,16 @@ class ChatController extends Controller
             $query->orderBy('sent_at', 'asc');
         }]);
 
+        // Format messages for client: include virtual assistant messages
+        // created from the `answer` column on user messages so the frontend
+        // shows assistant replies even though we store them inline.
+        $formatted = $this->formatMessagesForClient($chat->messages);
+        $chatArray = $chat->toArray();
+        $chatArray['messages'] = $formatted;
+
         return response()->json([
             'success' => true,
-            'chat' => $chat,
+            'chat' => $chatArray,
         ]);
     }
 
@@ -94,7 +101,7 @@ class ChatController extends Controller
 
         $isContext = $request->boolean('is_context');
 
-        // Save user message (mark as context if it's PKB data)
+        // Save initial user message row (we'll update with AI answer + classifications)
         $userMessage = ChatMessage::create([
             'chat_id' => $chat->id,
             'role' => $isContext ? 'context' : 'user',
@@ -147,42 +154,70 @@ class ChatController extends Controller
             "Session ID: {$request->session_id}, Current time: " . now()->format('Y-m-d H:i:s')
         );
 
+        // Classify the user message quickly using classification endpoint (single-item)
+        $topic = null;
+        $sentiment = null;
+        $confidence = null;
+        $snippet = null;
+        try {
+            $labels = [];
+            foreach (config('analytics.categories', []) as $k) {
+                $labels[$k] = ucwords(str_replace('_', ' ', $k));
+            }
+            $cls = $this->openAIService->classifyChats([
+                ['chat_id' => (string)$userMessage->id, 'text' => $request->message]
+            ], $labels);
+            if (!empty($cls['data'][0])) {
+                $row = $cls['data'][0];
+                $topic = $row['category'] ?? null;
+                $sentiment = $row['sentiment'] ?? null;
+                $confidence = $row['confidence'] ?? null;
+                $snippet = $row['snippet'] ?? null;
+            }
+        } catch (\Throwable $e) {
+            // non-fatal; leave nulls
+        }
+
         if ($aiResponse['success']) {
-            // Save AI response
-            $assistantMessage = ChatMessage::create([
-                'chat_id' => $chat->id,
+            // Update existing user message with AI answer + topic/sentiment
+            $userMessage->answer = $aiResponse['message'];
+            $userMessage->topic = $topic;
+            $userMessage->sentiment = $sentiment;
+            $meta = $userMessage->metadata ?? [];
+            $meta['tokens_used'] = $aiResponse['usage'] ?? null;
+            $meta['model'] = config('services.openai.model');
+            if ($confidence !== null) $meta['classification_confidence'] = $confidence;
+            if ($snippet) $meta['classification_snippet'] = $snippet;
+            $userMessage->metadata = $meta;
+            $userMessage->save();
+
+            // Build assistant message payload for immediate UI display. We do not
+            // create a separate DB row for the assistant message in this flow
+            // because assistant replies are stored inline in the user's row
+            // (`answer`). Frontend expects `assistant_message` in the reply.
+            $assistantMessage = [
                 'role' => 'assistant',
                 'content' => $aiResponse['message'],
-                'sent_at' => now(),
-                'metadata' => [
-                    'tokens_used' => $aiResponse['usage'] ?? null,
-                    'model' => config('services.openai.model'),
-                ]
-            ]);
+                'sent_at' => now()->format('Y-m-d H:i:s'),
+            ];
 
             return response()->json([
                 'success' => true,
-                'user_message' => $userMessage,
+                'message' => $userMessage,
                 'assistant_message' => $assistantMessage,
                 'usage' => $aiResponse['usage'] ?? null,
             ]);
         } else {
-            // Save error response
-            $errorMessage = ChatMessage::create([
-                'chat_id' => $chat->id,
-                'role' => 'assistant',
-                'content' => $aiResponse['message'],
-                'sent_at' => now(),
-                'metadata' => [
-                    'error' => true,
-                    'error_details' => $aiResponse['error'] ?? null,
-                ]
-            ]);
+            // Update message with error details
+            $meta = $userMessage->metadata ?? [];
+            $meta['error'] = true;
+            $meta['error_details'] = $aiResponse['error'] ?? null;
+            $userMessage->metadata = $meta;
+            $userMessage->save();
 
             return response()->json([
                 'success' => false,
-                'user_message' => $userMessage,
-                'assistant_message' => $errorMessage,
+                'message' => $userMessage,
                 'error' => $aiResponse['error'] ?? 'Unknown error',
             ], 500);
         }
@@ -217,10 +252,53 @@ class ChatController extends Controller
             ], 404);
         }
 
+        // Format messages similarly to startChat so assistant answers saved
+        // in `answer` are shown as assistant message bubbles on the client.
+        $formatted = $this->formatMessagesForClient($chat->messages);
+        $chatArray = $chat->toArray();
+        $chatArray['messages'] = $formatted;
+
         return response()->json([
             'success' => true,
-            'chat' => $chat,
+            'chat' => $chatArray,
         ]);
+    }
+
+    /**
+     * Convert DB messages to a client-friendly array and inject virtual
+     * assistant messages for any user message that has an `answer`.
+     * This does not persist anything to the database.
+     *
+     * @param \Illuminate\Support\Collection|array $messages
+     * @return array
+     */
+    private function formatMessagesForClient($messages): array
+    {
+        $out = [];
+        foreach ($messages as $msg) {
+            // Normalize message to array
+            $m = $msg instanceof \Illuminate\Database\Eloquent\Model ? $msg->toArray() : (array) $msg;
+            $out[] = $m;
+
+            // If this is a user message with an inline answer, add a virtual
+            // assistant message immediately after so the UI can render it.
+            if ((isset($m['role']) && $m['role'] === 'user') && !empty($m['answer'])) {
+                $assistant = [
+                    'id' => 'assistant_' . ($m['id'] ?? uniqid()),
+                    'chat_id' => $m['chat_id'] ?? null,
+                    'role' => 'assistant',
+                    'content' => $m['answer'],
+                    'answer' => null,
+                    'topic' => null,
+                    'sentiment' => null,
+                    'metadata' => null,
+                    'sent_at' => isset($m['updated_at']) ? $m['updated_at'] : now()->format('Y-m-d H:i:s'),
+                    'created_at' => isset($m['updated_at']) ? $m['updated_at'] : now()->format('Y-m-d H:i:s'),
+                ];
+                $out[] = $assistant;
+            }
+        }
+        return $out;
     }
 
     /**
