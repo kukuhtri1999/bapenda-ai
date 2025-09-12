@@ -263,7 +263,7 @@
             </button>
           </div>
           <div class="p-4">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-1 gap-6">
               <div>
                 <h4 class="font-medium mb-2">Charts</h4>
                 <div v-if="modalReport.summary_json?.categories?.length">
@@ -278,43 +278,6 @@
                   No category data.
                 </div>
               </div>
-              <div>
-                <h4 class="font-medium mb-2">AI Analysis (Top strategies)</h4>
-                <div v-if="modalReport.summary_json?.top_topics_strategies">
-                  <div
-                    v-for="(s, key) in modalReport.summary_json
-                      .top_topics_strategies"
-                    :key="key"
-                    class="mb-4 border rounded p-3"
-                  >
-                    <div class="font-semibold">
-                      {{ s.label || s.topic_key }}
-                    </div>
-                    <div class="text-sm text-gray-500">
-                      Count: {{ s.count }}
-                    </div>
-                    <div class="mt-2 whitespace-pre-line text-sm">
-                      {{ s.detailed_strategy }}
-                    </div>
-                    <div class="mt-3">
-                      <div class="font-medium text-sm">
-                        Implementation Steps
-                      </div>
-                      <ul class="list-decimal pl-6 text-sm">
-                        <li
-                          v-for="(st, idx) in s.implementation_steps || []"
-                          :key="idx"
-                        >
-                          {{ st }}
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-                <div v-else class="text-sm text-gray-500">
-                  No top-topic strategies available.
-                </div>
-              </div>
             </div>
             <div class="mt-6">
               <h4 class="font-medium">Dokumen Insight (AI)</h4>
@@ -322,6 +285,41 @@
                 class="mt-2 whitespace-pre-line text-sm text-gray-800 bg-gray-50 p-3 rounded"
               >
                 {{ modalCombinedInsightText }}
+              </div>
+            </div>
+            <div>
+              <h4 class="font-medium mb-2 mt-8">
+                AI Analysis (Top strategies)
+              </h4>
+              <div v-if="modalReport.summary_json?.top_topics_strategies">
+                <div
+                  v-for="(s, key) in modalReport.summary_json
+                    .top_topics_strategies"
+                  :key="key"
+                  class="mb-4 border rounded p-3"
+                >
+                  <div class="font-semibold">
+                    {{ s.label || s.topic_key }}
+                  </div>
+                  <div class="text-sm text-gray-500">Count: {{ s.count }}</div>
+                  <div class="mt-2 whitespace-pre-line text-sm">
+                    {{ s.detailed_strategy }}
+                  </div>
+                  <div class="mt-3">
+                    <div class="font-medium text-sm">Implementation Steps</div>
+                    <ul class="list-decimal pl-6 text-sm">
+                      <li
+                        v-for="(st, idx) in s.implementation_steps || []"
+                        :key="idx"
+                      >
+                        {{ st }}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-sm text-gray-500">
+                No top-topic strategies available.
               </div>
             </div>
             <div
@@ -389,10 +387,7 @@
           <div class="text-lg font-medium">
             Analyzing taxpayer conversations… please wait.
           </div>
-          <div class="text-sm text-gray-500 mt-2">
-            This may take a while. You can close this modal and check reports
-            later.
-          </div>
+          <div class="text-sm text-gray-500 mt-2">This may take a while.</div>
         </div>
       </div>
     </div>

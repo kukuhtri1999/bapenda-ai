@@ -29,6 +29,12 @@ class OpenAIService
         $this->defaultTimeout = 30;
     }
 
+    private function getAnalyticsModel(): string
+    {
+        $m = config('services.openai.analytics_model');
+        return is_string($m) && strlen($m) > 0 ? $m : $this->model;
+    }
+
     /**
      * Retry wrapper for API calls with simple exponential backoff.
      * Accepts a callable that performs the API call and returns the response.
@@ -64,8 +70,7 @@ class OpenAIService
         try {
             $payload = "You are an analytics assistant. Given these conversation transcripts, return ONLY a JSON object (no surrounding text) with the following keys:\n- topics: array of {label: string, count: int}\n- sentiments: {positive:int, neutral:int, negative:int}\n- geo_counts: object mapping city->count (if city info unavailable return empty object)\n- common_issues: array of {text:string, count:int}\n- recommendations: array of strings\n\nTranscripts:\n" . implode("\n---\n", array_slice($transcripts, 0, 100));
 
-            // force use of GPT-5-mini for analytics as requested
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
 
             $call = function () use ($model, $payload) {
                 return $this->client->chat()->create([
@@ -104,7 +109,7 @@ class OpenAIService
     public function generateInsightSummary(string $aggText, array $categoryLabels = []): ?string
     {
         try {
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
 
             $labelsText = "Categories and labels:\n";
             foreach ($categoryLabels as $k => $lbl) {
@@ -146,7 +151,7 @@ class OpenAIService
     public function generateDetailedAnalysis(string $aggText, array $categoryLabels = [], ?array $derived = null): ?string
     {
         try {
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
 
             $labelsText = "Categories and labels:\n";
             foreach ($categoryLabels as $k => $lbl) {
@@ -190,7 +195,7 @@ class OpenAIService
     public function generateRecommendations(array $categoryCounts, array $commonIssues, array $sentiments, array $categoryLabels = []): ?array
     {
         try {
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
 
             $cats = [];
             foreach ($categoryCounts as $k => $v) {
@@ -279,7 +284,7 @@ class OpenAIService
     {
         try {
             if (empty($topTopics)) return null;
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
 
             $topicsBrief = [];
             foreach ($topTopics as $t) {
@@ -338,7 +343,7 @@ class OpenAIService
     public function generatePerTopicInsight(array $topic, string $aggText, array $categoryLabels = [], array $examples = []): ?string
     {
         try {
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
             $wordGoal = (int) config('analytics.per_topic_word_goal', 800);
 
             $topicBrief = json_encode([
@@ -412,7 +417,7 @@ class OpenAIService
     public function generateBasicInsightAndRecommendations(array $rows, array $stats = []): ?array
     {
         try {
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
 
             // Light clipping to avoid token explosion
             $maxRows = 150; // adjustable via env/config if needed
@@ -449,6 +454,7 @@ class OpenAIService
                     'model' => $model,
                     'messages' => $messages,
                     'max_completion_tokens' => 3000,
+                    'response_format' => ['type' => 'json_object'],
                 ]);
             };
             $response = $this->retryRequest($call);
@@ -474,6 +480,7 @@ class OpenAIService
                     ['role' => 'user', 'content' => $repair],
                 ],
                 'max_completion_tokens' => 2000,
+                'response_format' => ['type' => 'json_object'],
             ]);
             $txt2 = trim($resp2->choices[0]->message->content ?? '');
             $s2 = strpos($txt2, '{');
@@ -502,7 +509,7 @@ class OpenAIService
     public function generateSingleInsightDocument(array $rows, array $stats, array $topTopics): ?string
     {
         try {
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
 
             $maxRows = 150;
             if (count($rows) > $maxRows) $rows = array_slice($rows, 0, $maxRows);
@@ -573,7 +580,7 @@ class OpenAIService
     public function generateBulletListInsight(array $rows, ?string $customMainPrompt = null): ?string
     {
         try {
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
 
             // Cap to avoid token overflow
             $maxRows = 300;
@@ -628,7 +635,7 @@ class OpenAIService
     public function generateOneShotAnalytics(array $rows, array $stats = [], array $categoryLabels = []): ?array
     {
         try {
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
 
             // Clip and normalize rows
             $maxRows = 220;
@@ -664,7 +671,8 @@ class OpenAIService
                 return $this->client->chat()->create([
                     'model' => $model,
                     'messages' => $messages,
-                    'max_completion_tokens' => 3200,
+                    'max_completion_tokens' => 2600,
+                    'response_format' => ['type' => 'json_object'],
                     'response_format' => ['type' => 'json_object'],
                 ]);
             };
@@ -818,7 +826,7 @@ class OpenAIService
     {
         try {
             if (empty($topTopics)) return null;
-            $model = 'gpt-5-mini';
+            $model = $this->getAnalyticsModel();
 
             $topicsBrief = [];
             foreach ($topTopics as $t) {
