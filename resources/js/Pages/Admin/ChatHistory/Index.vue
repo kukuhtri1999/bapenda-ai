@@ -4,19 +4,40 @@
       <div class="flex flex-wrap items-end gap-3 mb-4">
         <div>
           <label class="block text-xs text-gray-600">Search</label>
-          <input v-model="q" @input="debouncedFetch()" placeholder="Cari pertanyaan..." class="px-3 py-2 border rounded w-64" />
+          <input
+            v-model="q"
+            @input="debouncedFetch()"
+            placeholder="Cari pertanyaan..."
+            class="px-3 py-2 border rounded w-64"
+          />
         </div>
         <div>
           <label class="block text-xs text-gray-600">Start date</label>
-          <input ref="startFlat" type="text" v-model="startDisplay" placeholder="dd/mm/yyyy" class="px-3 py-2 border rounded w-40" />
+          <input
+            ref="startFlat"
+            type="text"
+            v-model="startDisplay"
+            placeholder="dd/mm/yyyy"
+            class="px-3 py-2 border rounded w-40"
+          />
         </div>
         <div>
           <label class="block text-xs text-gray-600">End date</label>
-          <input ref="endFlat" type="text" v-model="endDisplay" placeholder="dd/mm/yyyy" class="px-3 py-2 border rounded w-40" />
+          <input
+            ref="endFlat"
+            type="text"
+            v-model="endDisplay"
+            placeholder="dd/mm/yyyy"
+            class="px-3 py-2 border rounded w-40"
+          />
         </div>
         <div>
           <label class="block text-xs text-gray-600">Sentiment</label>
-          <select v-model="sentiment" @change="fetchRows()" class="px-3 py-2 border rounded w-40">
+          <select
+            v-model="sentiment"
+            @change="fetchRows()"
+            class="px-3 py-2 border rounded w-40"
+          >
             <option value="">All</option>
             <option value="positive">Positive</option>
             <option value="neutral">Neutral</option>
@@ -25,19 +46,31 @@
         </div>
         <div>
           <label class="block text-xs text-gray-600">Topic</label>
-          <select v-model="topic" @change="fetchRows()" class="px-3 py-2 border rounded w-56">
+          <select
+            v-model="topic"
+            @change="fetchRows()"
+            class="px-3 py-2 border rounded w-56"
+          >
             <option value="">All topics</option>
             <option v-for="t in topics" :key="t" :value="t">{{ t }}</option>
           </select>
         </div>
         <div>
           <label class="block text-xs text-gray-600">Per page</label>
-          <select v-model.number="perPage" @change="fetchRows()" class="px-3 py-2 border rounded w-28">
-            <option v-for="n in perPageOptions" :key="n" :value="n">{{ n }}</option>
+          <select
+            v-model.number="perPage"
+            @change="fetchRows()"
+            class="px-3 py-2 border rounded w-28"
+          >
+            <option v-for="n in perPageOptions" :key="n" :value="n">
+              {{ n }}
+            </option>
           </select>
         </div>
         <div class="ml-auto">
-          <button @click="clearFilters" class="px-3 py-2 border rounded">Clear</button>
+          <button @click="clearFilters" class="px-3 py-2 border rounded">
+            Clear
+          </button>
         </div>
       </div>
 
@@ -66,10 +99,24 @@
           </tbody>
         </table>
         <div class="p-3 flex items-center justify-between">
-          <div class="text-xs text-gray-600">Page {{ page }} of {{ lastPage }} — {{ total }} total</div>
+          <div class="text-xs text-gray-600">
+            Page {{ page }} of {{ lastPage }} — {{ total }} total
+          </div>
           <div class="flex gap-2">
-            <button class="px-3 py-1 border rounded" :disabled="page <= 1 || loading" @click="go(page - 1)">Prev</button>
-            <button class="px-3 py-1 border rounded" :disabled="page >= lastPage || loading" @click="go(page + 1)">Next</button>
+            <button
+              class="px-3 py-1 border rounded"
+              :disabled="page <= 1 || loading"
+              @click="go(page - 1)"
+            >
+              Prev
+            </button>
+            <button
+              class="px-3 py-1 border rounded"
+              :disabled="page >= lastPage || loading"
+              @click="go(page + 1)"
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
@@ -105,7 +152,20 @@ const endFlat = ref(null);
 const formatDateTime = (iso) => {
   if (!iso) return '-';
   const d = new Date(iso);
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
   const dd = String(d.getDate()).padStart(2, '0');
   const mo = months[d.getMonth()] || '';
   const yyyy = d.getFullYear();
@@ -177,9 +237,12 @@ onMounted(async () => {
         onChange: (dates) => {
           const d = dates[0];
           if (d) {
-            startDisplay.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}/${d.getFullYear()}`;
-            startIso.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          } else { startDisplay.value = ''; startIso.value = ''; }
+            startDisplay.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+            startIso.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          } else {
+            startDisplay.value = '';
+            startIso.value = '';
+          }
           fetchRows();
         },
       });
@@ -191,9 +254,12 @@ onMounted(async () => {
         onChange: (dates) => {
           const d = dates[0];
           if (d) {
-            endDisplay.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}/${d.getFullYear()}`;
-            endIso.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          } else { endDisplay.value = ''; endIso.value = ''; }
+            endDisplay.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+            endIso.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          } else {
+            endDisplay.value = '';
+            endIso.value = '';
+          }
           fetchRows();
         },
       });
@@ -206,5 +272,8 @@ onMounted(async () => {
 
 <style scoped>
 /* Simple, clean table UI */
-th, td { vertical-align: top; }
+th,
+td {
+  vertical-align: top;
+}
 </style>
