@@ -204,14 +204,10 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   <VSelect
                     v-model="categoryFilter"
                     :items="[
-                      {
-                        title: 'All Categories',
-                        value: '',
-                      },
-                      ...Object.entries(categories).map(([key, value]) => ({
-                        title: value,
-                        value: key,
-                      })),
+                      { title: 'All Categories', value: '' },
+                      ...Object.entries(categories || {}).map(
+                        ([key, value]) => ({ title: value, value: key }),
+                      ),
                     ]"
                     label="Category"
                     variant="outlined"
@@ -223,7 +219,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                     v-model="typeFilter"
                     :items="[
                       { title: 'All Types', value: '' },
-                      ...Object.entries(types).map(([key, value]) => ({
+                      ...Object.entries(types || {}).map(([key, value]) => ({
                         title: value,
                         value: key,
                       })),
@@ -247,7 +243,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                     v-model="statusFilter"
                     :items="[
                       { title: 'All Status', value: '' },
-                      ...Object.entries(statuses).map(([key, value]) => ({
+                      ...Object.entries(statuses || {}).map(([key, value]) => ({
                         title: value,
                         value: key,
                       })),

@@ -65,6 +65,7 @@ class KnowledgeBaseController extends Controller
         return Inertia::render('KnowledgeBase/Create', [
             'categories' => KnowledgeBase::getCategories(),
             'types' => KnowledgeBase::getTypes(),
+            'statuses' => KnowledgeBase::getStatuses(),
         ]);
     }
 
@@ -99,6 +100,14 @@ class KnowledgeBaseController extends Controller
         }
 
         $data = $validator->validated();
+        // Ensure DB columns from older migration are filled: question/answer
+        // some migrations use question/answer, newer ones use title/content.
+        $data['question'] = $data['title'] ?? ($data['question'] ?? null);
+        $data['answer'] = $data['content'] ?? ($data['answer'] ?? null);
+        // Normalize tags: controller accepts string or array; store as JSON string if array
+        if (isset($data['tags']) && is_array($data['tags'])) {
+            $data['tags'] = json_encode($data['tags']);
+        }
         $data['created_by'] = Auth::id();
         $data['updated_by'] = Auth::id();
 
@@ -120,7 +129,7 @@ class KnowledgeBaseController extends Controller
         }
 
         // Set published_at if status is published and no date specified
-        if ($data['status'] === 'published' && !$data['published_at']) {
+        if ($data['status'] === 'published' && (empty($data['published_at']))) {
             $data['published_at'] = now();
         }
 
@@ -187,10 +196,15 @@ class KnowledgeBaseController extends Controller
         }
 
         $data = $validator->validated();
+        $data['question'] = $data['title'] ?? ($data['question'] ?? null);
+        $data['answer'] = $data['content'] ?? ($data['answer'] ?? null);
+        if (isset($data['tags']) && is_array($data['tags'])) {
+            $data['tags'] = json_encode($data['tags']);
+        }
         $data['updated_by'] = Auth::id();
 
         // Set published_at if status changed to published and no date specified
-        if ($data['status'] === 'published' && $knowledgeBase->status !== 'published' && !$data['published_at']) {
+        if ($data['status'] === 'published' && $knowledgeBase->status !== 'published' && (empty($data['published_at']))) {
             $data['published_at'] = now();
         }
 

@@ -22,8 +22,8 @@ class WajibPajak extends Model
 
     protected $dates = ['deleted_at'];
 
-    public function dataPkb(): HasMany
-    {
-        return $this->hasMany(DataPkb::class, 'id_wajib_pajak');
-    }
+    // public function dataPkb(): HasMany
+    // {
+    //     return $this->hasMany(DataPkb::class, 'id_wajib_pajak');
+    // }
 }
