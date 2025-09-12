@@ -20,12 +20,19 @@ Route::prefix('chat')->group(function () {
 
 // Admin analytics
 use App\Http\Controllers\Admin\AnalyticsController;
+use App\Http\Controllers\Admin\ChatHistoryController;
 
 Route::prefix('admin/analytics')->group(function () {
     Route::get('/count', [AnalyticsController::class, 'count']);
     Route::post('/start', [AnalyticsController::class, 'start']);
     Route::get('/reports', [AnalyticsController::class, 'index']);
     Route::get('/reports/{id}', [AnalyticsController::class, 'show']);
+});
+
+// Admin chat history APIs
+Route::prefix('admin/chat-history')->group(function () {
+    Route::get('/meta', [ChatHistoryController::class, 'meta']);
+    Route::get('/list', [ChatHistoryController::class, 'index']);
 });
 
 // Public App Settings API Routes

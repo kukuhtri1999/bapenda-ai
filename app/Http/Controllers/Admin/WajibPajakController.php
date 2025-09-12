@@ -25,6 +25,11 @@ class WajibPajakController extends Controller
 
     $data = $query->orderByDesc('created_at')->paginate($perPage)->appends($request->query());
 
+    // If AJAX or expects JSON, return lightweight JSON paginator for live search
+    if ($request->ajax() || $request->wantsJson()) {
+      return response()->json($data);
+    }
+
     return inertia('WajibPajak/Index', [
       'wajibPajak' => $data
     ]);

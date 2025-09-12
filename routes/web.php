@@ -59,6 +59,9 @@ Route::middleware([
     // Admin Wajib Pajak listing
     Route::get('/admin/wajib-pajak', [App\Http\Controllers\Admin\WajibPajakController::class, 'index'])->name('admin.wajib-pajak.index');
 
+    // AI Chat History page
+    Route::get('/admin/chat-history', [App\Http\Controllers\Admin\ChatHistoryController::class, 'indexPage'])->name('admin.chat-history.index');
+
     // Admin Chat Import (XLSX) routes
     Route::get('/admin/chat-import', function () {
         return Inertia::render('Admin/ChatImport/Index');
