@@ -107,113 +107,13 @@
           <h4 class="font-medium">Dokumen Insight (AI)</h4>
 
           <div
-            class="mt-3 whitespace-pre-line text-sm text-gray-900 bg-white border rounded p-3 leading-7"
+            class="mt-3 text-sm text-gray-900 bg-white border rounded p-3 leading-7 space-y-3"
           >
-            {{ combinedInsightText }}
+            <p v-for="(p, i) in paragraphize(combinedInsightText)" :key="i">
+              {{ p }}
+            </p>
           </div>
         </div>
-
-        <!-- <div v-if="reportSummary.summary_json?.detailed_analysis" class="mt-8">
-          <h4 class="font-semibold text-lg">Analisis Terperinci (AI)</h4>
-          <p class="text-sm text-gray-500">
-            ~1000 kata tentang hasil analitik, strategi, dan rekomendasi aksi.
-          </p>
-          <div
-            class="mt-3 whitespace-pre-line text-gray-900 bg-white border rounded p-4 leading-7"
-          >
-            {{ reportSummary.summary_json.detailed_analysis }}
-          </div>
-        </div>
-
-        <div v-if="perTopicInsightsLimited.length" class="mt-8">
-          <h4 class="font-semibold text-lg">Insight Per Topik (AI)</h4>
-          <div class="mt-3 space-y-6">
-            <div
-              v-for="(p, idx) in perTopicInsightsLimited"
-              :key="p.topic_key || p.label || idx"
-              class="bg-white border rounded p-4"
-            >
-              <div class="flex items-start justify-between">
-                <div>
-                  <div class="font-semibold">
-                    {{ p.label || p.topic_key || `Topik ${idx + 1}` }}
-                  </div>
-                  <div v-if="p.count" class="text-xs text-gray-500">
-                    Count: {{ p.count }}
-                  </div>
-                </div>
-              </div>
-              <div class="mt-3 whitespace-pre-line leading-7 text-gray-900">
-                {{ p.long_insight || p.insight || p.text }}
-              </div>
-            </div>
-          </div>
-        </div> -->
-
-        <!-- <div class="mt-4">
-          <h4 class="font-medium mb-2">Chats per Category</h4>
-          <div
-            v-if="
-              reportSummary?.summary_json?.categories &&
-              reportSummary.summary_json.categories.length
-            "
-            class="mb-4"
-          >
-            <ApexChart
-              type="bar"
-              height="360"
-              :options="categoryChartOptions"
-              :series="categorySeries"
-            />
-          </div>
-          <div v-else class="text-sm text-gray-500 mb-4">No category data.</div>
-        </div>
-
-        <div class="mt-4">
-          <h4 class="font-medium">Recommendations</h4>
-          <ul class="list-disc pl-6 mt-2">
-            <li
-              v-for="rec in reportSummary.summary_json?.recommendations || []"
-              :key="rec"
-              class="text-sm"
-            >
-              {{ rec }}
-            </li>
-          </ul>
-        </div>
-
-        <div
-          v-if="
-            reportSummary.summary_json?.per_chat &&
-            reportSummary.summary_json.per_chat.length
-          "
-          class="mt-4"
-        >
-          <h4 class="font-medium">Sample per-chat classification</h4>
-          <div class="overflow-auto mt-2">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="text-left text-gray-600">
-                  <th class="pr-4">Chat ID</th>
-                  <th class="pr-4">Category</th>
-                  <th class="pr-4">Confidence</th>
-                  <th>Sentiment</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="c in reportSummary.summary_json.per_chat.slice(0, 20)"
-                  :key="c.chat_id"
-                >
-                  <td class="pr-4">{{ c.chat_id }}</td>
-                  <td class="pr-4">{{ c.category }}</td>
-                  <td class="pr-4">{{ (c.confidence || 0).toFixed(2) }}</td>
-                  <td>{{ c.sentiment }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div> -->
       </div>
 
       <div class="mt-6">
@@ -280,11 +180,16 @@
               </div>
             </div>
             <div class="mt-6">
-              <h4 class="font-medium">Dokumen Insight (AI)</h4>
+              <h4 class="font-medium">Overview AI Insight</h4>
               <div
-                class="mt-2 whitespace-pre-line text-sm text-gray-800 bg-gray-50 p-3 rounded"
+                class="mt-2 text-sm text-gray-800 bg-gray-50 p-3 rounded space-y-3"
               >
-                {{ modalCombinedInsightText }}
+                <p
+                  v-for="(p, i) in paragraphize(modalCombinedInsightText)"
+                  :key="i"
+                >
+                  {{ p }}
+                </p>
               </div>
             </div>
             <div>
@@ -302,19 +207,71 @@
                     {{ s.label || s.topic_key }}
                   </div>
                   <div class="text-sm text-gray-500">Count: {{ s.count }}</div>
-                  <div class="mt-2 whitespace-pre-line text-sm">
-                    {{ s.detailed_strategy }}
+                  <div class="mt-2 text-sm space-y-2">
+                    <p
+                      v-for="(p, i) in paragraphize(s.detailed_strategy)"
+                      :key="i"
+                    >
+                      {{ p }}
+                    </p>
                   </div>
                   <div class="mt-3">
                     <div class="font-medium text-sm">Implementation Steps</div>
-                    <ul class="list-decimal pl-6 text-sm">
-                      <li
-                        v-for="(st, idx) in s.implementation_steps || []"
+                    <div
+                      v-if="
+                        Array.isArray(s.implementation_steps) &&
+                        s.implementation_steps.length
+                      "
+                      class="space-y-3 mt-2"
+                    >
+                      <div
+                        v-for="(st, idx) in s.implementation_steps"
                         :key="idx"
+                        class="text-sm border rounded p-3 bg-gray-50"
                       >
-                        {{ st }}
-                      </li>
-                    </ul>
+                        <template v-if="typeof st === 'string'">
+                          <div class="font-medium">Step {{ idx + 1 }}</div>
+                          <div class="mt-1 whitespace-pre-line">{{ st }}</div>
+                        </template>
+                        <template v-else>
+                          <div class="flex items-start justify-between">
+                            <div class="font-medium">
+                              {{ st.title || `Step ${idx + 1}` }}
+                            </div>
+                            <div
+                              class="text-xs text-gray-500"
+                              v-if="st.estimated_time || st.effort"
+                            >
+                              <span v-if="st.estimated_time">{{
+                                st.estimated_time
+                              }}</span>
+                              <span v-if="st.estimated_time && st.effort">
+                                •
+                              </span>
+                              <span v-if="st.effort"
+                                >Effort: {{ st.effort }}</span
+                              >
+                            </div>
+                          </div>
+                          <div class="mt-1 whitespace-pre-line">
+                            {{ st.description || '' }}
+                          </div>
+                          <div
+                            v-if="st.example"
+                            class="mt-2 text-xs text-gray-600"
+                          >
+                            <div class="uppercase tracking-wide">Example</div>
+                            <pre
+                              class="mt-1 whitespace-pre-wrap bg-white border rounded p-2"
+                              >{{ st.example }}</pre
+                            >
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                    <div v-else class="text-sm text-gray-500 mt-1">
+                      No steps provided.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -843,6 +800,32 @@ const modalCombinedInsightText = computed(() => {
   if (summary && typeof summary === 'string' && summary.trim().length > 0) return summary;
   return 'Menunggu hasil analisis AI…';
 });
+
+// Split long AI text into readable paragraphs. Prefer double newlines; fallback to sentence chunks.
+const paragraphize = (text) => {
+  if (!text || typeof text !== 'string') return [];
+  const t = text.trim();
+  if (!t) return [];
+  // If the text already has blank lines, split on them
+  const byDoubleNewline = t.split(/\n\s*\n+/);
+  const nonEmpty = byDoubleNewline
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (nonEmpty.length > 1) return nonEmpty;
+  // Otherwise chunk by sentences (~3-4 sentences per paragraph)
+  const sentences = t.split(/(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Þ0-9])/u);
+  const out = [];
+  let buf = [];
+  sentences.forEach((s) => {
+    buf.push(s);
+    if (buf.join(' ').length > 400 || buf.length >= 4) {
+      out.push(buf.join(' '));
+      buf = [];
+    }
+  });
+  if (buf.length) out.push(buf.join(' '));
+  return out;
+};
 </script>
 
 <style scoped>

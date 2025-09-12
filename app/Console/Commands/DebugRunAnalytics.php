@@ -9,19 +9,26 @@ use Carbon\Carbon;
 
 class DebugRunAnalytics extends Command
 {
-  protected $signature = 'debug:run-analytics {--sample}';
+  protected $signature = 'debug:run-analytics {--sample} {--start=} {--end=}';
   protected $description = 'Run RunChatAnalytics job synchronously for quick smoke test';
 
   public function handle()
   {
-    $start = Carbon::now()->subDay()->startOfDay();
-    $end = Carbon::now()->endOfDay();
+    $startOpt = $this->option('start');
+    $endOpt = $this->option('end');
+    if ($startOpt && $endOpt) {
+      $start = Carbon::parse($startOpt)->startOfDay();
+      $end = Carbon::parse($endOpt)->endOfDay();
+    } else {
+      $start = Carbon::now()->subDay()->startOfDay();
+      $end = Carbon::now()->endOfDay();
+    }
 
     $report = AnalysisReport::create([
       'start_date' => $start->toDateString(),
       'end_date' => $end->toDateString(),
       'status' => 'pending',
-      'notes' => ['debug' => true],
+      'notes' => ['debug' => true, 'sample' => (bool)$this->option('sample')],
     ]);
 
     $this->info('Created report id=' . $report->id);

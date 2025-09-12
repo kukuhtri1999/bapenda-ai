@@ -365,8 +365,62 @@ class RunChatAnalytics implements ShouldQueue
             }
             try {
                 $strategies = $ai->generateTopTopicStrategies($topTopics, $aggText, $categoryLabels);
-                if (is_array($strategies)) {
+                if (is_array($strategies) && count($strategies)) {
                     $summary['top_topics_strategies'] = $strategies;
+                    try {
+                        \Illuminate\Support\Facades\Log::info('Top strategies generated', ['report_id' => $this->report->id, 'topics' => array_keys($strategies), 'count' => count($strategies)]);
+                    } catch (\Throwable $t) {
+                    }
+                } else {
+                    // Fallback: synthesize from recommendations_detailed (if present)
+                    $fallback = [];
+                    if (!empty($summary['recommendations_detailed']) && is_array($summary['recommendations_detailed'])) {
+                        foreach ($topTopics as $t) {
+                            $key = $t['key'] ?? ($t['label'] ?? '');
+                            $label = $t['label'] ?? $key;
+                            // find matching rec detail by label/category
+                            $match = null;
+                            foreach ($summary['recommendations_detailed'] as $rd) {
+                                $rdLabel = $rd['label'] ?? ($rd['category'] ?? '');
+                                if (mb_strtolower($rdLabel) === mb_strtolower($label) || mb_strtolower($rdLabel) === mb_strtolower($key)) {
+                                    $match = $rd;
+                                    break;
+                                }
+                            }
+                            $implSteps = [];
+                            if ($match && !empty($match['actions']) && is_array($match['actions'])) {
+                                foreach ($match['actions'] as $act) {
+                                    $implSteps[] = [
+                                        'title' => is_string($act) ? mb_substr($act, 0, 80) : 'Langkah',
+                                        'description' => is_string($act) ? $act : 'Lakukan aksi sesuai rekomendasi.',
+                                        'example' => null,
+                                        'estimated_time' => '1-2 minggu',
+                                        'effort' => 'medium',
+                                    ];
+                                }
+                            }
+                            $fallback[$key] = [
+                                'topic_key' => $key,
+                                'label' => $label,
+                                'count' => (int)($t['count'] ?? 0),
+                                'short_summary' => $match['rationale'] ?? 'Prioritas berdasarkan frekuensi dan kebutuhan layanan.',
+                                'detailed_strategy' => ($match['rationale'] ?? 'Strategi perbaikan operasional dan komunikasi berdasarkan temuan.') . "\n\nCatatan: strategi ini disintesis dari rekomendasi yang tersedia.",
+                                'implementation_steps' => array_slice($implSteps, 0, 8),
+                                'suggested_owners' => [],
+                                'timeline' => '0-3 bulan',
+                                'kpis' => [],
+                                'estimated_cost' => 'minimal',
+                                'dependencies' => [],
+                            ];
+                        }
+                    }
+                    if (count($fallback)) {
+                        $summary['top_topics_strategies'] = $fallback;
+                        try {
+                            \Illuminate\Support\Facades\Log::info('Synthesized strategies from recommendations_detailed', ['report_id' => $this->report->id, 'count' => count($fallback)]);
+                        } catch (\Throwable $t) {
+                        }
+                    }
                 }
             } catch (\Throwable $e) {
                 $notes = is_array($notes) ? $notes : [];

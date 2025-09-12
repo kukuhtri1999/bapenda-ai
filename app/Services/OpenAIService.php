@@ -291,8 +291,8 @@ class OpenAIService
                 $topicsBrief[] = ['key' => ($t['key'] ?? $t['name'] ?? ''), 'label' => ($t['label'] ?? ''), 'count' => (int)($t['count'] ?? 0)];
             }
 
-            $wordGoal = (int) config('analytics.strategy_word_goal', 800);
-            $instruction = "Kembalikan HANYA JSON valid (tidak ada teks tambahan). Kita akan memberikan TOP " . count($topicsBrief) . " topik (maksimum 3). Untuk keseluruhan topik tersebut, buat STRATEGI TERPERINCI dalam Bahasa Indonesia dengan total kira-kira ~" . $wordGoal . " kata (bagi merata ke topik).\n\nOutput harus mengikuti struktur JSON: { \"strategies\": [ {\n  \"topic_key\": string,\n  \"label\": string,\n  \"count\": number,\n  \"short_summary\": string (2-3 kalimat),\n  \"detailed_strategy\": string panjang (sekitar 600-900 kata per topik) menjelaskan masalah, tujuan, pendekatan teknis & operasional, dan strategi peningkatan awareness digital,\n  \"implementation_steps\": [string] (urut, actionable, sertakan setidaknya 8 langkah teknis & operasional, masing-masing 40-160 karakter),\n  \"suggested_owners\": [string],\n  \"timeline\": string (mis. \"0-3 months\", \"3-12 months\"),\n  \"kpis\": [string],\n  \"estimated_cost\": string pendek,\n  \"dependencies\": [string]\n} ] }\n\nUntuk setiap langkah implementasi sertakan detail teknis nyata bila memungkinkan (mis. \"integrasi VA bank X, endpoint /payments/va, webhook pada /api/va/callback, job nightly sync\"). Fokus juga pada ROADMAP ACTION PLAN: prioritas jangka pendek (0-3 bulan), menengah (3-12 bulan), serta rencana komunikasi untuk meningkatkan awareness (channel, materi, kampanye). Jangan menambahkan angka inventif. Gunakan AGGREGATES yang diberikan sebagai konteks. Hanya JSON.\n";
+            $wordGoal = (int) config('analytics.strategy_word_goal', 950);
+            $instruction = "Kembalikan HANYA JSON valid (tanpa teks tambahan). Anda akan menerima hingga TOP " . count($topicsBrief) . " topik (maks. 3). Untuk setiap topik, buat ANALISIS STRATEGIS MENDALAM dalam Bahasa Indonesia. Fokus pada langkah yang dapat dieksekusi oleh instansi publik (Bapenda/Samsat) dan jelaskan teknisnya.\n\nStruktur JSON WAJIB persis:\n{ \"strategies\": [ {\n  \"topic_key\": string,\n  \"label\": string,\n  \"count\": number,\n  \"short_summary\": string (2-3 kalimat yang sangat ringkas),\n  \"detailed_strategy\": string (~" . $wordGoal . " kata, ±10%) yang menjelaskan: latar masalah, tujuan/indikator keberhasilan, rancangan solusi digital & operasional (alur sistem, integrasi, SOP, SDM), rencana komunikasi/edukasi (online & offline), risiko & mitigasi, serta tata kelola (governance/ownership). Tulis dalam paragraf-paragraf pendek 3-6 kalimat per paragraf agar mudah dibaca manusia.\n  \"implementation_steps\": [ {\n    \"title\": string (aksi konkrit, imperative),\n    \"description\": string (60-120 kata, paparkan detail teknis: API/endpoint, DB/log, otomasi job, SOP front-office, materi sosialisasi),\n    \"example\": string (contoh nyata yang relevan; bisa sebut format dokumen, pesan notifikasi, atau contoh konten),\n    \"estimated_time\": string (mis. '1-2 minggu', '2-4 minggu', '1-2 bulan'),\n    \"effort\": \"low\"|\"medium\"|\"high\"\n  } ],\n  \"suggested_owners\": [string],\n  \"timeline\": string (mis. \"0-3 bulan\", \"3-12 bulan\"),\n  \"kpis\": [string],\n  \"estimated_cost\": string pendek,\n  \"dependencies\": [string]\n} ] }\n\nKetentuan penting:\n- Untuk setiap topik, buat MINIMAL 12 langkah pada implementation_steps, usahakan 12–16 langkah jika relevan.\n- Gunakan konteks AGGREGATES untuk rasional & prioritas.\n- Hindari angka fiktif; gunakan rentang waktu umum.\n- Balas HANYA JSON.\n";
 
             $payload = [
                 'top_topics' => $topicsBrief,
@@ -308,7 +308,8 @@ class OpenAIService
                 return $this->client->chat()->create([
                     'model' => $model,
                     'messages' => $messages,
-                    'max_completion_tokens' => 2600,
+                    'max_completion_tokens' => 5200,
+                    'response_format' => ['type' => 'json_object'],
                 ]);
             };
 
@@ -327,6 +328,33 @@ class OpenAIService
                     }
                     return $out;
                 }
+            }
+            // Repair: ask to resend valid JSON only
+            try {
+                $resp2 = $this->client->chat()->create([
+                    'model' => $model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'Output JSON only.'],
+                        ['role' => 'user', 'content' => 'Ulangi dan balas HANYA JSON valid sesuai skema strategi yang diminta.'],
+                    ],
+                    'max_completion_tokens' => 3600,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
+                $txt2 = trim($resp2->choices[0]->message->content ?? '');
+                $s2 = strpos($txt2, '{');
+                $e2 = strrpos($txt2, '}');
+                if ($s2 !== false && $e2 !== false && $e2 > $s2) {
+                    $maybe2 = substr($txt2, $s2, $e2 - $s2 + 1);
+                    $json2 = json_decode($maybe2, true);
+                    if (is_array($json2) && isset($json2['strategies'])) {
+                        $out = [];
+                        foreach ($json2['strategies'] as $s) {
+                            if (isset($s['topic_key'])) $out[$s['topic_key']] = $s;
+                        }
+                        return $out;
+                    }
+                }
+            } catch (\Throwable $t) {
             }
             return null;
         } catch (Exception $e) {
@@ -672,7 +700,6 @@ class OpenAIService
                     'model' => $model,
                     'messages' => $messages,
                     'max_completion_tokens' => 2600,
-                    'response_format' => ['type' => 'json_object'],
                     'response_format' => ['type' => 'json_object'],
                 ]);
             };
