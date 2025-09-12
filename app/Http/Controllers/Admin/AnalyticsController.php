@@ -17,7 +17,15 @@ class AnalyticsController extends Controller
     }
     public function index()
     {
-        return AnalysisReport::orderByDesc('created_at')->take(20)->get();
+        $perPage = (int) request('per_page', 5);
+        if ($perPage < 1) $perPage = 5;
+        if ($perPage > 50) $perPage = 50;
+
+        // Lightweight select to avoid large JSON fields for the list view
+        $query = AnalysisReport::select('id', 'start_date', 'end_date', 'chat_count', 'status', 'created_at')
+            ->orderByDesc('created_at');
+
+        return $query->paginate($perPage);
     }
 
     public function show($id)

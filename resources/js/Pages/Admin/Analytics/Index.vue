@@ -114,6 +114,82 @@
             </p>
           </div>
         </div>
+
+        <div class="mt-8">
+          <h4 class="font-medium mb-2">AI Analysis (Top strategies)</h4>
+          <div v-if="reportSummary.summary_json?.top_topics_strategies">
+            <div
+              v-for="(s, key) in reportSummary.summary_json
+                .top_topics_strategies"
+              :key="key"
+              class="mb-4 border rounded p-3"
+            >
+              <div class="font-semibold">{{ s.label || s.topic_key }}</div>
+              <div class="text-sm text-gray-500" v-if="s.count">
+                Count: {{ s.count }}
+              </div>
+              <div class="mt-2 text-sm space-y-2">
+                <p v-for="(p, i) in paragraphize(s.detailed_strategy)" :key="i">
+                  {{ p }}
+                </p>
+              </div>
+              <div class="mt-3">
+                <div class="font-medium text-sm">Implementation Steps</div>
+                <div
+                  v-if="
+                    Array.isArray(s.implementation_steps) &&
+                    s.implementation_steps.length
+                  "
+                  class="space-y-3 mt-2"
+                >
+                  <div
+                    v-for="(st, idx) in s.implementation_steps"
+                    :key="idx"
+                    class="text-sm border rounded p-3 bg-gray-50"
+                  >
+                    <template v-if="typeof st === 'string'">
+                      <div class="font-medium">Step {{ idx + 1 }}</div>
+                      <div class="mt-1 whitespace-pre-line">{{ st }}</div>
+                    </template>
+                    <template v-else>
+                      <div class="flex items-start justify-between">
+                        <div class="font-medium">
+                          {{ st.title || `Step ${idx + 1}` }}
+                        </div>
+                        <div
+                          class="text-xs text-gray-500"
+                          v-if="st.estimated_time || st.effort"
+                        >
+                          <span v-if="st.estimated_time">{{
+                            st.estimated_time
+                          }}</span>
+                          <span v-if="st.estimated_time && st.effort"> • </span>
+                          <span v-if="st.effort">Effort: {{ st.effort }}</span>
+                        </div>
+                      </div>
+                      <div class="mt-1 whitespace-pre-line">
+                        {{ st.description || '' }}
+                      </div>
+                      <div v-if="st.example" class="mt-2 text-xs text-gray-600">
+                        <div class="uppercase tracking-wide">Example</div>
+                        <pre
+                          class="mt-1 whitespace-pre-wrap bg-white border rounded p-2"
+                          >{{ st.example }}</pre
+                        >
+                      </div>
+                    </template>
+                  </div>
+                </div>
+                <div v-else class="text-sm text-gray-500 mt-1">
+                  No steps provided.
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="text-sm text-gray-500">
+            No top-topic strategies available.
+          </div>
+        </div>
       </div>
 
       <div class="mt-6">
@@ -142,6 +218,31 @@
             </div>
           </li>
         </ul>
+        <div
+          class="flex items-center justify-between mt-3"
+          v-if="reportLastPage > 1"
+        >
+          <div class="text-sm text-gray-600">
+            Page {{ reportPage }} of {{ reportLastPage }} —
+            {{ reportTotal }} total
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              class="px-3 py-1 rounded bg-gray-200 text-sm"
+              :disabled="reportPage <= 1"
+              @click="loadReports(reportPage - 1)"
+            >
+              Prev
+            </button>
+            <button
+              class="px-3 py-1 rounded bg-gray-200 text-sm"
+              :disabled="reportPage >= reportLastPage"
+              @click="loadReports(reportPage + 1)"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Report modal -->
@@ -389,10 +490,20 @@ const pollToken = ref(0);
 const modalOpen = ref(false);
 const modalReport = ref({});
 const preCount = ref(null);
+const reportPage = ref(1);
+const reportPerPage = ref(5);
+const reportTotal = ref(0);
+const reportLastPage = ref(1);
 
-const loadReports = async () => {
-  const res = await fetch('/api/admin/analytics/reports');
-  reports.value = await res.json();
+const loadReports = async (page = 1) => {
+  const url = `/api/admin/analytics/reports?page=${page}&per_page=${reportPerPage.value}`;
+  const res = await fetch(url);
+  const j = await res.json();
+  reports.value = j.data || [];
+  reportPage.value = j.current_page || page;
+  reportPerPage.value = j.per_page || reportPerPage.value;
+  reportTotal.value = j.total || (j.data ? j.data.length : 0);
+  reportLastPage.value = j.last_page || 1;
 };
 
 const updatePreCount = async () => {
