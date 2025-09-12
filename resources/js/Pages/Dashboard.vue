@@ -69,11 +69,11 @@ onMounted(() => {
 <template>
   <AppLayout title="Dashboard">
     <div class="pa-0">
-      <VRow class="mb-6">
+      <!-- <VRow class="mb-6">
         <VCol cols="12">
           <VCard
-            class="bg-gradient-to-r from-primary to-blue-600 text-white"
-            elevation="8"
+            class="bg-gradient-to-r from-primary to-blue-600 rounded-xl"
+            elevation="6"
           >
             <VCardText class="pa-8">
               <VRow align="center">
@@ -101,18 +101,22 @@ onMounted(() => {
                   </VChip>
                 </VCol>
                 <VCol cols="12" md="4" class="text-center">
-                  <VIcon size="120" class="opacity-50">mdi-city-variant</VIcon>
+                  <VIcon size="110" class="opacity-60">mdi-city-variant</VIcon>
                 </VCol>
               </VRow>
             </VCardText>
           </VCard>
         </VCol>
-      </VRow>
+      </VRow> -->
 
-      <!-- Domain Metrics -->
+      <!-- Domain Metrics (Flat) -->
       <VRow class="mb-6">
         <VCol cols="12" sm="6" lg="3">
-          <VCard elevation="4" class="h-100 hover:shadow-lg transition-shadow">
+          <VCard
+            variant="flat"
+            elevation="0"
+            class="h-100 rounded-xl border border-gray-200"
+          >
             <VCardText>
               <div class="flex items-center justify-between mb-2">
                 <p class="text-body-2 text-medium-emphasis">
@@ -132,7 +136,11 @@ onMounted(() => {
           </VCard>
         </VCol>
         <VCol cols="12" sm="6" lg="3">
-          <VCard elevation="4" class="h-100 hover:shadow-lg transition-shadow">
+          <VCard
+            variant="flat"
+            elevation="0"
+            class="h-100 rounded-xl border border-gray-200"
+          >
             <VCardText>
               <div class="flex items-center justify-between mb-2">
                 <p class="text-body-2 text-medium-emphasis">
@@ -152,7 +160,11 @@ onMounted(() => {
           </VCard>
         </VCol>
         <VCol cols="12" sm="6" lg="3">
-          <VCard elevation="4" class="h-100 hover:shadow-lg transition-shadow">
+          <VCard
+            variant="flat"
+            elevation="0"
+            class="h-100 rounded-xl border border-gray-200"
+          >
             <VCardText>
               <div class="flex items-center justify-between mb-2">
                 <p class="text-body-2 text-medium-emphasis">AI Messages</p>
@@ -170,7 +182,11 @@ onMounted(() => {
           </VCard>
         </VCol>
         <VCol cols="12" sm="6" lg="3">
-          <VCard elevation="4" class="h-100 hover:shadow-lg transition-shadow">
+          <VCard
+            variant="flat"
+            elevation="0"
+            class="h-100 rounded-xl border border-gray-200"
+          >
             <VCardText>
               <div class="flex items-center justify-between mb-2">
                 <p class="text-body-2 text-medium-emphasis">
@@ -194,7 +210,11 @@ onMounted(() => {
       <!-- Quick Actions (SPA Links) -->
       <VRow class="mb-6">
         <VCol cols="12">
-          <VCard elevation="4">
+          <VCard
+            variant="flat"
+            elevation="0"
+            class="rounded-xl border border-gray-200"
+          >
             <VCardTitle class="d-flex align-center">
               <VIcon class="mr-2">mdi-lightning-bolt</VIcon>
               Quick Actions
@@ -210,9 +230,9 @@ onMounted(() => {
                 >
                   <Link :href="route(action.route)" class="no-underline">
                     <VCard
-                      variant="outlined"
-                      hover
-                      class="h-100 cursor-pointer transition-transform hover:-translate-y-0.5"
+                      variant="flat"
+                      elevation="0"
+                      class="h-100 cursor-pointer transition-transform hover:-translate-y-0.5 rounded-lg border border-gray-300"
                     >
                       <VCardText class="text-center pa-6">
                         <VAvatar
@@ -244,7 +264,7 @@ onMounted(() => {
         <VCol cols="12">
           <VAlert
             :type="metrics.insights.available ? 'success' : 'info'"
-            variant="tonal"
+            variant="flat"
             border="start"
             prominent
           >
