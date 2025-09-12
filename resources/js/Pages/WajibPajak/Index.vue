@@ -1,6 +1,6 @@
 <template>
   <AppLayout title="Wajib Pajak">
-    <div class="p-6">
+    <div class="p-6 relative">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-semibold">Daftar Wajib Pajak</h2>
         <div class="flex items-center gap-2">
@@ -20,7 +20,37 @@
         </div>
       </div>
 
-      <div class="bg-white rounded shadow">
+      <div class="bg-white rounded shadow relative overflow-hidden">
+        <Transition name="fade">
+          <div
+            v-if="loading"
+            class="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10"
+          >
+            <div class="flex flex-col items-center gap-3">
+              <svg
+                class="animate-spin h-8 w-8 text-blue-600"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                ></path>
+              </svg>
+              <span class="text-sm text-gray-600">Memuat data…</span>
+            </div>
+          </div>
+        </Transition>
         <table class="min-w-full text-left">
           <thead class="bg-gray-50">
             <tr>
@@ -50,14 +80,14 @@
             <button
               @click="goto(data.current_page - 1)"
               :disabled="data.current_page <= 1 || loading"
-              class="px-3 py-1 border rounded"
+              class="px-3 py-1 border rounded transition-opacity disabled:opacity-40"
             >
               Prev
             </button>
             <button
               @click="goto(data.current_page + 1)"
               :disabled="data.current_page >= data.last_page || loading"
-              class="px-3 py-1 border rounded"
+              class="px-3 py-1 border rounded transition-opacity disabled:opacity-40"
             >
               Next
             </button>
@@ -87,11 +117,10 @@ const data = ref({
 const fetchList = async (page = 1) => {
   loading.value = true;
   try {
-    const res = await axios.get('/admin/wajib-pajak', {
+    const res = await axios.get('/admin/wajib-pajak/list', {
       params: { page, q: q.value || undefined },
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     });
-    // Controller should detect AJAX and return JSON paginator when X-Requested-With is set
     data.value = res.data;
   } finally {
     loading.value = false;
@@ -120,6 +149,14 @@ const formatDate = (d) => (d ? new Date(d).toLocaleString('id-ID') : '-');
 </script>
 
 <style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 .card {
   background: white;
 }

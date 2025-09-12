@@ -24,18 +24,12 @@ const navLinks = ref([
     value: 'dashboard',
     href: route('dashboard'),
   },
-  {
-    icon: 'mdi-package-variant-closed ',
-    title: 'Products',
-    value: 'products.index',
-    href: route('products.index'),
-  },
-  {
-    icon: 'mdi-robot',
-    title: 'AI Customer Service',
-    value: 'chat',
-    href: route('chat'),
-  },
+  //   {
+  //     icon: 'mdi-robot',
+  //     title: 'AI Customer Service',
+  //     value: 'chat',
+  //     href: route('chat'),
+  //   },
   {
     icon: 'mdi-chart-areaspline',
     title: 'AI Chat Analytics',
@@ -43,28 +37,28 @@ const navLinks = ref([
     href: route('admin.analytics'),
   },
   {
+    icon: 'mdi-history',
+    title: 'AI Chat History',
+    value: 'admin.chat-history.index',
+    href: route('admin.chat-history.index'),
+  },
+  {
     icon: 'mdi-account-multiple',
     title: 'Wajib Pajak',
     value: 'admin.wajib-pajak.index',
     href: route('admin.wajib-pajak.index'),
   },
-  {
-    icon: 'mdi-account-group',
-    title: 'User Management',
-    value: 'users.index',
-    href: route('users.index'),
-  },
+  //   {
+  //     icon: 'mdi-account-group',
+  //     title: 'User Management',
+  //     value: 'users.index',
+  //     href: route('users.index'),
+  //   },
   {
     icon: 'mdi-book-open-variant',
     title: 'Knowledge Base',
     value: 'knowledge-base.index',
     href: route('knowledge-base.index'),
-  },
-  {
-    icon: 'mdi-cog',
-    title: 'App Settings',
-    value: 'settings.index',
-    href: route('settings.index'),
   },
 ]);
 

@@ -52,7 +52,9 @@
             class="px-3 py-2 border rounded w-56"
           >
             <option value="">All topics</option>
-            <option v-for="t in topics" :key="t" :value="t">{{ t }}</option>
+            <option v-for="t in topics" :key="t" :value="t">
+              {{ formatTopic(t) }}
+            </option>
           </select>
         </div>
         <div>
@@ -74,7 +76,37 @@
         </div>
       </div>
 
-      <div class="bg-white rounded shadow overflow-auto">
+      <div class="bg-white rounded shadow overflow-auto relative">
+        <Transition name="fade">
+          <div
+            v-if="loading"
+            class="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10"
+          >
+            <div class="flex flex-col items-center gap-3">
+              <svg
+                class="animate-spin h-8 w-8 text-blue-600"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                ></path>
+              </svg>
+              <span class="text-sm text-gray-600">Loading messages…</span>
+            </div>
+          </div>
+        </Transition>
         <table class="min-w-full text-sm">
           <thead class="bg-gray-50 text-left">
             <tr>
@@ -90,7 +122,9 @@
               <td class="p-3 text-gray-600">{{ row.id }}</td>
               <td class="p-3 whitespace-pre-wrap">{{ row.content }}</td>
               <td class="p-3 capitalize">{{ row.sentiment || '-' }}</td>
-              <td class="p-3">{{ row.topic || '-' }}</td>
+              <td class="p-3">
+                {{ row.topic ? formatTopic(row.topic) : '-' }}
+              </td>
               <td class="p-3">{{ formatDateTime(row.sent_at) }}</td>
             </tr>
             <tr v-if="!loading && rows.length === 0">
@@ -130,6 +164,15 @@ import axios from 'axios';
 import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
 import AppLayout from '@/Layouts/AppLayout.vue';
+
+const formatTopic = (s) => {
+  if (!s) return '';
+  // replace underscores and dashes with spaces, then Title Case
+  const parts = s.replace(/[-_]+/g, ' ').split(' ');
+  return parts
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(' ');
+};
 
 const rows = ref([]);
 const topics = ref([]);
@@ -275,5 +318,13 @@ onMounted(async () => {
 th,
 td {
   vertical-align: top;
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

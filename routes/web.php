@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\WajibPajakController;
 use App\Http\Controllers\PhotoEditingController;
 use App\Http\Controllers\UserManagementController;
@@ -24,9 +25,7 @@ Route::middleware([
     config('jetstream.auth_session'),
     'verified',
 ])->group(function () {
-    Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
-    })->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::get('/products', function () {
         return Inertia::render('Products/Index');
@@ -58,6 +57,7 @@ Route::middleware([
 
     // Admin Wajib Pajak listing
     Route::get('/admin/wajib-pajak', [App\Http\Controllers\Admin\WajibPajakController::class, 'index'])->name('admin.wajib-pajak.index');
+    Route::get('/admin/wajib-pajak/list', [App\Http\Controllers\Admin\WajibPajakController::class, 'list'])->name('admin.wajib-pajak.list');
 
     // AI Chat History page
     Route::get('/admin/chat-history', [App\Http\Controllers\Admin\ChatHistoryController::class, 'indexPage'])->name('admin.chat-history.index');
