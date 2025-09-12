@@ -25,7 +25,8 @@ class OpenAIService
         $this->model = config('services.openai.model', 'gpt-4o-mini');
         $this->maxTokens = config('services.openai.max_tokens', 1500);
         $this->temperature = config('services.openai.temperature', 0.7);
-        $this->defaultTimeout = (int) config('services.openai.request_timeout', 30); // seconds
+        // Default timeout (seconds). Keep constant here to avoid config/env coupling at boot time.
+        $this->defaultTimeout = 30;
     }
 
     /**
@@ -35,18 +36,24 @@ class OpenAIService
     private function retryRequest(callable $fn, int $attempts = 3, int $baseDelay = 500)
     {
         $tries = 0;
-        do {
+        $lastException = null;
+        while ($tries < $attempts) {
             try {
-                $tries++;
                 return $fn();
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
+                $lastException = $e;
+                $tries++;
                 Log::warning('OpenAIService::retryRequest attempt ' . $tries . ' failed: ' . $e->getMessage());
-                if ($tries >= $attempts) throw $e;
-                usleep($baseDelay * 1000 * $tries); // backoff
+                if ($tries >= $attempts) break;
+                // exponential backoff with jitter (milliseconds)
+                $delay = (int) ($baseDelay * pow(2, max(0, $tries - 1)));
+                $jitter = function_exists('random_int') ? random_int(0, (int) ($baseDelay * 0.3)) : 0;
+                usleep(($delay + $jitter) * 1000);
             }
-        } while ($tries < $attempts);
+        }
+        if ($lastException) throw $lastException;
+        return null;
     }
-
     /**
      * Analyze an array of conversation transcripts using GPT-5-mini with a strict JSON schema.
      * Input: array of strings (transcripts)
@@ -69,9 +76,6 @@ class OpenAIService
                     ],
                     // reduce token budget to cut cost and latency for analytics
                     'max_completion_tokens' => 512,
-                    // pass timeout if SDK supports it
-                    'timeout' => $this->defaultTimeout,
-                    'connect_timeout' => min(5, $this->defaultTimeout),
                 ]);
             };
             $response = $this->retryRequest($call);
@@ -188,7 +192,6 @@ class OpenAIService
         try {
             $model = 'gpt-5-mini';
 
-            // Prepare compact context
             $cats = [];
             foreach ($categoryCounts as $k => $v) {
                 $cats[] = $k . ':' . (int)$v;
@@ -207,7 +210,7 @@ class OpenAIService
                 $labelsText[] = $k . ' = ' . $lbl;
             }
 
-            $instruction = "Kembalikan HANYA JSON (tanpa teks lain) dengan struktur: {\n  \"recommendations\": [string],\n  \"recommendations_detailed\": [{\n    \"category\": string (category key),\n    \"label\": string (human label),\n    \"count\": number,\n    \"rationale\": string (Bahasa Indonesia),\n    \"actions\": [string pendek],\n    \"priority\": \"low\"|\"medium\"|\"high\",\n    \"effort_estimate\": string pendek\n  }]\n}. Fokus pada strategi era digital: kanal online, mobile/web, e-payment, chatbot/RAG, otomasi antrean, sosmed, integrasi bank/VA. Jumlahkan 5-10 rekomendasi ringkas dan 5-8 entri rekomendasi_detailed sesuai kategori dengan count tertinggi. Gunakan label manusia yang sesuai. Jangan membuat angka baru; gunakan count yang ada. Bahasa Indonesia. JSON valid saja.";
+            $instruction = "Kembalikan HANYA JSON valid (tanpa teks lain) dalam Bahasa Indonesia dengan struktur: {\n  \"recommendations\": [string],\n  \"recommendations_detailed\": [{\n    \"category\": string,\n    \"label\": string,\n    \"count\": number,\n    \"rationale\": string,\n    \"actions\": [string],\n    \"priority\": \"low\"|\"medium\"|\"high\",\n    \"effort_estimate\": string\n  }]\n}";
 
             $payload = [
                 'labels' => implode("; ", $labelsText),
@@ -227,15 +230,41 @@ class OpenAIService
                 'max_completion_tokens' => 900,
             ]);
             $text = trim($response->choices[0]->message->content ?? '');
+
+            // Extract JSON object from response
             $start = strpos($text, '{');
             $end = strrpos($text, '}');
             if ($start !== false && $end !== false && $end > $start) {
-                $json = json_decode(substr($text, $start, $end - $start + 1), true);
+                $maybe = substr($text, $start, $end - $start + 1);
+                $json = json_decode($maybe, true);
                 if (is_array($json)) return $json;
             }
+
+            // Repair attempt: ask model to return JSON only
+            try {
+                $repair = [
+                    ['role' => 'system', 'content' => 'You are a strict JSON-only assistant.'],
+                    ['role' => 'user', 'content' => 'Model returned non-JSON. PLEASE RETURN ONLY a VALID JSON object matching the previously requested schema (no explanatory text). Output must be in Bahasa Indonesia.']
+                ];
+                $resp2 = $this->client->chat()->create([
+                    'model' => $model,
+                    'messages' => $repair,
+                    'max_completion_tokens' => 600,
+                ]);
+                $text2 = trim($resp2->choices[0]->message->content ?? '');
+                $s2 = strpos($text2, '{');
+                $e2 = strrpos($text2, '}');
+                if ($s2 !== false && $e2 !== false && $e2 > $s2) {
+                    $maybe2 = substr($text2, $s2, $e2 - $s2 + 1);
+                    $json2 = json_decode($maybe2, true);
+                    if (is_array($json2)) return $json2;
+                }
+            } catch (\Throwable $t) {
+                Log::warning('generateRecommendations repair call failed: ' . $t->getMessage());
+            }
+
             return null;
         } catch (Exception $e) {
-            // fallback and log
             Log::error('generateRecommendations error: ' . $e->getMessage());
             return null;
         }
@@ -275,8 +304,6 @@ class OpenAIService
                     'model' => $model,
                     'messages' => $messages,
                     'max_completion_tokens' => 2600,
-                    'timeout' => $this->defaultTimeout,
-                    'connect_timeout' => min(5, $this->defaultTimeout),
                 ]);
             };
 
@@ -356,8 +383,6 @@ class OpenAIService
                         ['role' => 'user', 'content' => $content],
                     ],
                     'max_completion_tokens' => 1800,
-                    'timeout' => $this->defaultTimeout,
-                    'connect_timeout' => min(5, $this->defaultTimeout),
                 ]);
             };
             $response = $this->retryRequest($call);
@@ -368,6 +393,598 @@ class OpenAIService
             return null;
         }
     }
+
+    /**
+     * Simple, single-call generator: given raw rows [ {text, topic, sentiment} ],
+     * return strict JSON with long insight and recommendations.
+     * Output shape:
+     * {
+     *   "insight_long": string (~1400-1600 words, Indonesian),
+     *   "insight_summary": string (~300-500 words),
+     *   "recommendations": [string],
+     *   "recommendations_detailed": [
+     *     { "category": string, "label": string, "count": number|null,
+     *       "rationale": string, "actions": [string],
+     *       "priority": "low"|"medium"|"high", "effort_estimate": string }
+     *   ]
+     * }
+     */
+    public function generateBasicInsightAndRecommendations(array $rows, array $stats = []): ?array
+    {
+        try {
+            $model = 'gpt-5-mini';
+
+            // Light clipping to avoid token explosion
+            $maxRows = 150; // adjustable via env/config if needed
+            if (count($rows) > $maxRows) {
+                $rows = array_slice($rows, 0, $maxRows);
+            }
+            // Ensure fields are compact
+            $rows = array_values(array_map(function ($r) {
+                return [
+                    'text' => isset($r['text']) ? mb_substr((string)$r['text'], 0, 220) : '',
+                    'topic' => (string)($r['topic'] ?? ''),
+                    'sentiment' => (string)($r['sentiment'] ?? ''),
+                ];
+            }, $rows));
+
+            $payload = [
+                'date_range' => $stats['date_range'] ?? null,
+                'category_counts' => $stats['category_counts'] ?? new \stdClass(),
+                'sentiments' => $stats['sentiments'] ?? new \stdClass(),
+                'geo_counts' => $stats['geo_counts'] ?? new \stdClass(),
+                'common_issues' => $stats['common_issues'] ?? [],
+                'messages' => $rows,
+            ];
+
+            $schema = "Kembalikan HANYA JSON valid (tanpa teks lain) dalam Bahasa Indonesia dengan struktur persis: {\n  \"insight_long\": string (~1400-1600 kata),\n  \"insight_summary\": string (300-500 kata),\n  \"recommendations\": [string],\n  \"recommendations_detailed\": [{\n    \"category\": string,\n    \"label\": string,\n    \"count\": number|null,\n    \"rationale\": string,\n    \"actions\": [string],\n    \"priority\": \"low\"|\"medium\"|\"high\",\n    \"effort_estimate\": string\n  }]\n}.\n\nInstruksi tambahan:\n- Analisislah berdasarkan \"messages\" (tiap baris mengandung topik & sentimen).\n- Gunakan ringkasan statistik pada category_counts, sentiments, geo_counts, dan common_issues untuk menyusun narasi.\n- Tulis semua konten dalam Bahasa Indonesia yang operasional dan actionable untuk layanan publik (Bapenda/Samsat).\n- Jangan gunakan angka palsu. Jika count tidak diketahui, biarkan null.\n- Balas HANYA JSON sesuai skema di atas.";
+
+            $messages = [
+                ['role' => 'system', 'content' => 'You are a senior Indonesian public-service analytics writer. Output JSON only.'],
+                ['role' => 'user', 'content' => $schema . "\n\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)],
+            ];
+
+            $call = function () use ($model, $messages) {
+                return $this->client->chat()->create([
+                    'model' => $model,
+                    'messages' => $messages,
+                    'max_completion_tokens' => 3000,
+                ]);
+            };
+            $response = $this->retryRequest($call);
+            $text = trim($response->choices[0]->message->content ?? '');
+
+            // Extract JSON object from response
+            $start = strpos($text, '{');
+            $end = strrpos($text, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $maybe = substr($text, $start, $end - $start + 1);
+                $json = json_decode($maybe, true);
+                if (is_array($json) && isset($json['insight_long'])) {
+                    return $json;
+                }
+            }
+
+            // Repair attempt: ask to return JSON only
+            $repair = "Balas ulang dengan HANYA JSON valid sesuai skema (tanpa kata pengantar).";
+            $resp2 = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Output JSON only.'],
+                    ['role' => 'user', 'content' => $repair],
+                ],
+                'max_completion_tokens' => 2000,
+            ]);
+            $txt2 = trim($resp2->choices[0]->message->content ?? '');
+            $s2 = strpos($txt2, '{');
+            $e2 = strrpos($txt2, '}');
+            if ($s2 !== false && $e2 !== false && $e2 > $s2) {
+                $maybe2 = substr($txt2, $s2, $e2 - $s2 + 1);
+                $json2 = json_decode($maybe2, true);
+                if (is_array($json2) && isset($json2['insight_long'])) {
+                    return $json2;
+                }
+            }
+            return null;
+        } catch (Exception $e) {
+            Log::error('generateBasicInsightAndRecommendations error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Generate ONE long Indonesian insight document (~1200–1600 words), plain text only.
+     * Inputs:
+     *  - $rows: [{text, topic, sentiment}] (clipped internally)
+     *  - $stats: ['date_range', 'category_counts', 'sentiments', 'geo_counts', 'common_issues']
+     *  - $topTopics: [{key,label,count}] — top-2 preferably
+     */
+    public function generateSingleInsightDocument(array $rows, array $stats, array $topTopics): ?string
+    {
+        try {
+            $model = 'gpt-5-mini';
+
+            $maxRows = 150;
+            if (count($rows) > $maxRows) $rows = array_slice($rows, 0, $maxRows);
+            $rows = array_values(array_map(function ($r) {
+                return [
+                    'text' => isset($r['text']) ? mb_substr((string)$r['text'], 0, 240) : '',
+                    'topic' => (string)($r['topic'] ?? ''),
+                    'sentiment' => (string)($r['sentiment'] ?? ''),
+                ];
+            }, $rows));
+
+            $payload = [
+                'top_topics' => array_values(array_map(fn($t) => [
+                    'key' => $t['key'] ?? ($t['label'] ?? ''),
+                    'label' => $t['label'] ?? ($t['key'] ?? ''),
+                    'count' => (int)($t['count'] ?? 0),
+                ], array_slice($topTopics, 0, 2))),
+                'stats' => [
+                    'category_counts' => $stats['category_counts'] ?? new \stdClass(),
+                    'sentiments' => $stats['sentiments'] ?? new \stdClass(),
+                    'geo_counts' => $stats['geo_counts'] ?? new \stdClass(),
+                    'common_issues' => $stats['common_issues'] ?? [],
+                    'date_range' => $stats['date_range'] ?? null,
+                ],
+                'messages' => $rows,
+            ];
+
+            $topicPair = implode(' & ', array_values(array_map(fn($t) => ($t['label'] ?? $t['key'] ?? ''), array_slice($topTopics, 0, 2))));
+
+            $instruction = "Tulis SATU dokumen insight panjang (~1200–1600 kata) dalam Bahasa Indonesia tentang layanan Bapenda/Samsat. Gaya seperti dokumen perencanaan (rapi, to the point, actionable). Gunakan subjudul berikut, urut, tanpa nomor: \n\n" .
+                "Ringkasan Eksekutif\n\n" .
+                "Konteks & Data Singkat\n\n" .
+                "Dua Topik Utama (" . $topicPair . ")\n\n" .
+                "Analisis Dampak terhadap Layanan\n\n" .
+                "Strategi Terpadu\n\n" .
+                "Rencana 0–3 Bulan\n\n" .
+                "Rencana 3–12 Bulan\n\n" .
+                "Komunikasi & Edukasi (Digital + Offline)\n\n" .
+                "KPI Kunci\n\n" .
+                "Risiko & Mitigasi\n\n" .
+                "Penutup\n\n" .
+                "Instruksi: sebut dua topik di setiap bagian yang relevan; berikan langkah-langkah teknis/operasional yang realistis; hindari angka fiktif; balas HANYA teks naratif (tanpa JSON/markdown).";
+
+            $messages = [
+                ['role' => 'system', 'content' => 'You are a senior Indonesian public-sector strategist. Output plain text only.'],
+                ['role' => 'user', 'content' => $instruction . "\n\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)],
+            ];
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => $messages,
+                'max_completion_tokens' => 2600,
+            ]);
+            $text = trim($response->choices[0]->message->content ?? '');
+            return $text ?: null;
+        } catch (Exception $e) {
+            Log::error('generateSingleInsightDocument error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Ultra-simple path: build a bullet list like
+     *  - pertanyaan … — sentiment NEGATIVE — tanya_pajak
+     * then append a main analysis prompt and request a single long document.
+     * Returns plain Indonesian text.
+     */
+    public function generateBulletListInsight(array $rows, ?string $customMainPrompt = null): ?string
+    {
+        try {
+            $model = 'gpt-5-mini';
+
+            // Cap to avoid token overflow
+            $maxRows = 300;
+            $snippetLen = 160;
+            if (count($rows) > $maxRows) $rows = array_slice($rows, 0, $maxRows);
+
+            $lines = [];
+            foreach ($rows as $idx => $r) {
+                $text = trim((string)($r['text'] ?? ''));
+                if ($text !== '') $text = mb_substr(preg_replace('/\s+/u', ' ', $text), 0, $snippetLen);
+                $sent = strtoupper((string)($r['sentiment'] ?? ''));
+                $topic = (string)($r['topic'] ?? '');
+                $label = $topic !== '' ? $topic : 'lain_lain';
+                $lines[] = '- ' . ($text !== '' ? $text : 'pertanyaan ' . ($idx + 1)) . ' — sentiment ' . ($sent ?: 'NEUTRAL') . ' — ' . $label;
+            }
+            $header = "ini adalah data wajib pajak yang akan saya analisis :\n" . implode("\n", $lines);
+
+            $defaultPrompt = "Tulis SATU dokumen insight panjang (~1200–1600 kata) dalam Bahasa Indonesia untuk layanan Bapenda/Samsat. Gaya ringkas namun operasional, seperti dokumen perencanaan. Gunakan subjudul tanpa penomoran: Ringkasan Eksekutif; Konteks & Data Singkat; Temuan & Pola; Dampak pada Layanan; Strategi Terpadu; Rencana 0–3 Bulan; Rencana 3–12 Bulan; Komunikasi & Edukasi (Digital + Offline); KPI Kunci; Risiko & Mitigasi; Penutup. Berikan langkah-langkah nyata dan hindari angka fiktif. Balas HANYA teks naratif (tanpa JSON/markdown).";
+            $mainPrompt = $customMainPrompt && trim($customMainPrompt) !== '' ? $customMainPrompt : $defaultPrompt;
+
+            $content = $header . "\n\n" . $mainPrompt;
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are a senior Indonesian public-sector strategist. Output plain text only.'],
+                    ['role' => 'user', 'content' => $content],
+                ],
+                'max_completion_tokens' => 2600,
+            ]);
+            $text = trim($response->choices[0]->message->content ?? '');
+            try {
+                Log::info('OpenAIService::generateBulletListInsight done', [
+                    'len' => strlen($text),
+                    'rows' => count($rows ?? []),
+                ]);
+            } catch (\Throwable $t) {
+                // ignore logging issues
+            }
+            return $text ?: null;
+        } catch (Exception $e) {
+            Log::error('generateBulletListInsight error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * One-shot analytics: single AI call returns the full report JSON we need for UI and storage.
+     * Required JSON keys: combined_top_insight, insight_summary, recommendations, recommendations_detailed,
+     *                     categories, sentiments, geo_counts, common_issues
+     */
+    public function generateOneShotAnalytics(array $rows, array $stats = [], array $categoryLabels = []): ?array
+    {
+        try {
+            $model = 'gpt-5-mini';
+
+            // Clip and normalize rows
+            $maxRows = 220;
+            $snippetLen = 220;
+            if (count($rows) > $maxRows) $rows = array_slice($rows, 0, $maxRows);
+            $rows = array_values(array_map(function ($r) use ($snippetLen) {
+                $txt = isset($r['text']) ? preg_replace('/\s+/u', ' ', (string)$r['text']) : '';
+                return [
+                    'text' => mb_substr($txt, 0, $snippetLen),
+                    'topic' => (string)($r['topic'] ?? ''),
+                    'sentiment' => (string)($r['sentiment'] ?? ''),
+                ];
+            }, $rows));
+
+            $payload = [
+                'date_range' => $stats['date_range'] ?? null,
+                'category_counts' => $stats['category_counts'] ?? new \stdClass(),
+                'sentiments' => $stats['sentiments'] ?? new \stdClass(),
+                'geo_counts' => $stats['geo_counts'] ?? new \stdClass(),
+                'common_issues' => $stats['common_issues'] ?? [],
+                'category_labels' => $categoryLabels,
+                'messages' => $rows,
+            ];
+
+            $schema = "Kembalikan HANYA JSON valid (tanpa teks lain) dengan struktur tepat berikut dalam Bahasa Indonesia:\n{\n  \"combined_top_insight\": string (~1200-1600 kata),\n  \"insight_summary\": string (300-500 kata),\n  \"recommendations\": [string],\n  \"recommendations_detailed\": [{\n    \"category\": string,\n    \"label\": string,\n    \"count\": number|null,\n    \"rationale\": string,\n    \"actions\": [string],\n    \"priority\": \"low\"|\"medium\"|\"high\",\n    \"effort_estimate\": string\n  }],\n  \"categories\": [{ \"name\": string, \"label\": string, \"count\": number }],\n  \"sentiments\": { \"positive\": number, \"neutral\": number, \"negative\": number },\n  \"geo_counts\": { [kota: string]: number },\n  \"common_issues\": [{ \"text\": string, \"count\": number }]\n}\nInstruksi:\n- Analisis berasal dari \"messages\" dan ringkasan statistik.\n- Gunakan label manusia dari category_labels jika tersedia.\n- Tuliskan narasi panjang operasional untuk layanan Bapenda/Samsat.\n- Balas HANYA JSON tanpa teks tambahan.";
+
+            $messages = [
+                ['role' => 'system', 'content' => 'You are a JSON-only Indonesian analytics writer for public services.'],
+                ['role' => 'user', 'content' => $schema . "\n\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)],
+            ];
+
+            $call = function () use ($model, $messages) {
+                return $this->client->chat()->create([
+                    'model' => $model,
+                    'messages' => $messages,
+                    'max_completion_tokens' => 3200,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
+            };
+            $response = $this->retryRequest($call);
+            $text = trim($response->choices[0]->message->content ?? '');
+            try {
+                Log::info('OneShot raw response', [
+                    'len' => strlen($text),
+                    'head' => mb_substr($text, 0, 200),
+                ]);
+            } catch (\Throwable $t) {
+                // ignore log failures
+            }
+
+            $start = strpos($text, '{');
+            $end = strrpos($text, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $maybe = substr($text, $start, $end - $start + 1);
+                $json = json_decode($maybe, true);
+                if (is_array($json)) {
+                    $json = $this->normalizeOneShotReport($json);
+                    if (!empty($json['combined_top_insight'])) return $json;
+                }
+            }
+
+            // Repair: ask model to return JSON only
+            $resp2 = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Output JSON only.'],
+                    ['role' => 'user', 'content' => 'Ulangi dan balas HANYA JSON valid sesuai skema.'],
+                ],
+                'max_completion_tokens' => 2000,
+                'response_format' => ['type' => 'json_object'],
+            ]);
+            $txt2 = trim($resp2->choices[0]->message->content ?? '');
+            $s2 = strpos($txt2, '{');
+            $e2 = strrpos($txt2, '}');
+            if ($s2 !== false && $e2 !== false && $e2 > $s2) {
+                $maybe2 = substr($txt2, $s2, $e2 - $s2 + 1);
+                $json2 = json_decode($maybe2, true);
+                if (is_array($json2)) {
+                    $json2 = $this->normalizeOneShotReport($json2);
+                    if (!empty($json2['combined_top_insight'])) return $json2;
+                }
+            }
+
+            // As a last attempt, request recommendations only to ensure arrays are filled
+            try {
+                $recSchema = "Balas HANYA JSON valid: {\n  \"recommendations\": [string],\n  \"recommendations_detailed\": [{\n    \"category\": string, \"label\": string, \"count\": number|null, \"rationale\": string, \"actions\": [string], \"priority\": \"low\"|\"medium\"|\"high\", \"effort_estimate\": string\n  }]\n}\nGunakan DATA berikut untuk menyusun rekomendasi yang realistis dalam Bahasa Indonesia.";
+                $resp3 = $this->client->chat()->create([
+                    'model' => $model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'Output JSON only.'],
+                        ['role' => 'user', 'content' => $recSchema . "\n\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)],
+                    ],
+                    'max_completion_tokens' => 1200,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
+                $txt3 = trim($resp3->choices[0]->message->content ?? '');
+                $s3 = strpos($txt3, '{');
+                $e3 = strrpos($txt3, '}');
+                if ($s3 !== false && $e3 !== false && $e3 > $s3) {
+                    $maybe3 = substr($txt3, $s3, $e3 - $s3 + 1);
+                    $json3 = json_decode($maybe3, true);
+                    if (is_array($json3)) {
+                        $json3 = $this->normalizeOneShotReport(['recommendations' => $json3['recommendations'] ?? [], 'recommendations_detailed' => $json3['recommendations_detailed'] ?? []]);
+                        return $json3;
+                    }
+                }
+            } catch (\Throwable $t) {
+                // ignore
+            }
+
+            return null;
+        } catch (Exception $e) {
+            Log::error('generateOneShotAnalytics error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    private function normalizeOneShotReport(array $r): array
+    {
+        // Coerce types and ensure required keys exist
+        $r['combined_top_insight'] = is_string($r['combined_top_insight'] ?? null)
+            ? $r['combined_top_insight']
+            : (is_string($r['insight_summary'] ?? null) ? $r['insight_summary'] : '');
+        $r['insight_summary'] = is_string($r['insight_summary'] ?? null) ? $r['insight_summary'] : '';
+
+        // Simple list recommendations
+        if (!isset($r['recommendations']) || !is_array($r['recommendations'])) $r['recommendations'] = [];
+        $r['recommendations'] = array_values(array_filter(array_map(function ($x) {
+            return is_string($x) ? trim($x) : '';
+        }, $r['recommendations']), function ($x) {
+            return $x !== '';
+        }));
+
+        // Detailed recommendations normalization
+        if (!isset($r['recommendations_detailed']) || !is_array($r['recommendations_detailed'])) {
+            $r['recommendations_detailed'] = [];
+        }
+        $allowedPriorities = ['low', 'medium', 'high'];
+        $r['recommendations_detailed'] = array_values(array_map(function ($it) use ($allowedPriorities) {
+            $category = isset($it['category']) && is_string($it['category']) ? $it['category'] : '';
+            $label = isset($it['label']) && is_string($it['label']) ? $it['label'] : $category;
+            $count = isset($it['count']) && is_numeric($it['count']) ? (int)$it['count'] : null;
+            $rationale = isset($it['rationale']) && is_string($it['rationale']) ? $it['rationale'] : '';
+            $actions = isset($it['actions']) && is_array($it['actions']) ? array_values(array_filter(array_map(function ($a) {
+                return is_string($a) ? trim($a) : '';
+            }, $it['actions']))) : [];
+            $priority = isset($it['priority']) && in_array($it['priority'], $allowedPriorities, true) ? $it['priority'] : 'medium';
+            $effort = isset($it['effort_estimate']) && is_string($it['effort_estimate']) ? $it['effort_estimate'] : '';
+            return [
+                'category' => $category,
+                'label' => $label,
+                'count' => $count,
+                'rationale' => $rationale,
+                'actions' => $actions,
+                'priority' => $priority,
+                'effort_estimate' => $effort,
+            ];
+        }, $r['recommendations_detailed']));
+
+        // Stats containers
+        if (!isset($r['categories']) || !is_array($r['categories'])) $r['categories'] = [];
+        if (!isset($r['sentiments']) || !is_array($r['sentiments'])) $r['sentiments'] = [];
+        foreach (['positive', 'neutral', 'negative'] as $k) {
+            if (!isset($r['sentiments'][$k]) || !is_numeric($r['sentiments'][$k])) $r['sentiments'][$k] = 0;
+        }
+        if (!isset($r['geo_counts']) || !is_array($r['geo_counts'])) $r['geo_counts'] = [];
+        if (!isset($r['common_issues']) || !is_array($r['common_issues'])) $r['common_issues'] = [];
+
+        try {
+            Log::info('OneShot normalized', [
+                'has_insight' => !empty($r['combined_top_insight']),
+                'recs' => count($r['recommendations'] ?? []),
+                'recs_detailed' => count($r['recommendations_detailed'] ?? []),
+            ]);
+        } catch (\Throwable $t) {
+            // ignore
+        }
+
+        return $r;
+    }
+
+    /**
+     * Generate a single combined Indonesian insight (~1500 words) that discusses the top 2 topics together.
+     * Returns plain text or null on failure.
+     */
+    public function generateCombinedTopInsight(array $topTopics, string $aggText, array $categoryLabels = []): ?string
+    {
+        try {
+            if (empty($topTopics)) return null;
+            $model = 'gpt-5-mini';
+
+            $topicsBrief = [];
+            foreach ($topTopics as $t) {
+                $topicsBrief[] = [
+                    'key' => $t['key'] ?? ($t['name'] ?? ''),
+                    'label' => $t['label'] ?? ($t['name'] ?? ''),
+                    'count' => (int)($t['count'] ?? 0),
+                ];
+            }
+
+            $topicsJson = json_encode($topicsBrief, JSON_UNESCAPED_UNICODE);
+            $topicLabels = array_values(array_filter(array_map(fn($t) => ($t['label'] ?? $t['key'] ?? ''), $topicsBrief)));
+            $topicPair = implode(' & ', array_slice($topicLabels, 0, 2));
+
+            // Simple but effective instruction for a long combined narrative
+            $instruction = "Susun narasi komprehensif (~1400–1600 kata) dalam Bahasa Indonesia yang menggabungkan dua topik teratas berikut secara terpadu: " . $topicPair . ". Gunakan subjudul: Ringkasan Eksekutif, Mengapa Dua Topik Ini Penting, Temuan Kunci, Strategi Terpadu, Rencana Aksi 0–3 Bulan, Rencana Aksi 3–12 Bulan, Rencana Komunikasi & Edukasi, KPI yang Dipantau, Risiko & Mitigasi, Dampak yang Diharapkan. Tulis mengalir, operasional, dan sebutkan kedua topik tersebut di setiap bagian. Hindari JSON; balas hanya teks naratif.";
+
+            $messages = [
+                ['role' => 'system', 'content' => 'You are a senior public-sector digital strategy consultant. Write in Indonesian.'],
+                ['role' => 'user', 'content' => $instruction . "\n\nTOPICS:\n" . $topicsJson . "\n\nAGGREGATES:\n" . $aggText]
+            ];
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => $messages,
+                'max_completion_tokens' => 2200,
+            ]);
+
+            $text = trim($response->choices[0]->message->content ?? '');
+
+            // enforce ~1600-word hard cap as safety
+            try {
+                $words = preg_split('/\s+/u', trim($text));
+                if (is_array($words) && count($words) > 1600) {
+                    $text = implode(' ', array_slice($words, 0, 1600)) . '\n\n...';
+                }
+            } catch (\Throwable $t) {
+                // ignore
+            }
+
+            if ($text) return $text;
+
+            // Second attempt with an even lighter prompt if the first returned empty
+            $simpleInstruction = "Tulis analisis panjang (~1500 kata) Bahasa Indonesia tentang dua topik: " . $topicPair . ". Sertakan: Ringkasan Eksekutif; Mengapa Penting; Temuan Kunci; Strategi Terpadu; Aksi 0–3 Bulan; Aksi 3–12 Bulan; Komunikasi & Edukasi; KPI; Risiko & Mitigasi; Dampak. Sebut dua topik di setiap bagian. Jawab dengan teks naratif saja.";
+            $resp2 = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are a helpful Indonesian public-service strategist.'],
+                    ['role' => 'user', 'content' => $simpleInstruction . "\n\nCONTEXT:\n" . mb_substr($aggText, 0, 6000)]
+                ],
+                'max_completion_tokens' => 2000,
+            ]);
+            $text2 = trim($resp2->choices[0]->message->content ?? '');
+            return $text2 ?: null;
+        } catch (Exception $e) {
+            Log::error('generateCombinedTopInsight error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * V2: Generate a structured JSON outline for a comprehensive insight report.
+     * Returns associative array or null.
+     */
+    public function generateInsightOutlineJson(array $topTopics, array $catsArr, array $sentiments, array $commonIssues, array $geoCounts, string $aggText): ?array
+    {
+        try {
+            $model = 'gpt-5-mini';
+
+            $payload = [
+                'top_topics' => array_values(array_map(function ($t) {
+                    return [
+                        'key' => $t['key'] ?? ($t['name'] ?? ''),
+                        'label' => $t['label'] ?? ($t['name'] ?? ''),
+                        'count' => (int)($t['count'] ?? 0),
+                    ];
+                }, $topTopics)),
+                'categories' => $catsArr,
+                'sentiments' => $sentiments,
+                'common_issues' => $commonIssues,
+                'geo_counts' => $geoCounts,
+                'aggregates' => $aggText,
+            ];
+
+            $schemaInstruction = "Balas HANYA JSON valid (tanpa penjelasan) dengan struktur berikut dalam Bahasa Indonesia: {\n  \"exec_summary\": string (150-250 kata),\n  \"why_these_topics\": string (100-180 kata),\n  \"findings\": [string],\n  \"short_term_actions\": [string],\n  \"mid_term_actions\": [string],\n  \"strategies\": [string],\n  \"kpis\": [string],\n  \"risks\": [string],\n  \"comms_plan\": [string]\n}. Butir tindakan harus spesifik dan dapat dieksekusi.";
+
+            $messages = [
+                ['role' => 'system', 'content' => 'You are a JSON-only public sector analytics planner.'],
+                ['role' => 'user', 'content' => $schemaInstruction . "\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)]
+            ];
+
+            $resp = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => $messages,
+                'max_completion_tokens' => 1400,
+            ]);
+            $text = trim($resp->choices[0]->message->content ?? '');
+            $start = strpos($text, '{');
+            $end = strrpos($text, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $maybe = substr($text, $start, $end - $start + 1);
+                $json = json_decode($maybe, true);
+                if (is_array($json)) return $json;
+            }
+            return null;
+        } catch (Exception $e) {
+            Log::error('generateInsightOutlineJson error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Turn the outline JSON into a long Indonesian narrative (~1400–1600 words).
+     * AI-only: returns null if generation fails.
+     */
+    public function generateNarrativeFromOutline(array $outline): ?string
+    {
+        // Basic validate keys
+        $keys = ['exec_summary', 'why_these_topics', 'findings', 'short_term_actions', 'mid_term_actions', 'strategies', 'kpis', 'risks', 'comms_plan'];
+        $ok = true;
+        foreach ($keys as $k) {
+            if (!array_key_exists($k, $outline)) {
+                $ok = false;
+                break;
+            }
+        }
+        $jsonStr = json_encode($outline, JSON_UNESCAPED_UNICODE);
+        try {
+            $model = 'gpt-5-mini';
+            $instruction = "Susun NARASI KOMPREHENSIF (~1400–1600 kata) dalam Bahasa Indonesia dari OUTLINE JSON berikut. Gunakan subjudul tegas:\n\n"
+                . "Ringkasan Eksekutif\n\n"
+                . "Mengapa Dua Topik Ini Penting\n\n"
+                . "Temuan Kunci\n\n"
+                . "Strategi Terpadu\n\n"
+                . "Rencana Aksi 0–3 Bulan\n\n"
+                . "Rencana Aksi 3–12 Bulan\n\n"
+                . "Rencana Komunikasi & Edukasi\n\n"
+                . "KPI yang Dipantau\n\n"
+                . "Risiko & Mitigasi\n\n"
+                . "Dampak yang Diharapkan\n\n"
+                . "Instruksi:\n\n"
+                . "Tulis narasi mengalir, praktis, dan operasional.\n\n"
+                . "Pastikan strategi dan rencana aksi tidak hanya fokus pada digitalisasi (media sosial, aplikasi, notifikasi), tetapi juga mencakup strategi sosialisasi offline seperti baliho, radio lokal, kerjasama dengan komunitas/ormas, pasar malam, masjid, sekolah, dan event daerah.\n\n"
+                . "Sertakan contoh konkret dalam setiap bagian rencana aksi, misalnya:\n\n"
+                . "Digital: konten reels edukatif, push notification aplikasi.\n\n"
+                . "Offline: sosialisasi melalui pengeras suara masjid, banner di pasar, kerja sama dengan karang taruna.\n\n"
+                . "Fokus pada konteks pelayanan publik Bapenda/Samsat dengan tujuan utama meningkatkan kepatuhan pajak dan kepuasan wajib pajak.\n\n"
+                . "Pastikan dua topik teratas disebutkan secara eksplisit di setiap bagian penjelasan.\n\n"
+                . "Balas hanya dalam bentuk teks naratif panjang sesuai struktur, jangan tampilkan JSON.";
+            $resp = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are a senior Indonesian public-sector strategist writing long-form reports.'],
+                    ['role' => 'user', 'content' => $instruction . "\n\nOUTLINE_JSON:\n" . $jsonStr]
+                ],
+                'max_completion_tokens' => 2300,
+            ]);
+            $text = trim($resp->choices[0]->message->content ?? '');
+            if ($text) return $text;
+        } catch (Exception $e) {
+            Log::warning('generateNarrativeFromOutline AI expansion failed: ' . $e->getMessage());
+        }
+        return null;
+    }
+
+    // Removed local non-AI narrative generator to enforce AI-only outputs
 
     /**
      * Classify individual chats into categories & sentiments.
@@ -542,95 +1159,9 @@ class OpenAIService
                 $data = array_values($cachedMap);
             }
 
-            // Retry strategy if over-using lain_lain (>80%)
-            if (is_array($data) && count($data) > 5) {
-                $lainCount = 0;
-                foreach ($data as $d) {
-                    if (($d['category'] ?? '') === 'lain_lain') $lainCount++;
-                }
-                if ($lainCount / max(1, count($data)) > 0.8) {
-                    Log::warning('AI classification overused lain_lain, retrying with stronger instruction');
-                    $promptPayload['task'] .= "\nPENTING: Anda terlalu sering menggunakan 'lain_lain'. Pada percobaan ini, pilih kategori spesifik jika ada kata terkait sedikit saja.";
-                    $messages[1]['content'] = json_encode($promptPayload, JSON_UNESCAPED_UNICODE);
-                    $callParams['messages'] = $messages;
-                    $response2 = $this->client->chat()->create($callParams);
-                    $text2 = trim($response2->choices[0]->message->content ?? '');
-                    $parsed2 = $this->tryParseJsonArray($text2);
-                    if (is_array($parsed2)) {
-                        $text .= "\n--- RETRY ---\n" . $text2;
-                        $data = $parsed2;
-                    }
-                }
-            }
-
-            // Keyword corrective fallback for items still lain_lain
-            if (is_array($data)) {
-                foreach ($data as &$row) {
-                    if (($row['category'] ?? '') === 'lain_lain') {
-                        $txt = mb_strtolower(($row['snippet'] ?? '') . ' ' . ($this->findChatText($prepared, $row['chat_id']) ?? ''));
-                        foreach ($categoryMeta as $ck => $meta) {
-                            if ($ck === 'lain_lain') continue;
-                            $hits = 0;
-                            foreach ($meta['kw'] as $kw) {
-                                if ($kw && mb_stripos($txt, $kw) !== false) {
-                                    $hits++;
-                                    if ($hits >= 1) break;
-                                }
-                            }
-                            if ($hits >= 1) {
-                                $row['category'] = $ck;
-                                $row['confidence'] = max((float)($row['confidence'] ?? 0.3), 0.55);
-                                break; // stop after first match
-                            }
-                        }
-                    }
-                }
-                unset($row);
-            }
-
-            // Heuristic emergency fallback if AI failed OR >90% still lain_lain
-            if (!is_array($data) || (count($data) > 0 && $this->proportionLainLain($data) > 0.9)) {
-                Log::warning('Applying heuristic fallback classification (AI parse failure or excessive lain_lain)');
-                $heuristic = [];
-                $positive = ['terima kasih', 'bagus', 'puas', 'mantap', 'sukses'];
-                $negative = ['lama', 'telat', 'denda', 'gagal', 'hilang', 'susah', 'ribet', 'error', 'komplain'];
-                foreach ($prepared as $p) {
-                    $txt = mb_strtolower($p['text']);
-                    $assigned = 'lain_lain';
-                    foreach ($categoryMeta as $ck => $meta) {
-                        if ($ck === 'lain_lain') continue;
-                        foreach ($meta['kw'] as $kw) {
-                            if ($kw && mb_stripos($txt, $kw) !== false) {
-                                $assigned = $ck;
-                                break 2;
-                            }
-                        }
-                    }
-                    $sent = 'neutral';
-                    foreach ($positive as $pw) {
-                        if (mb_stripos($txt, $pw) !== false) {
-                            $sent = 'positive';
-                            break;
-                        }
-                    }
-                    if ($sent === 'neutral') {
-                        foreach ($negative as $nw) {
-                            if (mb_stripos($txt, $nw) !== false) {
-                                $sent = 'negative';
-                                break;
-                            }
-                        }
-                    }
-                    $heuristic[] = [
-                        'chat_id' => $p['chat_id'],
-                        'category' => $assigned,
-                        'sentiment' => $sent,
-                        'confidence' => $assigned === 'lain_lain' ? 0.4 : 0.65,
-                        'snippet' => mb_substr($p['text'], 0, 200)
-                    ];
-                }
-                $data = $heuristic;
-                $text .= "\n[HeuristicFallbackApplied]";
+            // If AI output cannot be parsed, return failure (no heuristic fallback)
+            if (!is_array($data)) {
+                return ['success' => false, 'message' => 'AI classification parse failure', 'data' => null];
             }
 
             // Save newly classified to cache
@@ -693,16 +1224,7 @@ class OpenAIService
         return null;
     }
 
-    private function proportionLainLain(array $rows): float
-    {
-        $total = count($rows);
-        if ($total === 0) return 0.0;
-        $lain = 0;
-        foreach ($rows as $r) {
-            if (($r['category'] ?? '') === 'lain_lain') $lain++;
-        }
-        return $lain / $total;
-    }
+    // Removed: proportionLainLain (no longer used; heuristic fallback eliminated)
 
     /**
      * Generate AI response for customer service chat with RAG

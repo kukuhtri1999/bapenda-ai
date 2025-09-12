@@ -130,7 +130,7 @@ class RunChatAnalytics implements ShouldQueue
             arsort($commonIssues);
             $commonIssues = array_slice($commonIssues, 0, 10, true);
 
-            // Prepare a concise summary prompt for AI to produce final JSON (single call)
+            // Prepare aggregates for context (still passed to the one-shot call)
             $aggText = "SUMMARY_AGGREGATES:\n";
             $aggText .= "total_messages: {$count}\n";
             $aggText .= "sentiments:\n";
@@ -150,12 +150,6 @@ class RunChatAnalytics implements ShouldQueue
                 $aggText .= "- {$cat}: {$c}\n";
             }
 
-            // Provide explicit instructions to AI for improved structured insight & recommendations
-            // Request richer recommendation objects: rationale, priority, short actions, estimated effort
-            $instruction = "You will receive aggregate analytics from Indonesian tax service chats. Return ONLY strict JSON with keys: \n- topics: array of {label,count} \n- sentiments: object {positive,neutral,negative} \n- geo_counts: object \n- common_issues: array of {text,count} \n- categories: array of {name,count} \n- recommendations: array of SHORT Indonesian sentences (summary) \n- recommendations_detailed: array of objects {category, label, count, rationale (Indonesian), actions (array of short actionable steps in Indonesian), priority (low|medium|high), effort_estimate (short text)}\nIf data sparse, still produce reasonable recommendations based on categories & issues. Use existing counts, do not invent unrealistic numbers. Maintain original category names provided. Only return valid JSON.\n";
-
-            // We will rely on batched AI classification for per-chat category & sentiment.
-            // Hardcoded keyword maps removed as per request to use AI-only classification.
             $per_chat_sample = [];
 
             // Human-readable labels for categories
@@ -207,102 +201,127 @@ class RunChatAnalytics implements ShouldQueue
                 ];
             }
 
-            // Now call AI once with aggregates + categoryCounts (either heuristic or AI-derived) to get recommendations
+            // One-shot AI call: pass rows + stats just once, expect full JSON result
             $aggText .= "\n\nFINAL_CATEGORY_COUNTS:\n";
             foreach ($categoryCounts as $cat => $c) {
                 $aggText .= "- {$cat}: {$c}\n";
             }
-
-            // Try aggregate AI call with a strict JSON example and one retry/repair
-            $aggInstruction = $instruction . "\nPLEASE RETURN ONLY A VALID JSON OBJECT matching the schema. Example:\n{\n  \"topics\": [{\"label\": \"stnk\", \"count\": 10}],\n  \"sentiments\": {\"positive\":1,\"neutral\":2,\"negative\":3},\n  \"geo_counts\": {},\n  \"common_issues\": [{\"text\":\"antri lama\", \"count\":5}],\n  \"categories\": [{\"name\":\"tanya_cara_bayar_pajak\",\"count\":5}],\n  \"recommendations\": [\"Sosialisasi pembayaran online\"],\n  \"recommendations_detailed\": [{\"category\":\"tanya_cara_bayar_pajak\", \"label\":\"Tanya Cara Bayar Pajak\", \"count\":5, \"rationale\":\"Ringkasan...\", \"actions\": [\"Buat panduan online\"], \"priority\":\"high\", \"effort_estimate\":\"medium\" }]\n}\n";
-            $summary = null;
-            $aggAttempt = 0;
-            while ($aggAttempt < 2 && !$summary) {
-                $res = $ai->analyzeConversations([$aggInstruction . "\n" . $aggText]);
-                if (!empty($res['success']) && !empty($res['message'])) {
-                    $txt = $res['message'];
-                    $startPos = strpos($txt, '{');
-                    $endPos = strrpos($txt, '}');
-                    if ($startPos !== false && $endPos !== false && $endPos > $startPos) {
-                        $maybe = substr($txt, $startPos, $endPos - $startPos + 1);
-                        $j = json_decode($maybe, true);
-                        if (is_array($j)) {
-                            $summary = $j;
-                            break;
-                        }
-                    }
-                }
-                // repair attempt: ask model to return only JSON matching schema
-                $repair = "You returned non-JSON or invalid JSON. PLEASE return ONLY the JSON object matching the schema with keys: topics, sentiments, geo_counts, common_issues, categories, recommendations. No extra text.";
-                $res2 = $ai->analyzeConversations([$repair]);
-                if (!empty($res2['success']) && !empty($res2['message'])) {
-                    $txt2 = $res2['message'];
-                    $s2 = strpos($txt2, '{');
-                    $e2 = strrpos($txt2, '}');
-                    if ($s2 !== false && $e2 !== false && $e2 > $s2) {
-                        $maybe2 = substr($txt2, $s2, $e2 - $s2 + 1);
-                        $j2 = json_decode($maybe2, true);
-                        if (is_array($j2)) {
-                            $summary = $j2;
-                            break;
-                        }
-                    }
-                }
-                $aggAttempt++;
-            }
-
-            // fallback if AI did not return JSON
-            if (!$summary) {
-                $summary = [
-                    'sentiments' => $sentiments,
-                    'geo_counts' => $geo,
-                    'common_issues' => array_map(fn($k, $v) => ['text' => $k, 'count' => $v], array_keys($commonIssues), $commonIssues),
-                    'recommendations' => [],
+            // Build rows payload for one-shot call
+            $rawRows = [];
+            foreach ($messages as $m) {
+                $rawRows[] = [
+                    'text' => (string) $m->content,
+                    'topic' => (string) ($m->topic ?? ''),
+                    'sentiment' => (string) ($m->sentiment ?? ''),
                 ];
             }
-
-            // Generate an AI insight summary (500-600 words in Indonesian) and attach to summary
+            $oneShot = $ai->generateOneShotAnalytics($rawRows, [
+                'date_range' => [$start, $end],
+                'category_counts' => $categoryCounts,
+                'sentiments' => $sentiments,
+                'geo_counts' => $geo,
+                'common_issues' => $commonIssues,
+            ], $categoryLabels);
+            $summary = is_array($oneShot) ? $oneShot : [
+                'sentiments' => $sentiments,
+                'geo_counts' => $geo,
+                'common_issues' => array_map(fn($k, $v) => ['text' => $k, 'count' => $v], array_keys($commonIssues), $commonIssues),
+            ];
             try {
-                $insight = $ai->generateInsightSummary($aggText, $categoryLabels);
-                if ($insight) {
-                    $summary['insight_summary'] = $insight;
-                }
-            } catch (\Throwable $e) {
-                // non-fatal
-                $notes = is_array($notes) ? $notes : [];
-                $notes['insight_error'] = $e->getMessage();
-                $this->report->notes = $notes;
-                $this->report->save();
+                \Illuminate\Support\Facades\Log::info('RunChatAnalytics one-shot result', [
+                    'report_id' => $this->report->id,
+                    'has_combined' => !empty($summary['combined_top_insight']),
+                    'recs' => is_array($summary['recommendations'] ?? null) ? count($summary['recommendations']) : 0,
+                    'recs_detailed' => is_array($summary['recommendations_detailed'] ?? null) ? count($summary['recommendations_detailed']) : 0,
+                ]);
+            } catch (\Throwable $t) {
             }
 
-            // Generate a more detailed analysis (~1000 words) and attach
-            try {
-                // build local categories array from current counts for derived context
-                $catsLocal = [];
-                foreach ($categoryCounts as $name => $c) {
-                    if (empty($c) || $c <= 0) continue;
-                    $catsLocal[] = [
-                        'name' => $name,
-                        'label' => $categoryLabels[$name] ?? $name,
-                        'count' => $c
-                    ];
+            // If one-shot missed key fields, try a basic generator to fill them
+            $needsInsight = empty($summary['combined_top_insight']);
+            $needsRecs = empty($summary['recommendations']) || !is_array($summary['recommendations']);
+            $needsRecsDet = empty($summary['recommendations_detailed']) || !is_array($summary['recommendations_detailed']);
+            if ($needsInsight || $needsRecs || $needsRecsDet) {
+                try {
+                    $rawRowsBasic = [];
+                    foreach ($messages as $m) {
+                        $rawRowsBasic[] = [
+                            'text' => (string) $m->content,
+                            'topic' => (string) ($m->topic ?? ''),
+                            'sentiment' => (string) ($m->sentiment ?? ''),
+                        ];
+                    }
+                    $basic = $ai->generateBasicInsightAndRecommendations($rawRowsBasic, [
+                        'date_range' => [$start, $end],
+                        'category_counts' => $categoryCounts,
+                        'sentiments' => $sentiments,
+                        'geo_counts' => $geo,
+                        'common_issues' => $commonIssues,
+                    ]);
+                    if (is_array($basic)) {
+                        if ($needsInsight && !empty($basic['insight_long'])) {
+                            $summary['combined_top_insight'] = $basic['insight_long'];
+                        }
+                        if (empty($summary['insight_summary']) && !empty($basic['insight_summary'])) {
+                            $summary['insight_summary'] = $basic['insight_summary'];
+                        }
+                        if ($needsRecs && !empty($basic['recommendations']) && is_array($basic['recommendations'])) {
+                            $summary['recommendations'] = $basic['recommendations'];
+                        }
+                        if ($needsRecsDet && !empty($basic['recommendations_detailed']) && is_array($basic['recommendations_detailed'])) {
+                            $summary['recommendations_detailed'] = $basic['recommendations_detailed'];
+                        }
+                        try {
+                            \Illuminate\Support\Facades\Log::info('Merged basic AI output', [
+                                'report_id' => $this->report->id,
+                                'has_combined' => !empty($summary['combined_top_insight']),
+                                'recs' => is_array($summary['recommendations'] ?? null) ? count($summary['recommendations']) : 0,
+                                'recs_detailed' => is_array($summary['recommendations_detailed'] ?? null) ? count($summary['recommendations_detailed']) : 0,
+                            ]);
+                        } catch (\Throwable $t) {
+                        }
+                    }
+
+                    // Still missing long insight? Generate a text-only narrative as last resort
+                    if (empty($summary['combined_top_insight'])) {
+                        // Build quick topTopics from current categoryCounts (top 2)
+                        $tmp = [];
+                        foreach ($categoryCounts as $name => $c) {
+                            if ($c > 0) {
+                                $tmp[] = ['key' => $name, 'label' => $categoryLabels[$name] ?? $name, 'count' => $c];
+                            }
+                        }
+                        usort($tmp, fn($a, $b) => ($b['count'] ?? 0) <=> ($a['count'] ?? 0));
+                        $topTopicsQuick = array_slice($tmp, 0, 2);
+                        try {
+                            $long = $ai->generateSingleInsightDocument($rawRowsBasic, [
+                                'date_range' => [$start, $end],
+                                'category_counts' => $categoryCounts,
+                                'sentiments' => $sentiments,
+                                'geo_counts' => $geo,
+                                'common_issues' => $commonIssues,
+                            ], $topTopicsQuick);
+                            if (is_string($long) && trim($long) !== '') {
+                                $summary['combined_top_insight'] = $long;
+                                try {
+                                    \Illuminate\Support\Facades\Log::info('Filled combined_top_insight via text-only fallback', ['report_id' => $this->report->id, 'len' => strlen($long)]);
+                                } catch (\Throwable $t) {
+                                }
+                            }
+                        } catch (\Throwable $e) {
+                            try {
+                                \Illuminate\Support\Facades\Log::warning('Text-only insight fallback failed: ' . $e->getMessage());
+                            } catch (\Throwable $t) {
+                            }
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // ignore; we will proceed with whatever we have
+                    try {
+                        \Illuminate\Support\Facades\Log::warning('Basic generator failed: ' . $e->getMessage());
+                    } catch (\Throwable $t) {
+                    }
                 }
-                usort($catsLocal, fn($a, $b) => $b['count'] <=> $a['count']);
-                $derived = [
-                    'sentiments' => $sentiments,
-                    'categories' => $catsLocal,
-                    'geo_counts' => $summary['geo_counts'] ?? new \stdClass(),
-                    'common_issues' => $summary['common_issues'] ?? [],
-                ];
-                $detailed = $ai->generateDetailedAnalysis($aggText, $categoryLabels, $derived);
-                if ($detailed) {
-                    $summary['detailed_analysis'] = $detailed;
-                }
-            } catch (\Throwable $e) {
-                $notes = is_array($notes) ? $notes : [];
-                $notes['detailed_error'] = $e->getMessage();
-                $this->report->notes = $notes;
-                $this->report->save();
             }
 
             // Ensure categories array exists in summary (from categoryCounts)
@@ -329,56 +348,7 @@ class RunChatAnalytics implements ShouldQueue
                 $summary['per_chat'] = array_slice($per_chat_sample, 0, 200);
             }
 
-            // Dynamic AI recommendations (JSON) - prefer AI; fallback to config if unavailable
-            $dynRecs = $ai->generateRecommendations($categoryCounts, $commonIssues, $sentiments, $categoryLabels);
-            if (is_array($dynRecs)) {
-                if (!empty($dynRecs['recommendations']) && is_array($dynRecs['recommendations'])) {
-                    $summary['recommendations'] = $dynRecs['recommendations'];
-                }
-                if (!empty($dynRecs['recommendations_detailed']) && is_array($dynRecs['recommendations_detailed'])) {
-                    $summary['recommendations_detailed'] = $dynRecs['recommendations_detailed'];
-                }
-            }
-            // Fallback if AI provided none
-            if (empty($summary['recommendations'])) {
-                $recMap = config('analytics_recommendations.recommendations', []);
-                $recs = [];
-                arsort($categoryCounts);
-                $top_count = (int) config('analytics.top_count', 3);
-                $topCats = array_slice(array_keys($categoryCounts), 0, $top_count);
-                foreach ($topCats as $tc) {
-                    if (isset($recMap[$tc])) {
-                        foreach ($recMap[$tc] as $r) {
-                            $recs[] = $r;
-                        }
-                    }
-                }
-                $summary['recommendations'] = array_slice(array_values(array_unique($recs)), 0, 8);
-            }
-
-            // If AI did not provide detailed recs, build a simple fallback from config
-            if (empty($summary['recommendations_detailed'])) {
-                $detailed = [];
-                $recMap = config('analytics_recommendations.recommendations', []);
-                $top_count = (int) config('analytics.top_count', 3);
-                $topCatsFull = array_slice($catsArr, 0, $top_count);
-                foreach ($topCatsFull as $tc) {
-                    $name = $tc['name'];
-                    $label = $tc['label'];
-                    $count = $tc['count'];
-                    $rlist = $recMap[$name] ?? [];
-                    $detailed[] = [
-                        'category' => $name,
-                        'label' => $label,
-                        'count' => $count,
-                        'rationale' => "Kategori '{$label}' muncul dengan {$count} percakapan. Tinjau kebutuhan, keluhan, dan peluang perbaikan pada topik ini.",
-                        'actions' => $rlist,
-                        'priority' => 'medium',
-                        'effort_estimate' => 'sedang',
-                    ];
-                }
-                $summary['recommendations_detailed'] = $detailed;
-            }
+            // Recommendations come only from one-shot result (if present)
 
             // Trim recommendations_detailed to top_count to keep focused on highest topics
             $top_count = (int) config('analytics.top_count', 3);
@@ -405,53 +375,33 @@ class RunChatAnalytics implements ShouldQueue
                 $this->report->save();
             }
 
-            // Per-topic long AI insights (~1000 words each) for the same top topics
-            try {
-                $perTopicInsights = [];
-                foreach ($topTopics as $topic) {
-                    // collect up to N representative snippets for this topic from per_chat_sample
-                    $examples = [];
-                    $cap = 6;
-                    foreach ($per_chat_sample as $row) {
-                        if (($row['category'] ?? null) === ($topic['key'] ?? $topic['label'])) {
-                            $examples[] = $row['snippet'] ?? '';
-                            if (count($examples) >= $cap) break;
-                        }
-                    }
-                    $insightText = $ai->generatePerTopicInsight($topic, $aggText, $categoryLabels, $examples);
-                    if ($insightText) {
-                        $perTopicInsights[$topic['key']] = $insightText;
-                    }
-                }
-                if (!empty($perTopicInsights)) {
-                    $summary['per_topic_insights'] = $perTopicInsights;
-                }
-            } catch (\Throwable $e) {
-                $notes = is_array($notes) ? $notes : [];
-                $notes['per_topic_insights_error'] = $e->getMessage();
-                $this->report->notes = $notes;
-                $this->report->save();
-            }
+            // Skip separate combined insight generation; rely on one-shot
 
-            // Generate a more comprehensive ~1000-word analysis
-            try {
-                $derivedForDetail = [
-                    'categories' => $catsArr,
-                    'sentiments' => $summary['sentiments'] ?? $sentiments,
-                    'common_issues' => $summary['common_issues'] ?? array_map(fn($k, $v) => ['text' => $k, 'count' => $v], array_keys($commonIssues), $commonIssues),
-                ];
-                $detailedText = $ai->generateDetailedAnalysis($aggText, $categoryLabels, $derivedForDetail);
-                if ($detailedText) {
-                    $summary['detailed_analysis'] = $detailedText;
-                }
-            } catch (\Throwable $e) {
-                $notes = is_array($notes) ? $notes : [];
-                $notes['detailed_error'] = $e->getMessage();
-                $this->report->notes = $notes;
-                $this->report->save();
-            }
 
-            $this->report->update(['summary_json' => $summary, 'status' => 'completed']);
+            // Skip per-topic long insights to keep single-call approach
+
+            // Skip extra detailed analysis call; one-shot already returns main content
+
+            // Nothing further; if combined_top_insight missing, UI will show waiting text
+
+            // Persist both summary_json and dedicated top-level columns for quick access
+            $this->report->summary_json = $summary;
+            if (isset($summary['combined_top_insight'])) $this->report->combined_top_insight = $summary['combined_top_insight'];
+            if (isset($summary['insight_summary'])) $this->report->insight_summary = $summary['insight_summary'];
+            if (isset($summary['recommendations']) && is_array($summary['recommendations'])) $this->report->recommendations = $summary['recommendations'];
+            if (isset($summary['recommendations_detailed']) && is_array($summary['recommendations_detailed'])) $this->report->recommendations_detailed = $summary['recommendations_detailed'];
+            $this->report->status = 'completed';
+            $this->report->save();
+
+            try {
+                \Illuminate\Support\Facades\Log::info('Report saved with AI fields', [
+                    'report_id' => $this->report->id,
+                    'combined_len' => strlen((string)$this->report->combined_top_insight),
+                    'recs' => is_array($this->report->recommendations ?? null) ? count($this->report->recommendations) : 0,
+                    'recs_detailed' => is_array($this->report->recommendations_detailed ?? null) ? count($this->report->recommendations_detailed) : 0,
+                ]);
+            } catch (\Throwable $t) {
+            }
         } catch (\Throwable $e) {
             Log::error('Analytics job failed: ' . $e->getMessage());
             $this->report->update(['status' => 'failed', 'notes' => $e->getMessage()]);

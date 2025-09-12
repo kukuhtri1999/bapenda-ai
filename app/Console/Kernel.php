@@ -7,18 +7,19 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
 {
-  protected $commands = [
-    // register custom test command
-    \App\Console\Commands\TestClassifyChats::class,
-  ];
+    protected $commands = [
+        // register custom test command
+        \App\Console\Commands\TestClassifyChats::class,
+        \App\Console\Commands\DebugRunAnalytics::class,
+    ];
 
-  protected function schedule(Schedule $schedule)
-  {
-    // ...existing scheduled tasks
-  }
+    protected function schedule(Schedule $schedule)
+    {
+        // ...existing scheduled tasks
+    }
 
-  protected function commands()
-  {
-    // ...existing command registration if any
-  }
+    protected function commands()
+    {
+        // ...existing command registration if any
+    }
 }

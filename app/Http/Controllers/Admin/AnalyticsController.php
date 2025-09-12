@@ -72,7 +72,12 @@ class AnalyticsController extends Controller
                 'chat_count' => $report->chat_count,
                 'message_count' => $messageCount,
                 'status' => $report->status,
+                // Ensure the single long document is included here
                 'summary_json' => $report->summary_json,
+                'combined_top_insight' => $report->combined_top_insight,
+                'insight_summary' => $report->insight_summary,
+                'recommendations' => $report->recommendations,
+                'recommendations_detailed' => $report->recommendations_detailed,
                 'processing_mode' => 'sync',
             ]);
         }

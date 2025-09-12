@@ -100,82 +100,20 @@
                 <div class="text-gray-600">{{ v }}</div>
               </div>
             </div>
-
-            <!-- <h4 class="font-medium mt-4">Recommendations (Summary)</h4>
-            <div class="mt-2">
-              <ul class="list-decimal pl-6">
-                <li
-                  v-for="rec in reportSummary.summary_json?.recommendations ||
-                  []"
-                  :key="rec"
-                  class="text-sm mb-1"
-                >
-                  {{ rec }}
-                </li>
-              </ul>
-            </div> -->
-
-            <div
-              v-if="
-                reportSummary.summary_json?.recommendations_detailed?.length
-              "
-              class="mt-6"
-            >
-              <h4 class="font-medium">Rekomendasi Detail (AI)</h4>
-              <div class="mt-3 space-y-3">
-                <div
-                  v-for="(d, idx) in topDetailedRecs"
-                  :key="idx"
-                  class="border rounded p-3 bg-white"
-                >
-                  <div class="flex justify-between items-start">
-                    <div>
-                      <div class="font-semibold">
-                        {{ d.label || d.category }}
-                      </div>
-                      <div class="text-xs text-gray-500">
-                        Count: {{ d.count }}
-                      </div>
-                    </div>
-                    <div class="text-xs">
-                      <span
-                        class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 mr-2"
-                        >Priority: {{ d.priority || 'medium' }}</span
-                      >
-                      <span
-                        class="px-2 py-0.5 rounded bg-gray-100 text-gray-700"
-                        >Effort: {{ d.effort_estimate || 'sedang' }}</span
-                      >
-                    </div>
-                  </div>
-                  <div class="text-sm text-gray-800 mt-2 whitespace-pre-line">
-                    {{ d.rationale }}
-                  </div>
-                  <ul
-                    v-if="d.actions?.length"
-                    class="list-disc pl-5 mt-2 text-sm"
-                  >
-                    <li v-for="(a, i) in d.actions" :key="i">{{ a }}</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div
-              v-if="reportSummary.summary_json?.insight_summary"
-              class="mt-6"
-            >
-              <h4 class="font-medium">Insight Ringkas (AI)</h4>
-              <div
-                class="mt-2 whitespace-pre-line text-sm text-gray-800 bg-gray-50 p-3 rounded"
-              >
-                {{ reportSummary.summary_json.insight_summary }}
-              </div>
-            </div>
           </div>
         </div>
 
-        <div v-if="reportSummary.summary_json?.detailed_analysis" class="mt-8">
+        <div class="mt-6">
+          <h4 class="font-medium">Dokumen Insight (AI)</h4>
+
+          <div
+            class="mt-3 whitespace-pre-line text-sm text-gray-900 bg-white border rounded p-3 leading-7"
+          >
+            {{ combinedInsightText }}
+          </div>
+        </div>
+
+        <!-- <div v-if="reportSummary.summary_json?.detailed_analysis" class="mt-8">
           <h4 class="font-semibold text-lg">Analisis Terperinci (AI)</h4>
           <p class="text-sm text-gray-500">
             ~1000 kata tentang hasil analitik, strategi, dan rekomendasi aksi.
@@ -210,7 +148,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </div> -->
 
         <!-- <div class="mt-4">
           <h4 class="font-medium mb-2">Chats per Category</h4>
@@ -378,6 +316,14 @@
                 </div>
               </div>
             </div>
+            <div class="mt-6">
+              <h4 class="font-medium">Dokumen Insight (AI)</h4>
+              <div
+                class="mt-2 whitespace-pre-line text-sm text-gray-800 bg-gray-50 p-3 rounded"
+              >
+                {{ modalCombinedInsightText }}
+              </div>
+            </div>
             <div
               v-if="modalReport.summary_json?.detailed_analysis"
               class="mt-6"
@@ -528,13 +474,21 @@ const confirmStart = async () => {
     const j = res.data;
     reportSummary.value = j;
     loading.value = false;
-    if (
-      j.processing_mode === 'sync'
-      && (j.status === 'completed' || j.summary_json)
-    ) {
-      showLoading.value = false;
-      await loadReports();
-      return;
+    // If sync mode and summary is present, show it immediately
+    if (j.processing_mode === 'sync') {
+      if (j.summary_json) {
+        showLoading.value = false;
+        await loadReports();
+        return;
+      }
+      if (j.status === 'completed') {
+        // fetch the saved report to ensure we have summary_json
+        const r = await fetch(`/api/admin/analytics/reports/${j.report_id}`);
+        reportSummary.value = await r.json();
+        showLoading.value = false;
+        await loadReports();
+        return;
+      }
     }
     pollToken.value++;
     pollReport(j.report_id, pollToken.value);
@@ -557,6 +511,17 @@ const pollReport = async (id, token) => {
     const data = await r.json();
     reportSummary.value = data;
     if (data.status === 'completed' || data.status === 'failed') {
+      // If summary_json missing in the immediate response, re-fetch once
+      if (!data.summary_json) {
+        try {
+          await new Promise((r) => setTimeout(r, 500));
+          const r2 = await fetch(`/api/admin/analytics/reports/${id}`);
+          const d2 = await r2.json();
+          reportSummary.value = d2;
+        } catch (e) {
+          /* ignore */
+        }
+      }
       showLoading.value = false;
       await loadReports();
       return;
@@ -844,6 +809,44 @@ const modalPerTopicInsightsLimited = computed(() => {
     count: strategies?.[key]?.count,
     text,
   }));
+});
+
+// Single combined insight text (AI-only; no static fallbacks)
+const combinedInsightText = computed(() => {
+  // Prefer root-level persisted fields when present
+  const rootTxt = reportSummary.value?.combined_top_insight;
+  if (rootTxt && typeof rootTxt === 'string' && rootTxt.trim().length > 0) return rootTxt;
+  const txt = reportSummary.value?.summary_json?.combined_top_insight;
+  if (txt && typeof txt === 'string' && txt.trim().length > 0) return txt;
+  const rootSummary = reportSummary.value?.insight_summary;
+  if (
+    rootSummary
+    && typeof rootSummary === 'string'
+    && rootSummary.trim().length > 0
+  ) return rootSummary;
+  const detailed = reportSummary.value?.summary_json?.detailed_analysis;
+  if (detailed && typeof detailed === 'string' && detailed.trim().length > 0) return detailed;
+  const summary = reportSummary.value?.summary_json?.insight_summary;
+  if (summary && typeof summary === 'string' && summary.trim().length > 0) return summary;
+  return 'Menunggu hasil analisis AI… jalankan Start Analysis atau refresh laporan.';
+});
+
+const modalCombinedInsightText = computed(() => {
+  const rootTxt = modalReport.value?.combined_top_insight;
+  if (rootTxt && typeof rootTxt === 'string' && rootTxt.trim().length > 0) return rootTxt;
+  const txt = modalReport.value?.summary_json?.combined_top_insight;
+  if (txt && typeof txt === 'string' && txt.trim().length > 0) return txt;
+  const rootSummary = modalReport.value?.insight_summary;
+  if (
+    rootSummary
+    && typeof rootSummary === 'string'
+    && rootSummary.trim().length > 0
+  ) return rootSummary;
+  const detailed = modalReport.value?.summary_json?.detailed_analysis;
+  if (detailed && typeof detailed === 'string' && detailed.trim().length > 0) return detailed;
+  const summary = modalReport.value?.summary_json?.insight_summary;
+  if (summary && typeof summary === 'string' && summary.trim().length > 0) return summary;
+  return 'Menunggu hasil analisis AI…';
 });
 </script>
 
