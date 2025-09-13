@@ -30,6 +30,7 @@ class ChatController extends Controller
         // Check if chat already exists for this session
         $chat = Chat::where('session_id', $sessionId)->first();
 
+        $greetingMessage = null;
         if (!$chat) {
             $chat = Chat::create([
                 'session_id' => $sessionId,
@@ -44,14 +45,10 @@ class ChatController extends Controller
             ]);
 
             // Add greeting message
+            // generate greeting but do NOT persist it; we'll return it as a
+            // virtual assistant message in the response so the frontend shows
+            // the greeting without storing assistant starter messages in DB.
             $greetingMessage = $this->openAIService->generateGreeting();
-
-            ChatMessage::create([
-                'chat_id' => $chat->id,
-                'role' => 'assistant',
-                'content' => $greetingMessage,
-                'sent_at' => now(),
-            ]);
         }
 
         $chat->load(['messages' => function ($query) {
@@ -62,6 +59,24 @@ class ChatController extends Controller
         // created from the `answer` column on user messages so the frontend
         // shows assistant replies even though we store them inline.
         $formatted = $this->formatMessagesForClient($chat->messages);
+
+        // If we generated a greeting for a new chat, inject it as a virtual
+        // assistant message at the start of the message list (do not persist).
+        if (!empty($greetingMessage)) {
+            $assistant = [
+                'id' => 'assistant_greeting_' . uniqid(),
+                'chat_id' => $chat->id,
+                'role' => 'assistant',
+                'content' => $greetingMessage,
+                'answer' => null,
+                'topic' => null,
+                'sentiment' => null,
+                'metadata' => null,
+                'sent_at' => now()->format('Y-m-d H:i:s'),
+                'created_at' => now()->format('Y-m-d H:i:s'),
+            ];
+            array_unshift($formatted, $assistant);
+        }
         $chatArray = $chat->toArray();
         $chatArray['messages'] = $formatted;
 

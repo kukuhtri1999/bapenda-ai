@@ -25,6 +25,8 @@ const chatDialog = ref(false);
 const isChatPageOpen = ref(false);
 const servicesSection = ref(null);
 
+const logoUrl = import.meta.env.VITE_APP_LOGO;
+
 // Popular questions data
 const popularQuestions = ref([
   {
@@ -165,7 +167,35 @@ function handleImageError() {
         <VRow align="center">
           <VCol cols="auto">
             <div class="d-flex align-center">
-              <VIcon color="white" size="40" class="me-3">mdi-robot</VIcon>
+              <!-- <VIcon color="white" size="40" class="me-3">mdi-robot</VIcon> -->
+              <VImg :src="logoUrl" alt="Logo" contain width="40" class="me-3" />
+              <VImg
+                src="/images/logo-jatim.png"
+                alt="Logo Jatim"
+                contain
+                :height="40"
+                width="40"
+                aspect-ratio="1"
+                class="me-2"
+              />
+              <VImg
+                src="/images/logo-polri.png"
+                alt="Logo Polri"
+                contain
+                height="40"
+                width="40"
+                aspect-ratio="1"
+                class="me-2"
+              />
+              <VImg
+                src="/images/jasa-raharja.png"
+                alt="Jasa Raharja"
+                contain
+                height="40"
+                width="40"
+                aspect-ratio="1"
+                class="me-3"
+              />
               <span class="text-h6 font-weight-bold text-white">SALMA AI</span>
             </div>
           </VCol>
@@ -200,7 +230,7 @@ function handleImageError() {
                             </v-btn> -->
             </template>
             <VBtn color="white" variant="flat" class="ms-3" @click="startChat">
-              <VIcon left>mdi-robot</VIcon>
+              <VIcon class="mr-2" left>mdi-robot</VIcon>
               Mulai Chat
             </VBtn>
           </VCol>
@@ -213,13 +243,13 @@ function handleImageError() {
       <section class="hero-section align-content-center">
         <VContainer class="fill-height">
           <VRow align="center" justify="center" class="text-center">
-            <VCol cols="12" md="8" lg="6">
+            <VCol cols="12" md="8" lg="8">
               <div class="hero-content">
-                <h1 class="display-1 text-h4 font-weight-bold text-white mb-6">
-                  Asisten AI Customer Service
-                  <span class="text-accent">Samsat Lamongan</span>
+                <h1 class="display-1 text-h2 font-weight-bold text-white mb-6">
+                  SALMA AI <br />
+                  <span class="text-3xl">Samsat Lamongan Modern Assistant</span>
                 </h1>
-                <p class="text-h6 text-white-80 mb-8">
+                <p class="text-xl text-white-80 mb-8">
                   Dapatkan informasi lengkap seputar pajak kendaraan, STNK, dan
                   layanan Samsat dengan bantuan AI yang cerdas dan responsif
                   24/7
@@ -439,11 +469,7 @@ function handleImageError() {
                     size="80"
                     class="mb-4"
                   >
-                    <VIcon
-                      :icon="service.icon"
-                      color="white"
-                      size="40"
-                    ></VIcon>
+                    <VIcon :icon="service.icon" color="white" size="40"></VIcon>
                   </VAvatar>
                   <h4 class="text-h6 font-weight-bold text-black mb-3">
                     {{ service.title }}

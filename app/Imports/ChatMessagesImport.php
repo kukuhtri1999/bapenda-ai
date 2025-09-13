@@ -22,7 +22,7 @@ class ChatMessagesImport implements ToCollection, WithHeadingRow, WithChunkReadi
     $allowedSentiments = ['positive', 'neutral', 'negative'];
     $allowedTopics = config('analytics.categories', []);
 
-    foreach ($rows as $index => $row) {
+  foreach ($rows as $index => $row) {
       $rowNumber = $index + 2; // heading row is #1 when WithHeadingRow
       try {
         $chatId = $row['chat_id'] ?? null;
@@ -33,6 +33,22 @@ class ChatMessagesImport implements ToCollection, WithHeadingRow, WithChunkReadi
         $sentiment = isset($row['sentiment']) ? strtolower(trim((string)$row['sentiment'])) : null;
         $metadata = $row['metadata'] ?? null;
         $sentAt = $row['sent_at'] ?? null;
+        // If an imported row is an assistant-only message, convert it into a
+        // user message and move the assistant text into `answer`. This keeps
+        // the DB focused on user-originated rows (assistant replies are
+        // represented inline in `answer`).
+        if ($role === 'assistant') {
+          // move assistant content into answer
+          if (empty($answer) && !empty($content)) {
+            $answer = (string) $content;
+          }
+          // ensure the row represents a user message; provide a harmless
+          // placeholder if no user content is present.
+          if (empty($content)) {
+            $content = 'Permintaan contoh tentang layanan Samsat (isi contoh).';
+          }
+          $role = 'user';
+        }
 
         if (empty($chatId) || empty($role) || empty($content) || empty($sentAt)) {
           $this->skipped++;

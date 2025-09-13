@@ -248,10 +248,10 @@
       <!-- Report modal -->
       <div
         v-if="modalOpen"
-        class="fixed inset-0 bg-black/50 flex items-start justify-center p-6"
+        class="fixed inset-0 bg-black/50 flex items-start justify-center p-6 z-[4200]"
       >
         <div
-          class="bg-white w-full max-w-5xl rounded shadow-lg overflow-auto max-h-[90vh]"
+          class="bg-white w-full max-w-5xl rounded shadow-lg overflow-auto max-h-[90vh] z-[4300] mt-12"
         >
           <div class="flex items-center justify-between p-4 border-b">
             <div class="font-semibold">

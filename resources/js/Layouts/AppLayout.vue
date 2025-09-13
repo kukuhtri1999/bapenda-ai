@@ -11,6 +11,8 @@ defineProps({ title: String });
 const drawer = ref(true);
 const rail = ref(true);
 const isHovered = ref(false);
+const titleApp = import.meta.env.VITE_APP_NAME;
+const logoUrl = import.meta.env.VITE_APP_LOGO;
 
 const sidebarExpandedWidth = 260;
 const sidebarRailWidth = 80;
@@ -95,10 +97,10 @@ const logout = () => {
             :href="route('dashboard')"
             class="flex items-center no-underline"
           >
-            <ApplicationMark class="h-10 w-auto" />
-            <span v-if="!rail" class="ml-2 font-semibold text-sm"
-              >SALMA AI</span
-            >
+            <ApplicationMark
+              :showTitle="!rail || isHovered"
+              class="h-10 w-auto"
+            />
           </Link>
         </div>
         <VDivider></VDivider>
@@ -127,14 +129,16 @@ const logout = () => {
           marginLeft: sidebarWidth + 'px',
           width: 'calc(100% - ' + sidebarWidth + 'px)',
           transition: 'margin-left .2s ease, width .2s ease',
+          paddingTop: '72px',
         }"
       >
-        <!-- Top Header Bar -->
+        <!-- Top Header Bar (fixed, full-width) -->
         <div
-          class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-gray-100"
+          class="top-header fixed z-40 bg-white/95 backdrop-blur border-b border-gray-100"
+          :style="{ left: '0px', right: '0px', top: '0px' }"
         >
           <div
-            class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between"
+            class="max-w-full mx-auto px-4 sm:px-6 lg:px-16 h-16 flex items-center justify-between"
           >
             <div class="flex items-center gap-2">
               <VBtn
@@ -142,9 +146,11 @@ const logout = () => {
                 icon
                 variant="text"
                 @click.stop="toggleDrawer"
-                ><VIcon>mdi-menu</VIcon></VBtn
               >
+                <VIcon>mdi-menu</VIcon>
+              </VBtn>
             </div>
+
             <div class="flex items-center gap-2">
               <VBtn icon variant="text"><VIcon>mdi-bell-outline</VIcon></VBtn>
               <Dropdown align="right" width="48">
@@ -198,5 +204,37 @@ const logout = () => {
 }
 .app-layout :deep(.v-navigation-drawer) {
   border-right: 1px solid #eef0f2;
+}
+
+/* Smooth fade-slide transition for app name */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.3s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.fade-slide-enter-to,
+.fade-slide-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Header floating & spacing */
+.top-header {
+  top: 0;
+  z-index: 60;
+}
+
+.app-layout .flex.items-center.align-middle img {
+  border-radius: 6px;
 }
 </style>
