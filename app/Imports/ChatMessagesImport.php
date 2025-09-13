@@ -22,7 +22,7 @@ class ChatMessagesImport implements ToCollection, WithHeadingRow, WithChunkReadi
     $allowedSentiments = ['positive', 'neutral', 'negative'];
     $allowedTopics = config('analytics.categories', []);
 
-  foreach ($rows as $index => $row) {
+    foreach ($rows as $index => $row) {
       $rowNumber = $index + 2; // heading row is #1 when WithHeadingRow
       try {
         $chatId = $row['chat_id'] ?? null;
