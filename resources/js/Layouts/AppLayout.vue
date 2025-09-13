@@ -183,7 +183,7 @@ const logout = () => {
         </div>
 
         <!-- Page Content Container -->
-        <div class="w-full px-4 sm:px-6 lg:px-8 py-6">
+        <div class="w-full px-4 sm:px-6 lg:px-8 py-6 min-h-[calc(100vh-72px)]">
           <VCard
             class="pa-3 w-full rounded-xl"
             variant="flat"
