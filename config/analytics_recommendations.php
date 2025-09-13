@@ -10,7 +10,7 @@ return [
         'tanya_syarat_bayar_pajak' => ['Sediakan daftar dokumen yang diperlukan di situs dan loket layanan.'],
         'cek_tagihan_pajak' => ['Perbaiki akses cek tagihan online dan komunikasikan cara pengecekan.'],
         'denda_keterlambatan' => ['Berikan informasi jelas tentang perhitungan denda dan cara penyelesaiannya.'],
-        'informasi_stnk' => ['Sosialisasikan prosedur perpanjangan STNK dan persyaratannya.'],
+        'informasi_stnk' => ['Sosialisasikan prosedur pengesahan STNK dan persyaratannya.'],
         'informasi_bpkb' => ['Buat FAQ tentang BPKB dan proses pengurusannya.'],
         'balik_nama_mutasi' => ['Tingkatkan panduan balik nama dan persyaratan mutasi kendaraan.'],
         'pembayaran_online' => ['Tingkatkan stabilitas layanan pembayaran online dan panduan untuk pengguna.'],

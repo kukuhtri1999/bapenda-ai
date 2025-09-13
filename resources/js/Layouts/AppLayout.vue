@@ -97,7 +97,7 @@ const logout = () => {
           >
             <ApplicationMark class="h-10 w-auto" />
             <span v-if="!rail" class="ml-2 font-semibold text-sm"
-              >Bapenda AI</span
+              >SALMA AI</span
             >
           </Link>
         </div>

@@ -69,9 +69,9 @@ Sabtu: 08.00 - 12.00 WIB',
 
             // Kategori: STNK
             [
-                'title' => 'Syarat Perpanjang STNK',
-                'question' => 'Apa saja syarat untuk perpanjang STNK?',
-                'answer' => 'Syarat perpanjangan STNK:
+                'title' => 'Syarat Pengesahan STNK',
+                'question' => 'Apa saja syarat untuk pengesahan STNK?',
+                'answer' => 'Syarat pengesahan STNK:
 
 **Dokumen yang Diperlukan:**
 1. STNK asli + fotokopi
@@ -94,7 +94,7 @@ Sabtu: 08.00 - 12.00 WIB',
 **Estimasi Waktu:** 2-3 jam (jika dokumen lengkap)',
                 'category' => 'stnk',
                 'type' => 'faq',
-                'keywords' => ['perpanjang stnk', 'syarat', 'dokumen', 'biaya', 'proses'],
+                'keywords' => ['pengesahan stnk', 'syarat', 'dokumen', 'biaya', 'proses'],
                 'priority' => 10
             ],
             [

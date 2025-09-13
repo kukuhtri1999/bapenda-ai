@@ -1040,7 +1040,7 @@ class OpenAIService
                 'tanya_cara_bayar_pajak' => ['desc' => 'Pertanyaan cara/metode/langkah pembayaran pajak kendaraan.', 'kw' => ['cara bayar', 'bagaimana bayar', 'gimana bayar', 'metode bayar', 'pembayaran pajak', 'bayar pajak online', 'bayar pajak dimana']],
                 'tanya_syarat_bayar_pajak' => ['desc' => 'Menanyakan syarat/dokumen untuk membayar atau perpanjang pajak.', 'kw' => ['syarat bayar', 'dokumen', 'berkas', 'persyaratan', 'butuh apa', 'apa saja dibawa']],
                 'denda_keterlambatan' => ['desc' => 'Pertanyaan atau keluhan tentang denda karena terlambat bayar.', 'kw' => ['denda', 'terlambat', 'telat', 'keterlambatan', 'dendanya']],
-                'informasi_stnk' => ['desc' => 'Terkait STNK: perpanjangan, hilang, ganti.', 'kw' => ['stnk', 'perpanjang stnk', 'stnk hilang', 'stnk baru']],
+                'informasi_stnk' => ['desc' => 'Terkait STNK: pengesahan, hilang, ganti.', 'kw' => ['stnk', 'pengesahan stnk', 'stnk hilang', 'stnk baru']],
                 'informasi_bpkb' => ['desc' => 'Pertanyaan tentang BPKB.', 'kw' => ['bpkb', 'bpkb hilang', 'bpkb baru']],
                 'balik_nama_mutasi' => ['desc' => 'Balik nama atau mutasi kendaraan.', 'kw' => ['balik nama', 'mutasi', 'ganti nama']],
                 'pembayaran_online' => ['desc' => 'Masalah atau cara pembayaran pajak via online / channel digital.', 'kw' => ['pembayaran online', 'bayar online', 'mobile', 'aplikasi', 'website', 'e samsat', 'e-samsat']],
@@ -1088,7 +1088,7 @@ class OpenAIService
             // Few-shot examples (cover several categories)
             $fewShots = [
                 ['chat_id' => 'ex1', 'text' => 'Bagaimana cara bayar pajak kendaraan online?', 'category' => 'tanya_cara_bayar_pajak', 'sentiment' => 'neutral'],
-                ['chat_id' => 'ex2', 'text' => 'Syarat apa saja untuk perpanjang STNK?', 'category' => 'tanya_syarat_bayar_pajak', 'sentiment' => 'neutral'],
+                ['chat_id' => 'ex2', 'text' => 'Syarat apa saja untuk pengesahan STNK?', 'category' => 'tanya_syarat_bayar_pajak', 'sentiment' => 'neutral'],
                 ['chat_id' => 'ex3', 'text' => 'Denda saya berapa kalau telat bayar pajak?', 'category' => 'denda_keterlambatan', 'sentiment' => 'neutral'],
                 ['chat_id' => 'ex4', 'text' => 'STNK hilang, bagaimana proses buat baru?', 'category' => 'informasi_stnk', 'sentiment' => 'negative'],
                 ['chat_id' => 'ex5', 'text' => 'Antrian lama dan pelayanan lambat', 'category' => 'komplain_pelayanan', 'sentiment' => 'negative'],
@@ -1438,7 +1438,7 @@ class OpenAIService
         $basePrompt = "Anda adalah asisten AI customer service untuk Bapenda (Badan Pendapatan Daerah) Samsat Lamongan, Jawa Timur.
 
 IDENTITAS & PERAN:
-- Nama: Asisten Bapenda Samsat Lamongan
+- Nama: SALMA AI — Asisten Samsat Lamongan
 - Peran: Customer Service AI yang ramah, profesional, dan membantu
 - Lokasi: Samsat Lamongan, Jawa Timur
 - Bahasa: Bahasa Indonesia yang sopan dan mudah dipahami
@@ -1528,7 +1528,7 @@ Jawab berdasarkan pengetahuan yang akurat dan terkini tentang layanan Samsat. Ji
     {
         $greetings = [
             "Halo! Selamat datang di layanan Customer Service Samsat Lamongan. Ada yang bisa saya bantu terkait pajak kendaraan Anda?",
-            "Hai! Saya Asisten AI Bapenda Samsat Lamongan. Silakan tanyakan apa yang ingin Anda ketahui tentang layanan kami.",
+            "Hai! Saya SALMA AI — Asisten Samsat Lamongan. Silakan tanyakan apa yang ingin Anda ketahui tentang layanan kami.",
             "Selamat datang! Saya siap membantu Anda dengan informasi layanan Samsat Lamongan. Ada yang bisa saya bantu?",
             "Halo! Ada pertanyaan seputar pajak kendaraan, STNK, atau layanan Samsat Lamongan lainnya?"
         ];
