@@ -337,7 +337,7 @@
                   </VCol>
                   <VCol cols="auto">
                     <VBtn
-                      @click="sendMessage"
+                      @click="() => sendMessage()"
                       :disabled="!currentMessage.trim() || isLoading"
                       :style="{
                         background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
@@ -519,11 +519,9 @@ const sendMessage = async (messageText = null, isContext = false) => {
       if (!isContext) {
         const assistantMessage = {
           ...response.data.assistant_message,
-          id:
-            `assistant_${
-              Date.now()
-            }_${
-              Math.random().toString(36).substr(2, 9)}`,
+          id: `assistant_${Date.now()}_${Math.random()
+            .toString(36)
+            .substr(2, 9)}`,
         };
         messages.value.push(assistantMessage);
         await scrollToBottom();
