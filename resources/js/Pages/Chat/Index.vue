@@ -651,13 +651,25 @@ const handleContentClick = (event) => {
   }
 };
 
+// Track whether we've attached the delegated click listener
+const listenerAttached = ref(false);
+
 // Initialize on mount
 onMounted(() => {
   initializeChat();
 
   if (messagesContainer.value) {
     messagesContainer.value.addEventListener('click', handleContentClick);
+    listenerAttached.value = true;
   }
+
+  // If the messages container is not present at mount (welcome screen), attach listener when it appears
+  watch(messagesContainer, (newEl) => {
+    if (newEl && !listenerAttached.value) {
+      newEl.addEventListener('click', handleContentClick);
+      listenerAttached.value = true;
+    }
+  });
 
   // Check for PKB context from PKB form
   const pkbContext = localStorage.getItem('pkb_context');
@@ -682,8 +694,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  if (messagesContainer.value) {
+  if (messagesContainer.value && listenerAttached.value) {
     messagesContainer.value.removeEventListener('click', handleContentClick);
+    listenerAttached.value = false;
   }
 });
 
