@@ -127,6 +127,15 @@ class KnowledgeBaseController extends Controller
             }
         }
 
+        // Process embedded base64 images in HTML content (Quill) and move to storage
+        if (!empty($data['content'])) {
+            [$processedHtml, $images] = $this->extractAndStoreEmbeddedImages($data['content']);
+            $data['content'] = $processedHtml;
+            if (!empty($images)) {
+                $data['images'] = $images;
+            }
+        }
+
         // Set published_at if status is published and no date specified
         if ($data['status'] === 'published' && (empty($data['published_at']))) {
             $data['published_at'] = now();
@@ -206,11 +215,75 @@ class KnowledgeBaseController extends Controller
             $data['published_at'] = now();
         }
 
+        // Process embedded base64 images and replace in content
+        if (!empty($data['content'])) {
+            [$processedHtml, $images] = $this->extractAndStoreEmbeddedImages($data['content']);
+            $data['content'] = $processedHtml;
+            if (!empty($images)) {
+                $data['images'] = $images;
+            }
+        }
+
         $knowledgeBase->update($data);
 
         return redirect()
             ->route('knowledge-base.show', $knowledgeBase)
             ->with('success', 'Knowledge base entry updated successfully.');
+    }
+
+    /**
+     * Extract base64 images from HTML, store to public disk, return [html, images]
+     * images: array of {url, path, name, size}
+     */
+    private function extractAndStoreEmbeddedImages(string $html): array
+    {
+        $images = [];
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $loaded = $dom->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        if (!$loaded) return [$html, $images];
+
+        $imgs = $dom->getElementsByTagName('img');
+        // Because live NodeList changes as we replace, iterate snapshot
+        $toProcess = [];
+        foreach ($imgs as $img) {
+            $toProcess[] = $img;
+        }
+
+        foreach ($toProcess as $img) {
+            if (!($img instanceof \DOMElement)) continue;
+            $src = $img->getAttribute('src');
+            if (strpos($src, 'data:image') === 0) {
+                // Parse base64 data URL
+                if (preg_match('/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/', $src, $m)) {
+                    $mime = $m[1];
+                    $dataBase64 = $m[2];
+                    $binary = base64_decode($dataBase64);
+                    if ($binary !== false) {
+                        $ext = explode('/', $mime)[1] ?? 'png';
+                        $filename = 'kb/' . date('Y/m/') . uniqid('img_') . '.' . $ext;
+                        Storage::disk('public')->put($filename, $binary);
+                        $url = asset('storage/' . $filename);
+                        $size = strlen($binary);
+                        $images[] = [
+                            'url' => $url,
+                            'path' => $filename,
+                            'name' => basename($filename),
+                            'size' => $size,
+                            'mime' => $mime,
+                        ];
+                        // Replace src with stored URL
+                        $img->setAttribute('src', $url);
+                    }
+                }
+            }
+        }
+
+        $newHtml = $dom->saveHTML();
+        // Remove the meta charset added by loadHTML
+        $newHtml = preg_replace('/^<\?xml.*?\?>/i', '', $newHtml);
+        return [$newHtml, $images];
     }
 
     /**

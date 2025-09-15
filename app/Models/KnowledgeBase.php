@@ -24,6 +24,7 @@ class KnowledgeBase extends Model
         'file_name',
         'file_size',
         'mime_type',
+        'images',
         'metadata',
         'keywords',
         'tags',
@@ -46,6 +47,7 @@ class KnowledgeBase extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'images' => 'array',
     ];
 
     protected $dates = [
@@ -82,10 +84,16 @@ class KnowledgeBase extends Model
     {
         $searchContent = collect([
             $this->title,
-            $this->excerpt,
-            strip_tags($this->content),
+            // prefer explicit excerpt if present
+            $this->attributes['excerpt'] ?? null,
+            // include both new and legacy body fields
+            strip_tags((string)$this->content),
+            strip_tags((string)$this->answer),
+            // include legacy question/title variant
+            $this->question,
             $this->category,
             is_array($this->keywords) ? implode(' ', $this->keywords) : '',
+            // tags may be stored as CSV string
             $this->tags,
         ])->filter()->implode(' ');
 
@@ -137,8 +145,10 @@ class KnowledgeBase extends Model
     {
         return $query->where(function ($q) use ($term) {
             $q->where('title', 'LIKE', "%{$term}%")
+                ->orWhere('question', 'LIKE', "%{$term}%")
                 ->orWhere('excerpt', 'LIKE', "%{$term}%")
                 ->orWhere('content', 'LIKE', "%{$term}%")
+                ->orWhere('answer', 'LIKE', "%{$term}%")
                 ->orWhere('search_content', 'LIKE', "%{$term}%");
         });
     }

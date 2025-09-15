@@ -174,13 +174,21 @@ class ChatController extends Controller
             ->values()
             ->toArray();
 
-        // Add current user message to context
-        $currentContext = array_merge($recentMessages, [
-            [
+        // Add current user message to context only if not already present
+        $currentContext = $recentMessages;
+        $alreadyEndsWithSameUser = false;
+        if (!empty($currentContext)) {
+            $last = end($currentContext);
+            if ($last && ($last['role'] ?? null) === 'user' && trim((string)$last['content']) === trim((string)$request->message)) {
+                $alreadyEndsWithSameUser = true;
+            }
+        }
+        if (!$alreadyEndsWithSameUser) {
+            $currentContext[] = [
                 'role' => 'user',
                 'content' => (string) $request->message,
-            ]
-        ]);
+            ];
+        }
 
         // Get AI response with session-specific context
         $aiResponse = $this->openAIService->generateCustomerServiceResponse(

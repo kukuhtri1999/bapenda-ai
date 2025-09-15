@@ -18,6 +18,7 @@ class OpenAIService
     private int $maxTokens;
     private float $temperature;
     private int $defaultTimeout;
+    private bool $debug;
 
     public function __construct()
     {
@@ -27,6 +28,7 @@ class OpenAIService
         $this->temperature = config('services.openai.temperature', 0.7);
         // Default timeout (seconds). Keep constant here to avoid config/env coupling at boot time.
         $this->defaultTimeout = 30;
+        $this->debug = (bool) (config('app.debug') || env('RAG_DEBUG', false));
     }
 
     private function getAnalyticsModel(): string
@@ -1030,200 +1032,41 @@ class OpenAIService
     public function classifyChats(array $chats, array $categoryLabels): array
     {
         try {
-            if (empty($chats)) {
-                return ['success' => true, 'message' => 'No chats', 'data' => []];
-            }
+            if (empty($chats)) return ['success' => true, 'message' => 'No chats', 'data' => []];
 
             $model = 'gpt-5-mini';
-            // Category meta (descriptions + indicative keywords) to guide the model
-            $categoryMeta = [
-                'tanya_cara_bayar_pajak' => ['desc' => 'Pertanyaan cara/metode/langkah pembayaran pajak kendaraan.', 'kw' => ['cara bayar', 'bagaimana bayar', 'gimana bayar', 'metode bayar', 'pembayaran pajak', 'bayar pajak online', 'bayar pajak dimana']],
-                'tanya_syarat_bayar_pajak' => ['desc' => 'Menanyakan syarat/dokumen untuk membayar atau perpanjang pajak.', 'kw' => ['syarat bayar', 'dokumen', 'berkas', 'persyaratan', 'butuh apa', 'apa saja dibawa']],
-                'denda_keterlambatan' => ['desc' => 'Pertanyaan atau keluhan tentang denda karena terlambat bayar.', 'kw' => ['denda', 'terlambat', 'telat', 'keterlambatan', 'dendanya']],
-                'informasi_stnk' => ['desc' => 'Terkait STNK: pengesahan, hilang, ganti.', 'kw' => ['stnk', 'pengesahan stnk', 'stnk hilang', 'stnk baru']],
-                'informasi_bpkb' => ['desc' => 'Pertanyaan tentang BPKB.', 'kw' => ['bpkb', 'bpkb hilang', 'bpkb baru']],
-                'balik_nama_mutasi' => ['desc' => 'Balik nama atau mutasi kendaraan.', 'kw' => ['balik nama', 'mutasi', 'ganti nama']],
-                'pembayaran_online' => ['desc' => 'Masalah atau cara pembayaran pajak via online / channel digital.', 'kw' => ['pembayaran online', 'bayar online', 'mobile', 'aplikasi', 'website', 'e samsat', 'e-samsat']],
-                'e_samsat_aplikasi' => ['desc' => 'Fokus pada aplikasi e-samsat khusus.', 'kw' => ['aplikasi e samsat', 'app samsat', 'login aplikasi', 'error aplikasi']],
-                'lokasi_jam_operasional' => ['desc' => 'Menanyakan lokasi atau jam buka / operasional layanan.', 'kw' => ['jam buka', 'jam operasional', 'lokasi', 'alamat', 'buka jam', 'tutup jam']],
-                'biaya_tarif' => ['desc' => 'Menanyakan biaya atau tarif pajak/proses.', 'kw' => ['biaya', 'tarif', 'harga', 'berapa bayar', 'berapa biaya']],
-                'jadwal_pelayanan' => ['desc' => 'Menanyakan jadwal layanan termasuk samsat keliling.', 'kw' => ['jadwal', 'kapan ada', 'hari apa', 'samsat keliling']],
-                'tanya_samsat_keliling' => ['desc' => 'Tanya tentang layanan samsat keliling.', 'kw' => ['samsat keliling', 'samkel', 'keliling']],
-                'samsat_keliling_malam' => ['desc' => 'Tanya samsat keliling malam hari.', 'kw' => ['samsat keliling malam', 'malam']],
-                'verifikasi_dokumen' => ['desc' => 'Verifikasi/pengecekan keaslian dokumen.', 'kw' => ['verifikasi', 'cek dokumen', 'keaslian']],
-                'komplain_pelayanan' => ['desc' => 'Keluhan terhadap kualitas layanan / antrian / petugas.', 'kw' => ['keluh', 'komplain', 'susah', 'lama', 'antri', 'antre', 'ribet']],
-                'informasi_pendaftaran' => ['desc' => 'Informasi pendaftaran awal / registrasi.', 'kw' => ['pendaftaran', 'daftar pertama', 'registrasi']],
-                'cek_tagihan_pajak' => ['desc' => 'Cek jumlah/tagihan pajak.', 'kw' => ['cek pajak', 'cek tagihan', 'jumlah pajak', 'berapa pajak']],
-                'syarat_pengurusan' => ['desc' => 'Syarat umum pengurusan dokumen pajak kendaraan.', 'kw' => ['syarat pengurusan', 'dokumen apa', 'berkas apa']],
-                'informasi_pembayaran_bank' => ['desc' => 'Pembayaran melalui bank/VA.', 'kw' => ['bank', 'virtual account', 'va', 'atm']],
-                'panduan_online' => ['desc' => 'Tanya panduan/tutorial online (bukan sekedar cara bayar).', 'kw' => ['panduan online', 'tutorial', 'cara menggunakan']],
-                'permintaan_sosialisasi' => ['desc' => 'Permintaan materi sosialisasi / edukasi.', 'kw' => ['sosialisasi', 'edukasi', 'penyuluhan']],
-                'tanya_pelayanan_pajak' => ['desc' => 'Pertanyaan tentang layanan pajak secara umum.', 'kw' => ['layanan pajak', 'pelayanan pajak']],
-                'lain_lain' => ['desc' => 'Hanya gunakan jika tidak cocok dengan kategori manapun.', 'kw' => []],
-            ];
 
-            // Build list string for prompt
-            $categoriesList = [];
+            $labels = [];
             foreach ($categoryLabels as $k => $lbl) {
-                $meta = $categoryMeta[$k] ?? ['desc' => 'Pertanyaan terkait ' . $lbl, 'kw' => []];
-                $categoriesList[] = $k . ' | ' . $lbl . ' | ' . $meta['desc'] . ' | keywords: ' . implode(', ', array_slice($meta['kw'], 0, 8));
-            }
-            if (!isset($categoryLabels['lain_lain'])) {
-                $categoriesList[] = 'lain_lain | Lain-lain | Gunakan hanya jika tidak ada kategori lain yang relevan | keywords: (none)';
+                $labels[] = $k . '|' . $lbl;
             }
 
-            // Truncate and prepare chats
             $prepared = [];
-            $fast = (bool) config('analytics.fast_mode', true);
-            $snippetLen = $fast ? (int) config('analytics.fast_snippet_length', 400) : (int) config('analytics.full_snippet_length', 1400);
             foreach ($chats as $c) {
-                $txt = (string)$c['text'];
-                $norm = preg_replace('/\s+/', ' ', $txt);
+                $txt = (string)($c['text'] ?? '');
                 $prepared[] = [
-                    'chat_id' => (string)$c['chat_id'],
-                    'text' => mb_substr($norm, 0, $snippetLen)
+                    'chat_id' => (string)($c['chat_id'] ?? ''),
+                    'text' => mb_substr(preg_replace('/\s+/', ' ', $txt), 0, 400)
                 ];
             }
 
-            // Few-shot examples (cover several categories)
-            $fewShots = [
-                ['chat_id' => 'ex1', 'text' => 'Bagaimana cara bayar pajak kendaraan online?', 'category' => 'tanya_cara_bayar_pajak', 'sentiment' => 'neutral'],
-                ['chat_id' => 'ex2', 'text' => 'Syarat apa saja untuk pengesahan STNK?', 'category' => 'tanya_syarat_bayar_pajak', 'sentiment' => 'neutral'],
-                ['chat_id' => 'ex3', 'text' => 'Denda saya berapa kalau telat bayar pajak?', 'category' => 'denda_keterlambatan', 'sentiment' => 'neutral'],
-                ['chat_id' => 'ex4', 'text' => 'STNK hilang, bagaimana proses buat baru?', 'category' => 'informasi_stnk', 'sentiment' => 'negative'],
-                ['chat_id' => 'ex5', 'text' => 'Antrian lama dan pelayanan lambat', 'category' => 'komplain_pelayanan', 'sentiment' => 'negative'],
-                ['chat_id' => 'ex6', 'text' => 'Lokasi samsat keliling hari Sabtu di mana?', 'category' => 'tanya_samsat_keliling', 'sentiment' => 'neutral'],
-            ];
-
-            $baseInstruction = "Klasifikasikan setiap chat ke salah satu CATEGORY KEY yang paling relevan. Gunakan 'lain_lain' HANYA jika TIDAK ada kecocokan kuat dengan kategori lain. Jika ada kata kunci spesifik yang cocok, pilih kategori terkait (jangan 'lain_lain'). Tentukan sentiment (positive|neutral|negative) secara sederhana berdasarkan nada pengguna. Berikan confidence 0-1 (0.1 sangat ragu, 0.9+ sangat yakin). Balas HANYA JSON array tanpa teks tambahan.";
-
-            $promptPayload = [
-                'task' => $baseInstruction,
-                'categories' => $categoriesList,
-                'few_shot_examples' => $fewShots,
-                'schema' => [
-                    'chat_id' => 'string',
-                    'category' => 'one CATEGORY KEY exactly',
-                    'sentiment' => 'positive|neutral|negative',
-                    'confidence' => 'float 0-1',
-                    'snippet' => '<=200 chars excerpt'
-                ],
-                'chats' => $prepared
-            ];
+            $schema = ['chat_id' => 'string', 'category' => 'key', 'sentiment' => 'positive|neutral|negative', 'confidence' => '0..1', 'snippet' => '<=200 chars'];
+            $payload = ['labels' => $labels, 'schema' => $schema, 'chats' => $prepared];
 
             $messages = [
-                ['role' => 'system', 'content' => 'You are a precise JSON-only classification engine. Respond ONLY with JSON array. Temperature=0.'],
-                ['role' => 'user', 'content' => json_encode($promptPayload, JSON_UNESCAPED_UNICODE)]
+                ['role' => 'system', 'content' => 'Return ONLY a JSON array. Classify into given labels; choose best match (avoid other). Provide simple sentiment and 0-1 confidence.'],
+                ['role' => 'user', 'content' => json_encode($payload, JSON_UNESCAPED_UNICODE)]
             ];
 
-            // Resolve cache for repeated texts to reduce API tokens
-            $useCache = (bool) config('analytics.enable_classification_cache', true);
-            $cacheTTL = (int) config('analytics.classification_cache_ttl_days', 90);
-            $now = now();
-            $preparedForApi = $prepared;
-            $cachedMap = [];
-            if ($useCache) {
-                try {
-                    // build hashes and fetch known ones
-                    $hashes = [];
-                    foreach ($prepared as $p) {
-                        $h = hash('sha256', mb_strtolower(trim($p['text'])));
-                        $hashes[$p['chat_id']] = $h;
-                    }
-                    if (!empty($hashes)) {
-                        $rows = DB::table('chat_classification_cache')
-                            ->whereIn('text_hash', array_values($hashes))
-                            ->get(['text_hash', 'category', 'sentiment', 'confidence', 'snippet', 'updated_at']);
-                        $existing = [];
-                        foreach ($rows as $r) {
-                            $existing[$r->text_hash] = $r;
-                        }
-                        $preparedForApi = [];
-                        foreach ($prepared as $p) {
-                            $h = $hashes[$p['chat_id']];
-                            $row = $existing[$h] ?? null;
-                            if ($row) {
-                                // fresh if within TTL
-                                if (!$cacheTTL || Carbon::parse($row->updated_at)->gt($now->copy()->subDays($cacheTTL))) {
-                                    $cachedMap[$p['chat_id']] = [
-                                        'chat_id' => $p['chat_id'],
-                                        'category' => $row->category,
-                                        'sentiment' => $row->sentiment,
-                                        'confidence' => (float)$row->confidence,
-                                        'snippet' => $row->snippet,
-                                    ];
-                                    continue; // skip API for this one
-                                }
-                            }
-                            $preparedForApi[] = $p;
-                        }
-                    }
-                } catch (\Throwable $t) {
-                    // silently ignore cache errors
-                }
-            }
-
-            $callParams = [
+            $resp = $this->client->chat()->create([
                 'model' => $model,
-                'messages' => [
-                    $messages[0],
-                    // Replace chats with the ones that still need API classification
-                    ['role' => 'user', 'content' => json_encode(array_replace($promptPayload, ['chats' => $preparedForApi]), JSON_UNESCAPED_UNICODE)]
-                ],
-                'max_completion_tokens' => 1200,
-            ];
-            // some models don't accept temperature=0; omit when using gpt-5-mini
-            if ($model !== 'gpt-5-mini') $callParams['temperature'] = 0.0;
-            $response = $this->client->chat()->create($callParams);
-
-            Log::info('OpenAIService::classifyChats - calling model', ['model' => $model, 'count_chats' => count($prepared)]);
-            $text = trim($response->choices[0]->message->content ?? '');
-            // capture usage if available
-            try {
-                if (isset($response->usage)) Log::info('OpenAIService::classifyChats - usage', (array)$response->usage);
-            } catch (\Throwable $t) {
-                Log::warning('OpenAIService::classifyChats - usage log failed', ['err' => $t->getMessage()]);
-            }
-            $data = $this->tryParseJsonArray($text);
-            // Merge cached
-            if (is_array($data)) {
-                foreach ($cachedMap as $cid => $cached) {
-                    $data[] = $cached;
-                }
-            } elseif (!empty($cachedMap)) {
-                $data = array_values($cachedMap);
-            }
-
-            // If AI output cannot be parsed, return failure (no heuristic fallback)
-            if (!is_array($data)) {
-                return ['success' => false, 'message' => 'AI classification parse failure', 'data' => null];
-            }
-
-            // Save newly classified to cache
-            if ($useCache && is_array($data)) {
-                try {
-                    foreach ($data as $row) {
-                        if (!isset($row['chat_id'])) continue;
-                        $txt = $this->findChatText($prepared, (string)$row['chat_id']);
-                        if (!$txt) continue;
-                        $h = hash('sha256', mb_strtolower(trim($txt)));
-                        DB::table('chat_classification_cache')->updateOrInsert(
-                            ['text_hash' => $h],
-                            [
-                                'category' => $row['category'] ?? 'lain_lain',
-                                'sentiment' => $row['sentiment'] ?? 'neutral',
-                                'confidence' => (float)($row['confidence'] ?? 0.0),
-                                'snippet' => mb_substr($txt, 0, 200),
-                                'updated_at' => now(),
-                                'last_used_at' => now(),
-                            ]
-                        );
-                    }
-                } catch (\Throwable $t) {
-                }
-            }
-
-            return ['success' => true, 'message' => $text, 'data' => $data];
+                'messages' => $messages,
+                'max_completion_tokens' => 800,
+            ]);
+            $text = trim($resp->choices[0]->message->content ?? '');
+            $arr = json_decode($text, true);
+            if (!is_array($arr)) return ['success' => false, 'message' => 'Parse failed', 'data' => null];
+            return ['success' => true, 'message' => $text, 'data' => $arr];
         } catch (Exception $e) {
             Log::error('AI classify error: ' . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage(), 'data' => null];
@@ -1269,20 +1112,95 @@ class OpenAIService
         try {
             // Get relevant knowledge from knowledge base (RAG)
             $relevantKnowledge = $this->getRelevantKnowledge($messages);
+            if ($this->debug) {
+                $lk = $relevantKnowledge[0]['title'] ?? null;
+                Log::info('RAG debug: relevantKnowledge count', ['count' => count($relevantKnowledge), 'top' => $lk]);
+            }
 
-            // Sistem prompt untuk AI Customer Service Bapenda Samsat Lamongan
-            $systemPrompt = $this->getSystemPrompt($relevantKnowledge, $context);
+            // Initialize chat assembly variables
+            $apiMessages = [];
+            $recentSystem = [];
+            $latestUser = null;
+            for ($i = count($messages) - 1; $i >= 0; $i--) {
+                $m = $messages[$i] ?? null;
+                if (is_array($m) && (($m['role'] ?? '') === 'user')) {
+                    $latestUser = $m;
+                    break;
+                }
+            }
 
-            // Prepare messages untuk API
-            $apiMessages = [
-                ['role' => 'system', 'content' => $systemPrompt]
+            // Base style + policy instruction (concise, KB-first, safe improvisation allowed)
+            $apiMessages[] = [
+                'role' => 'system',
+                'content' => 'Anda adalah SALMA AI — Asisten Samsat Lamongan. Jawab ringkas (3–6 bullet atau 4–6 kalimat), ramah dan to the point. Prioritaskan Knowledge Base; jika informasi tidak lengkap, boleh beri panduan umum yang aman tanpa mencantumkan angka pasti.'
             ];
 
-            // Add conversation history
-            foreach ($messages as $message) {
+            // Provide explicit KB_CONTEXT and estimation policy for flexible, KB-prioritized answers
+            if (!empty($relevantKnowledge)) {
+                $contextBlocks = [];
+                $maxRefs = 3;
+                $i = 0;
+                foreach ($relevantKnowledge as $rk) {
+                    if ($i >= $maxRefs) break;
+                    $title = (string)($rk['title'] ?? '');
+                    $cat = (string)($rk['category'] ?? '');
+                    $type = (string)($rk['type'] ?? '');
+                    $body = (string)($rk['content'] ?? '');
+                    if ($body === '' && !empty($rk['answer'])) $body = (string)$rk['answer'];
+                    $plain = trim(strip_tags($body));
+                    if ($plain === '') {
+                        $i++;
+                        continue;
+                    }
+                    $snippet = mb_substr($plain, 0, 1200);
+                    $contextBlocks[] = '[' . ($i + 1) . "] {$title} ({$type}/{$cat})\n{$snippet}";
+                    $i++;
+                }
+                if (!empty($contextBlocks)) {
+                    $apiMessages[] = [
+                        'role' => 'system',
+                        'content' => "KB_CONTEXT (PRIORITASKAN informasi ini saat menjawab. Jika konteks tidak lengkap, Anda BOLEH menambahkan penjelasan umum yang aman dan prosedural berdasarkan pengetahuan publik, namun JANGAN membuat angka pasti yang tidak ada di konteks):\n" . implode("\n\n---\n\n", $contextBlocks)
+                    ];
+                    $apiMessages[] = [
+                        'role' => 'system',
+                        'content' => "ESTIMATION_POLICY:\n- Jika pertanyaan menyinggung BIAYA/PAJAK dan KB tidak mencantumkan angka pasti, jelaskan bahwa besaran pajak/biaya dapat berbeda tergantung tahun, merk, tipe/model, status pajak, dan PNBP.\n- Tetap BERIKAN daftar komponen biaya yang tersedia di KB (mis. balik nama: PNBP BPKB/STNK, cek fisik, admin), serta dokumen-persyaratan terkait.\n- Hindari angka fiktif; gunakan bahasa estimatif (mis. 'dapat berbeda', 'perkiraan', 'mengikuti ketentuan yang berlaku').\n- Akhiri dengan saran tindakan: hubungi/kunjungi Samsat Lamongan untuk angka pasti dan verifikasi dokumen.\n- Jawab ringkas: 3–6 bullet ATAU 4–6 kalimat pendek, tanpa pengantar bertele-tele."
+                    ];
+                }
+            }
+            // Determine top KB (used for image-only fast path)
+            $kbTop = $relevantKnowledge[0] ?? null;
+            $kbHtml = is_array($kbTop) ? (string)($kbTop['content'] ?? '') : '';
+            $kbHasImages = false;
+            if (!empty($kbHtml) && preg_match('/<img\s/i', $kbHtml)) {
+                $kbHasImages = true;
+            } elseif (is_array($kbTop) && !empty($kbTop['images']) && is_array($kbTop['images'])) {
+                $kbHasImages = count($kbTop['images']) > 0;
+            }
+            // If top KB contains images, skip model and return raw KB content with lightbox
+            if ($kbHasImages && !empty($kbHtml)) {
+                if ($this->debug) Log::info('RAG path: image-only', ['kb_id' => $kbTop['id'] ?? null, 'title' => $kbTop['title'] ?? null]);
+                $htmlWithLightbox = $this->wrapImagesWithLightbox($kbHtml);
+                return [
+                    'success' => true,
+                    'message' => '<div class="kb-raw-content">' . $htmlWithLightbox . '</div>',
+                    'usage' => null,
+                    'knowledge_used' => count($relevantKnowledge)
+                ];
+            }
+
+            // For non-image KBs, continue to model path with explicit KB_CONTEXT below
+
+            // Add pruned system context (if any) and latest user question only
+            foreach ($recentSystem as $s) {
                 $apiMessages[] = [
-                    'role' => $message['role'],
-                    'content' => $message['content']
+                    'role' => 'system',
+                    'content' => (string) $s['content']
+                ];
+            }
+            if ($latestUser) {
+                $apiMessages[] = [
+                    'role' => 'user',
+                    'content' => (string) $latestUser['content']
                 ];
             }
 
@@ -1301,9 +1219,12 @@ class OpenAIService
 
             $response = $this->client->chat()->create($params);
 
+            $answerText = trim($response->choices[0]->message->content);
+            if ($this->debug) Log::info('RAG path: model', ['tokens' => (array)($response->usage ?? [])]);
+
             return [
                 'success' => true,
-                'message' => trim($response->choices[0]->message->content),
+                'message' => $answerText,
                 'usage' => [
                     'prompt_tokens' => $response->usage->promptTokens,
                     'completion_tokens' => $response->usage->completionTokens,
@@ -1334,33 +1255,199 @@ class OpenAIService
         }
 
         $lastUserMessage = end($userMessages)['content'];
+        if ($this->debug) Log::info('RAG debug: lastUserMessage', ['text' => mb_substr((string)$lastUserMessage, 0, 180)]);
 
         // Extract keywords for search
         $keywords = $this->extractKeywords($lastUserMessage);
+        if ($this->debug) Log::info('RAG debug: keywords', ['kw' => $keywords]);
 
         if (empty($keywords)) {
             return [];
         }
 
-        // Search knowledge base using new structure
-        $knowledge = KnowledgeBase::active()
+        // Prefer full-text search on the actual question first; include a computed score
+        $fulltext = KnowledgeBase::active()
             ->published()
-            ->where(function ($query) use ($keywords) {
-                foreach ($keywords as $keyword) {
-                    $query->orWhere('title', 'LIKE', "%{$keyword}%")
-                        ->orWhere('content', 'LIKE', "%{$keyword}%")
-                        ->orWhere('excerpt', 'LIKE', "%{$keyword}%")
-                        ->orWhere('search_content', 'LIKE', "%{$keyword}%");
-                }
-            })
-            ->orWhereRaw('MATCH(title, search_content) AGAINST(? IN NATURAL LANGUAGE MODE)', [implode(' ', $keywords)])
+            ->selectRaw('id, title, question, answer, content, excerpt, category, type, tags, images, source_type, search_content, view_count, MATCH(title, search_content) AGAINST (? IN NATURAL LANGUAGE MODE) as score', [$lastUserMessage])
+            ->whereRaw('MATCH(title, search_content) AGAINST(? IN NATURAL LANGUAGE MODE)', [$lastUserMessage])
+            ->orderByDesc('score')
             ->orderByDesc('priority')
             ->orderByDesc('view_count')
             ->limit(5)
-            ->get(['title', 'content', 'excerpt', 'category', 'type', 'tags'])
+            ->get()
             ->toArray();
 
-        return $knowledge;
+        if (!empty($fulltext)) {
+            if ($this->debug) Log::info('RAG debug: fulltext hit', ['count' => count($fulltext)]);
+            return $fulltext;
+        }
+
+        // Fallback to keyword-based LIKE queries
+        $knowledge = KnowledgeBase::active()
+            ->published()
+            ->where(function ($query) use ($keywords) {
+                $query->where(function ($q) use ($keywords) {
+                    foreach ($keywords as $keyword) {
+                        $q->orWhere('title', 'LIKE', "%{$keyword}%")
+                            ->orWhere('question', 'LIKE', "%{$keyword}%")
+                            ->orWhere('content', 'LIKE', "%{$keyword}%")
+                            ->orWhere('answer', 'LIKE', "%{$keyword}%")
+                            ->orWhere('excerpt', 'LIKE', "%{$keyword}%")
+                            ->orWhere('search_content', 'LIKE', "%{$keyword}%");
+                    }
+                });
+            })
+            ->orderByDesc('priority')
+            ->orderByDesc('view_count')
+            ->limit(8)
+            ->get(['id', 'title', 'question', 'answer', 'content', 'excerpt', 'category', 'type', 'tags', 'images', 'source_type', 'search_content', 'view_count'])
+            ->toArray();
+        if ($this->debug) Log::info('RAG debug: like fallback', ['raw_count' => count($knowledge)]);
+
+        // De-duplicate by id and prefer entries with more keyword overlap
+        $seen = [];
+        $scored = [];
+        foreach ($knowledge as $row) {
+            $id = $row['id'];
+            if (isset($seen[$id])) continue;
+            $seen[$id] = true;
+            $hay = strtolower(($row['title'] ?? '') . ' ' . ($row['search_content'] ?? '') . ' ' . ($row['answer'] ?? ''));
+            $overlap = 0;
+            foreach ($keywords as $kw) {
+                if ($kw && strpos($hay, strtolower($kw)) !== false) $overlap++;
+            }
+            $row['score'] = $overlap;
+            $scored[] = $row;
+        }
+        usort($scored, function ($a, $b) {
+            if (($b['score'] ?? 0) === ($a['score'] ?? 0)) return ($b['view_count'] ?? 0) <=> ($a['view_count'] ?? 0);
+            return ($b['score'] ?? 0) <=> ($a['score'] ?? 0);
+        });
+        $scored = array_slice($scored, 0, 5);
+        if (!empty($scored)) {
+            if ($this->debug) Log::info('RAG debug: like-scored return', ['count' => count($scored)]);
+            return $scored;
+        }
+
+        // Emergency fallback: broaden search ignoring published & active scope
+        try {
+            $emergency = KnowledgeBase::query()
+                ->where(function ($q) use ($lastUserMessage) {
+                    $term = '%' . $lastUserMessage . '%';
+                    $q->where('title', 'LIKE', $term)
+                        ->orWhere('question', 'LIKE', $term)
+                        ->orWhere('answer', 'LIKE', $term)
+                        ->orWhere('content', 'LIKE', $term)
+                        ->orWhere('search_content', 'LIKE', $term);
+                })
+                ->orderByDesc('view_count')
+                ->limit(5)
+                ->get(['id', 'title', 'question', 'answer', 'content', 'excerpt', 'category', 'type', 'tags', 'images', 'source_type', 'search_content', 'view_count'])
+                ->toArray();
+
+            foreach ($emergency as &$row) {
+                $row['score'] = 0.5; // minimal score
+            }
+            if (!empty($emergency)) {
+                if ($this->debug) Log::info('RAG debug: emergency return', ['count' => count($emergency)]);
+                return $emergency;
+            }
+        } catch (\Throwable $t) {
+            if ($this->debug) Log::warning('RAG debug: emergency error ' . $t->getMessage());
+        }
+
+        return [];
+    }
+
+    /**
+     * Build a concise KB-grounded answer (3–6 short bullets or sentences)
+     */
+    private function buildConciseAnswerFromKb(array $kb, string $question = ''): string
+    {
+        $html = (string)($kb['content'] ?? '');
+        if ($html === '' && !empty($kb['answer'])) $html = (string)$kb['answer'];
+        $text = $this->normalizeHtmlToText($html);
+        if ($text === '') return '';
+        $keywords = $this->extractKeywords($question);
+        $bullets = $this->extractBullets($html);
+        if (!empty($bullets)) {
+            $picked = $this->pickRelevantLines($bullets, $keywords, 6);
+            if (!empty($picked)) return '<ul><li>' . implode('</li><li>', array_map('htmlspecialchars', $picked)) . '</li></ul>';
+        }
+        $sentences = $this->splitSentences($text);
+        $picked = $this->pickRelevantLines($sentences, $keywords, 5);
+        if (empty($picked)) $picked = array_slice($sentences, 0, 5);
+        return implode(' ', array_map('htmlspecialchars', $picked));
+    }
+
+    private function normalizeHtmlToText(string $html): string
+    {
+        if ($html === '') return '';
+        $repl = [
+            '/<\/(p|div|h[1-6]|li)>/i' => "$0\n",
+            '/<br\s*\/?\s*>/i' => "\n",
+        ];
+        $tmp = preg_replace(array_keys($repl), array_values($repl), $html);
+        $txt = trim(strip_tags($tmp));
+        $txt = preg_replace('/[\r\n]+/', "\n", $txt);
+        $txt = preg_replace('/\s{2,}/', ' ', $txt);
+        return trim($txt);
+    }
+
+    private function extractBullets(string $html): array
+    {
+        $items = [];
+        if ($html === '') return $items;
+        try {
+            $dom = new \DOMDocument();
+            libxml_use_internal_errors(true);
+            if ($dom->loadHTML('<?xml encoding="UTF-8">' . $html)) {
+                $lis = $dom->getElementsByTagName('li');
+                foreach ($lis as $li) {
+                    $text = trim(strip_tags($dom->saveHTML($li)));
+                    if ($text !== '') $items[] = $text;
+                }
+            }
+            libxml_clear_errors();
+        } catch (\Throwable $t) {
+        }
+        return $items;
+    }
+
+    private function splitSentences(string $text): array
+    {
+        if ($text === '') return [];
+        $parts = preg_split('/(?<=[.!?])\s+/', $text) ?: [];
+        $out = [];
+        foreach ($parts as $p) {
+            $p = trim($p);
+            if ($p !== '') $out[] = $p;
+        }
+        return $out;
+    }
+
+    private function pickRelevantLines(array $lines, array $keywords, int $limit): array
+    {
+        if (empty($lines)) return [];
+        $kw = array_unique(array_map('strtolower', $keywords));
+        $scored = [];
+        foreach ($lines as $i => $line) {
+            $hay = mb_strtolower($line);
+            $score = 0;
+            foreach ($kw as $k) {
+                if ($k !== '' && mb_strpos($hay, $k) !== false) $score++;
+            }
+            $scored[] = ['i' => $i, 's' => $score, 't' => $line];
+        }
+        usort($scored, function ($a, $b) {
+            return $b['s'] <=> $a['s'];
+        });
+        $picked = array_slice(array_map(fn($r) => $r['t'], $scored), 0, $limit);
+        // ensure at least first lines if all scores zero
+        if (implode('', $picked) === '' && !empty($lines)) {
+            $picked = array_slice($lines, 0, $limit);
+        }
+        return $picked;
     }
 
     /**
@@ -1368,71 +1455,136 @@ class OpenAIService
      */
     private function extractKeywords(string $message): array
     {
-        // Convert to lowercase and remove punctuation
-        $cleanMessage = strtolower(preg_replace('/[^\w\s]/', ' ', $message));
+        // Normalize and tokenize
+        $cleanMessage = strtolower($message);
+        $cleanMessage = preg_replace('/[^a-z0-9_\-\s]/u', ' ', $cleanMessage);
+        $tokens = preg_split('/\s+/', $cleanMessage, -1, PREG_SPLIT_NO_EMPTY);
 
-        // Common keywords untuk Samsat
-        $samsatKeywords = [
-            'pajak',
-            'bayar',
-            'pembayaran',
-            'denda',
-            'terlambat',
-            'keterlambatan',
-            'stnk',
-            'perpanjang',
-            'hilang',
-            'ganti',
-            'pengganti',
-            'balik nama',
-            'nama',
-            'pindah',
-            'jual',
-            'beli',
-            'lokasi',
-            'alamat',
-            'jam',
-            'operasional',
-            'buka',
-            'tutup',
-            'tarif',
-            'biaya',
-            'harga',
-            'mahal',
-            'murah',
-            'online',
-            'internet',
-            'website',
-            'aplikasi',
-            'e-samsat',
-            'motor',
-            'mobil',
-            'roda',
-            'pkb',
-            'swdkllj',
-            'njkb',
-            'progresif',
-            'dokumen',
-            'syarat',
-            'berkas',
-            'ktp',
-            'bpkb',
-            'cek',
-            'check',
-            'lihat',
-            'info',
-            'informasi'
+        // Basic Indonesian stopwords
+        $stop = [
+            'dan',
+            'atau',
+            'yang',
+            'untuk',
+            'dengan',
+            'di',
+            'ke',
+            'dari',
+            'pada',
+            'ini',
+            'itu',
+            'apa',
+            'bagaimana',
+            'berapa',
+            'dimana',
+            'kapan',
+            'mengapa',
+            'saya',
+            'kami',
+            'kita',
+            'anda',
+            'kamu',
+            'ya',
+            'tidak',
+            'boleh',
+            'bisa',
+            'mohon',
+            'tolong',
+            'agar',
+            'dapat',
+            'jadi',
+            'ada',
+            'adalah',
+            'sebagai',
+            'tentang',
+            'karena',
+            'maka',
+            'jika',
+            'kalau',
+            'hingga',
+            'sampai',
+            'serta',
+            'selain',
+            'juga',
+            'lebih',
+            'kurang',
+            'mohon',
+            'terima',
+            'kasih'
         ];
 
-        // Find matching keywords
-        $foundKeywords = [];
-        foreach ($samsatKeywords as $keyword) {
-            if (strpos($cleanMessage, $keyword) !== false) {
-                $foundKeywords[] = $keyword;
-            }
+        $terms = [];
+        foreach ($tokens as $t) {
+            if (strlen($t) < 3) continue;
+            if (in_array($t, $stop, true)) continue;
+            $terms[] = $t;
         }
 
-        return array_unique($foundKeywords);
+        // Add Samsat domain hints to bias search without forcing same KB
+        $domainHints = $this->domainHints();
+        $terms = array_unique(array_merge($terms, $domainHints));
+
+        // Cap number of terms to keep SQL concise
+        return array_slice($terms, 0, 12);
+    }
+
+    /**
+     * Domain-specific hint terms to bias search.
+     */
+    private function domainHints(): array
+    {
+        return ['samsat', 'lamongan', 'pajak', 'kendaraan', 'stnk', 'pkb', 'swdkllj', 'bpkb', 'tarif', 'biaya', 'lokasi', 'jam', 'operasional', 'online', 'esamsat', 'balik', 'nama', 'progresif'];
+    }
+
+    /**
+     * Detect if the user's query likely requests images/posters/brochures.
+     */
+    private function hasImageIntent(string $text): bool
+    {
+        $t = mb_strtolower($text);
+        $keys = ['gambar', 'foto', 'poster', 'brosur', 'ilustrasi', 'contoh', 'tampilan', 'lihat', 'infografis', 'galeri'];
+        foreach ($keys as $k) {
+            if (mb_strpos($t, $k) !== false) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Wrap <img> tags with anchor for lightbox behavior, keeping src intact.
+     */
+    private function wrapImagesWithLightbox(string $html): string
+    {
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $loaded = $dom->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        if (!$loaded) return $html;
+
+        $imgs = $dom->getElementsByTagName('img');
+        $wrapTargets = [];
+        foreach ($imgs as $img) {
+            if ($img instanceof \DOMElement) $wrapTargets[] = $img;
+        }
+
+        foreach ($wrapTargets as $img) {
+            $src = $img->getAttribute('src');
+            if (!$src) continue;
+            $parent = $img->parentNode;
+            $isAlreadyLink = ($parent instanceof \DOMElement) && strtolower($parent->nodeName) === 'a';
+            if ($isAlreadyLink) continue;
+
+            $a = $dom->createElement('a');
+            $a->setAttribute('href', $src);
+            $a->setAttribute('class', 'kb-lightbox');
+            $a->setAttribute('data-src', $src);
+
+            $parent->replaceChild($a, $img);
+            $a->appendChild($img);
+        }
+
+        $out = $dom->saveHTML();
+        $out = preg_replace('/^<\?xml.*?\?>/i', '', $out);
+        return $out;
     }
 
     /**
@@ -1510,7 +1662,9 @@ Jawab berdasarkan pengetahuan yang akurat dan terkini tentang layanan Samsat. Ji
             $basePrompt .= "- Prioritaskan informasi dari Knowledge Base di atas untuk menjawab pertanyaan\n";
             $basePrompt .= "- Jika informasi tidak ada di Knowledge Base, berikan jawaban umum yang akurat\n";
             $basePrompt .= "- Jika tidak yakin dengan jawaban, arahkan user untuk bertanya langsung ke petugas Samsat atau social media resmi kami\n";
-            $basePrompt .= "- Selalu berikan sumber informasi yang jelas dan terpercaya\n\n";
+            $basePrompt .= "- Selalu berikan sumber informasi yang jelas dan terpercaya\n";
+            $basePrompt .= "- Jawab SECARA SINGKAT dan TO THE POINT: 3–6 poin bullet ATAU 4–6 kalimat ringkas.\n";
+            $basePrompt .= "- Gunakan HANYA informasi dari referensi; jika tidak ada di referensi, jawab bahwa belum tersedia di Knowledge Base kami.\n\n";
         } else {
             $basePrompt .= "\n\nCATATAN: Tidak ada informasi spesifik di Knowledge Base untuk pertanyaan ini.\n";
             $basePrompt .= "Berikan jawaban umum yang akurat, atau arahkan user untuk menghubungi:\n";
@@ -1531,13 +1685,6 @@ Jawab berdasarkan pengetahuan yang akurat dan terkini tentang layanan Samsat. Ji
      */
     public function generateGreeting(): string
     {
-        $greetings = [
-            "Halo! Selamat datang di layanan Customer Service Samsat Lamongan. Ada yang bisa saya bantu terkait pajak kendaraan Anda?",
-            "Hai! Saya SALMA AI — Asisten Samsat Lamongan. Silakan tanyakan apa yang ingin Anda ketahui tentang layanan kami.",
-            "Selamat datang! Saya siap membantu Anda dengan informasi layanan Samsat Lamongan. Ada yang bisa saya bantu?",
-            "Halo! Ada pertanyaan seputar pajak kendaraan, STNK, atau layanan Samsat Lamongan lainnya?"
-        ];
-
-        return $greetings[array_rand($greetings)];
+        return "Halo! Saya Salma AI. ada yang bisa saya bantu ?";
     }
 }

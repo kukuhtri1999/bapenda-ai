@@ -9,3 +9,8 @@
 * {
   font-family: Poppins !important;
 }
+
+.assistant-content a {
+  color: blue;
+  text-decoration: underline;
+}

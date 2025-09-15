@@ -385,14 +385,23 @@
         </VBadge>
       </VCardText>
     </VCard>
+
+    <!-- Lightbox -->
+    <VueEasyLightbox
+      :visible="lightboxVisible"
+      :imgs="lightboxImages"
+      :index="lightboxIndex"
+      @hide="lightboxVisible = false"
+    />
   </div>
 </template>
 
 <script setup>
 import {
-  ref, onMounted, nextTick, watch,
+  ref, onMounted, onBeforeUnmount, nextTick, watch,
 } from 'vue';
 import axios from 'axios';
+import VueEasyLightbox from 'vue-easy-lightbox';
 
 // Props
 const props = defineProps({
@@ -412,6 +421,10 @@ const isLoading = ref(false);
 const isTyping = ref(false);
 const unreadCount = ref(0);
 const messagesContainer = ref(null);
+const lightboxVisible = ref(false);
+const lightboxImages = ref([]);
+const lightboxIndex = ref(0);
+let onKeydown;
 
 // Quick suggestions
 const quickSuggestions = ref([
@@ -628,10 +641,44 @@ const scrollToBottom = async () => {
 // Format message content
 const formatMessage = (content) => {
   if (!content) return '';
+  const looksHtml = /<\w+[\s\S]*>/m.test(content);
+  if (looksHtml) return content;
   return content
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
     .replace(/^(\d+\.\s)/gm, '<br>$1');
+};
+
+// Lightbox handlers
+const handleContentClick = (event) => {
+  const { target } = event;
+  if (!target || typeof target.closest !== 'function') return;
+  const anchor = target.closest('a.kb-lightbox');
+  if (anchor) {
+    event.preventDefault();
+    const href = anchor.getAttribute('href');
+    if (!href) return;
+    const container = anchor.closest('.assistant-message');
+    const links = container
+      ? Array.from(container.querySelectorAll('a.kb-lightbox'))
+      : [anchor];
+    const imgs = links
+      .map((a) => a.getAttribute('href'))
+      .filter((u) => typeof u === 'string' && u.length > 0);
+    lightboxImages.value = imgs;
+    lightboxIndex.value = Math.max(0, imgs.indexOf(href));
+    lightboxVisible.value = true;
+    return;
+  }
+  const imgEl = target.closest('.assistant-message img');
+  if (imgEl) {
+    event.preventDefault();
+    const src = imgEl.getAttribute('src');
+    if (!src) return;
+    lightboxImages.value = [src];
+    lightboxIndex.value = 0;
+    lightboxVisible.value = true;
+  }
 };
 
 // Watch for new messages to scroll
@@ -648,6 +695,17 @@ onMounted(() => {
   if (props.autoOpen) {
     toggleChat();
   }
+  if (messagesContainer.value) {
+    messagesContainer.value.addEventListener('click', handleContentClick);
+  }
+  onKeydown = () => {};
+});
+
+onBeforeUnmount(() => {
+  if (messagesContainer.value) {
+    messagesContainer.value.removeEventListener('click', handleContentClick);
+  }
+  // no-op cleanup for onKeydown
 });
 </script>
 
@@ -721,6 +779,8 @@ onMounted(() => {
   background: linear-gradient(to bottom, #fafafa, #ffffff);
 }
 
+/* Lightbox uses vue-easy-lightbox styles */
+
 .messages-container::-webkit-scrollbar {
   width: 6px;
 }
@@ -761,6 +821,46 @@ onMounted(() => {
 .message-input >>> .v-field {
   border-radius: 20px !important;
   border: 1px solid #e0e0e0 !important;
+}
+
+.assistant-bubble .kb-image-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.assistant-bubble .kb-image-gallery img {
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #eee;
+}
+
+.assistant-bubble .kb-reference {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #e0e0e0;
+}
+.assistant-bubble .kb-ref-header {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 4px;
+}
+.assistant-bubble .kb-ref-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid #eee;
+}
+.assistant-bubble .kb-ref-content p {
+  margin: 0.5em 0;
+}
+
+.assistant-bubble img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
 }
 
 .message-input >>> .v-field:focus-within {

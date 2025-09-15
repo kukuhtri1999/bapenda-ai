@@ -11,6 +11,7 @@ class Kernel extends ConsoleKernel
         // register custom test command
         \App\Console\Commands\TestClassifyChats::class,
         \App\Console\Commands\DebugRunAnalytics::class,
+        \App\Console\Commands\BackfillKnowledgeBaseSearch::class,
     ];
 
     protected function schedule(Schedule $schedule)

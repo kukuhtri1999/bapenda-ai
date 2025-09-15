@@ -368,6 +368,14 @@
       </VRow>
     </VContainer>
 
+    <!-- Lightbox -->
+    <VueEasyLightbox
+      :visible="lightboxVisible"
+      :imgs="lightboxImages"
+      :index="lightboxIndex"
+      @hide="lightboxVisible = false"
+    />
+
     <!-- Error Snackbar -->
     <VSnackbar v-model="showError" color="error" location="top" timeout="5000">
       {{ errorMessage }}
@@ -382,10 +390,11 @@
 
 <script setup>
 import {
-  ref, onMounted, nextTick, watch,
+  ref, onMounted, onBeforeUnmount, nextTick, watch,
 } from 'vue';
 import { router, Head } from '@inertiajs/vue3';
 import axios from 'axios';
+import VueEasyLightbox from 'vue-easy-lightbox';
 
 // Props for user data from session
 const props = defineProps({
@@ -404,6 +413,9 @@ const isTyping = ref(false);
 const showError = ref(false);
 const errorMessage = ref('');
 const messagesContainer = ref(null);
+const lightboxVisible = ref(false);
+const lightboxImages = ref([]);
+const lightboxIndex = ref(0);
 
 // Quick suggestions
 const quickSuggestions = ref([
@@ -569,6 +581,9 @@ const formatTime = (timestamp) => {
 
 const formatMessage = (content) => {
   if (!content) return '';
+  // If looks like HTML, return as-is to preserve structure and images
+  const looksHtml = /<\w+[\s\S]*>/m.test(content);
+  if (looksHtml) return content;
   return content
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
@@ -602,9 +617,47 @@ const showErrorMessage = (message) => {
   showError.value = true;
 };
 
+// Lightbox handlers
+const handleContentClick = (event) => {
+  const { target } = event;
+  if (!target || typeof target.closest !== 'function') return;
+  // If clicking an anchor-wrapped image
+  const anchor = target.closest('a.kb-lightbox');
+  if (anchor) {
+    event.preventDefault();
+    const href = anchor.getAttribute('href');
+    if (!href) return;
+    const container = anchor.closest('.assistant-message');
+    const links = container
+      ? Array.from(container.querySelectorAll('a.kb-lightbox'))
+      : [anchor];
+    const imgs = links
+      .map((a) => a.getAttribute('href'))
+      .filter((u) => typeof u === 'string' && u.length > 0);
+    lightboxImages.value = imgs;
+    lightboxIndex.value = Math.max(0, imgs.indexOf(href));
+    lightboxVisible.value = true;
+    return;
+  }
+  // If clicking a plain image inside assistant content
+  const imgEl = target.closest('.assistant-message img');
+  if (imgEl) {
+    event.preventDefault();
+    const src = imgEl.getAttribute('src');
+    if (!src) return;
+    lightboxImages.value = [src];
+    lightboxIndex.value = 0;
+    lightboxVisible.value = true;
+  }
+};
+
 // Initialize on mount
 onMounted(() => {
   initializeChat();
+
+  if (messagesContainer.value) {
+    messagesContainer.value.addEventListener('click', handleContentClick);
+  }
 
   // Check for PKB context from PKB form
   const pkbContext = localStorage.getItem('pkb_context');
@@ -625,6 +678,12 @@ onMounted(() => {
     setTimeout(() => {
       sendQuickMessage(initialQuestion);
     }, 500);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (messagesContainer.value) {
+    messagesContainer.value.removeEventListener('click', handleContentClick);
   }
 });
 
@@ -656,6 +715,8 @@ watch(
   transition: all 0.3s ease;
 }
 
+/* Lightbox uses vue-easy-lightbox styles */
+
 .gradient-text {
   background: linear-gradient(135deg, #e9a5f1, #c68efd);
   -webkit-background-clip: text;
@@ -676,6 +737,47 @@ watch(
 .message-input >>> .v-field {
   border-radius: 20px !important;
   border: 1px solid #e0e0e0 !important;
+}
+
+.assistant-content .kb-image-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.assistant-content .kb-image-gallery img {
+  max-width: 120px;
+  max-height: 120px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #eee;
+}
+
+.assistant-content .kb-reference {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed #e0e0e0;
+}
+.assistant-content .kb-ref-header {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 6px;
+}
+.assistant-content .kb-ref-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+.assistant-content .kb-ref-content p {
+  margin: 0.5em 0;
+}
+
+/* Generic images inside assistant content */
+.assistant-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
 }
 
 .message-input >>> .v-field:focus-within {
