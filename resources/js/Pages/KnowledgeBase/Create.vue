@@ -1,7 +1,9 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useForm } from '@inertiajs/vue3';
+import { QuillEditor } from '@vueup/vue-quill';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import '@vueup/vue-quill/dist/vue-quill.snow.css';
 
 const props = defineProps({
   categories: Object,
@@ -12,7 +14,6 @@ const props = defineProps({
 const form = useForm({
   title: '',
   content: '',
-  excerpt: '',
   category: 'pajak',
   type: 'faq',
   status: 'published',
@@ -21,6 +22,11 @@ const form = useForm({
   tags: '',
   file: null,
   is_active: true,
+});
+
+const isClient = ref(false);
+onMounted(() => {
+  isClient.value = true;
 });
 
 const showAdvanced = ref(false);
@@ -58,16 +64,7 @@ const priorityItems = [
   { title: 'Critical', value: 4 },
 ];
 
-// Generate excerpt automatically from content
-watch(
-  () => form.content,
-  (newContent) => {
-    if (newContent && !form.excerpt) {
-      const words = newContent.replace(/<[^>]*>/g, '').split(' ');
-      form.excerpt = words.slice(0, 30).join(' ') + (words.length > 30 ? '...' : '');
-    }
-  },
-);
+// No excerpt generation; using rich text content directly
 
 // Handle file upload
 const handleFileSelect = (event) => {
@@ -320,28 +317,25 @@ const cancel = () => {
 
                 <!-- Content (for manual entry) -->
                 <div v-if="form.source_type === 'manual'">
-                  <VTextarea
-                    v-model="form.content"
-                    label="Content *"
-                    variant="outlined"
-                    :error-messages="form.errors.content"
-                    rows="12"
-                    class="mb-4"
-                    prepend-inner-icon="mdi-text"
-                  ></VTextarea>
+                  <QuillEditor
+                    v-if="isClient"
+                    v-model:content="form.content"
+                    content-type="html"
+                    theme="snow"
+                    toolbar="full"
+                    style="
+                      min-height: 280px;
+                      background: white;
+                      border-radius: 8px;
+                    "
+                  />
+                  <div
+                    v-if="form.errors.content"
+                    class="text-error text-caption mt-2"
+                  >
+                    {{ form.errors.content }}
+                  </div>
                 </div>
-
-                <!-- Excerpt -->
-                <VTextarea
-                  v-model="form.excerpt"
-                  label="Excerpt"
-                  variant="outlined"
-                  :error-messages="form.errors.excerpt"
-                  rows="3"
-                  hint="Brief summary of the content (auto-generated if left empty)"
-                  persistent-hint
-                  prepend-inner-icon="mdi-text-short"
-                ></VTextarea>
               </VCardText>
             </VCard>
 

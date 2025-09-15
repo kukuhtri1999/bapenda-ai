@@ -1,7 +1,9 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useForm } from '@inertiajs/vue3';
+import { QuillEditor } from '@vueup/vue-quill';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import '@vueup/vue-quill/dist/vue-quill.snow.css';
 
 const props = defineProps({
   knowledgeBase: Object,
@@ -13,7 +15,6 @@ const props = defineProps({
 const form = useForm({
   title: props.knowledgeBase.title,
   content: props.knowledgeBase.content,
-  excerpt: props.knowledgeBase.excerpt,
   category: props.knowledgeBase.category,
   type: props.knowledgeBase.type,
   status: props.knowledgeBase.status,
@@ -31,6 +32,11 @@ const dragActive = ref(false);
 const filePreview = ref(null);
 const replaceFile = ref(false);
 const allowedFileTypes = ['pdf', 'doc', 'docx', 'txt', 'md'];
+
+const isClient = ref(false);
+onMounted(() => {
+  isClient.value = true;
+});
 
 const maxFileSize = 10; // MB
 const maxFileSizeBytes = maxFileSize * 1024 * 1024;
@@ -62,16 +68,7 @@ const priorityItems = [
   { title: 'Critical', value: 4 },
 ];
 
-// Generate excerpt automatically from content
-watch(
-  () => form.content,
-  (newContent) => {
-    if (newContent && !form.excerpt) {
-      const words = newContent.replace(/<[^>]*>/g, '').split(' ');
-      form.excerpt = words.slice(0, 30).join(' ') + (words.length > 30 ? '...' : '');
-    }
-  },
-);
+// No excerpt handling; using full rich text content
 
 // Handle file upload
 const handleFileSelect = (event) => {
@@ -236,7 +233,10 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                     color="primary"
                     @click="submit"
                     :loading="form.processing"
-                    :disabled="!form.title"
+                    :disabled="
+                      !form.title ||
+                      (form.source_type === 'manual' && !form.content)
+                    "
                   >
                     Update Entry
                   </VBtn>
@@ -361,9 +361,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   >
                     <VCardText class="text-center pa-8">
                       <div v-if="!filePreview">
-                        <VIcon size="64" color="orange"
-                          >mdi-file-replace</VIcon
-                        >
+                        <VIcon size="64" color="orange">mdi-file-replace</VIcon>
                         <h3 class="text-h6 mt-3">Replace Current File</h3>
                         <p class="text-body-2 text-medium-emphasis mb-4">
                           Drag and drop your new file here or click to browse
@@ -391,9 +389,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                         />
                       </div>
                       <div v-else>
-                        <VIcon size="64" color="success"
-                          >mdi-file-check</VIcon
-                        >
+                        <VIcon size="64" color="success">mdi-file-check</VIcon>
                         <h3 class="text-h6 mt-3">
                           {{ filePreview.name }}
                         </h3>
@@ -429,28 +425,25 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
 
                 <!-- Content (for manual entry) -->
                 <div v-if="form.source_type === 'manual'">
-                  <VTextarea
-                    v-model="form.content"
-                    label="Content *"
-                    variant="outlined"
-                    :error-messages="form.errors.content"
-                    rows="12"
-                    class="mb-4"
-                    prepend-inner-icon="mdi-text"
-                  ></VTextarea>
+                  <QuillEditor
+                    v-if="isClient"
+                    v-model:content="form.content"
+                    content-type="html"
+                    theme="snow"
+                    toolbar="full"
+                    style="
+                      min-height: 280px;
+                      background: white;
+                      border-radius: 8px;
+                    "
+                  />
+                  <div
+                    v-if="form.errors.content"
+                    class="text-error text-caption mt-2"
+                  >
+                    {{ form.errors.content }}
+                  </div>
                 </div>
-
-                <!-- Excerpt -->
-                <VTextarea
-                  v-model="form.excerpt"
-                  label="Excerpt"
-                  variant="outlined"
-                  :error-messages="form.errors.excerpt"
-                  rows="3"
-                  hint="Brief summary of the content"
-                  persistent-hint
-                  prepend-inner-icon="mdi-text-short"
-                ></VTextarea>
               </VCardText>
             </VCard>
 
@@ -565,7 +558,10 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   color="primary"
                   @click="submit"
                   :loading="form.processing"
-                  :disabled="!form.title"
+                  :disabled="
+                    !form.title ||
+                    (form.source_type === 'manual' && !form.content)
+                  "
                   block
                   size="large"
                 >

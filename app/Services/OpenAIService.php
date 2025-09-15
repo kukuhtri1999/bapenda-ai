@@ -22,7 +22,7 @@ class OpenAIService
     public function __construct()
     {
         $this->client = OpenAI::client(config('services.openai.api_key'));
-        $this->model = config('services.openai.model', 'gpt-4o-mini');
+        $this->model = config('services.openai.model', 'gpt-5-mini');
         $this->maxTokens = config('services.openai.max_tokens', 1500);
         $this->temperature = config('services.openai.temperature', 0.7);
         // Default timeout (seconds). Keep constant here to avoid config/env coupling at boot time.
@@ -1290,10 +1290,10 @@ class OpenAIService
                 'model' => $this->model,
                 'messages' => $apiMessages,
                 'max_completion_tokens' => $this->maxTokens,
-                'temperature' => 0.8, // Increase for more variety
+                'temperature' => 0.2,
                 'top_p' => 0.9,
-                'frequency_penalty' => 0.3, // Reduce repetition
-                'presence_penalty' => 0.2, // Encourage new topics
+                'frequency_penalty' => 0.2,
+                'presence_penalty' => 0.1,
             ]);
 
             return [

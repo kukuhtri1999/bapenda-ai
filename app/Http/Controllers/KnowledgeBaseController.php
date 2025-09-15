@@ -76,7 +76,6 @@ class KnowledgeBaseController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
-            'excerpt' => 'nullable|string|max:500',
             'content' => 'required|string',
             'category' => 'required|string|max:50',
             'type' => 'required|string|max:50',
@@ -176,7 +175,6 @@ class KnowledgeBaseController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
-            'excerpt' => 'nullable|string|max:500',
             'content' => 'required|string',
             'category' => 'required|string|max:50',
             'type' => 'required|string|max:50',

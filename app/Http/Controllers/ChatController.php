@@ -142,24 +142,43 @@ class ChatController extends Controller
         $recentMessages = $chat->messages()
             ->whereIn('role', ['user', 'assistant', 'context'])
             ->orderBy('sent_at', 'desc')
-            ->limit(10) // Include more messages to capture context
+            ->limit(10)
             ->get()
             ->reverse()
-            ->map(function ($msg) {
-                return [
-                    'role' => $msg->role === 'context' ? 'system' : $msg->role,
-                    'content' => $msg->content,
-                    'timestamp' => $msg->sent_at->toISOString()
-                ];
+            ->flatMap(function ($msg) {
+                $turns = [];
+                if ($msg->role === 'context') {
+                    $turns[] = [
+                        'role' => 'system',
+                        'content' => (string) $msg->content,
+                    ];
+                } elseif ($msg->role === 'user') {
+                    $turns[] = [
+                        'role' => 'user',
+                        'content' => (string) $msg->content,
+                    ];
+                    if (!empty($msg->answer)) {
+                        $turns[] = [
+                            'role' => 'assistant',
+                            'content' => (string) $msg->answer,
+                        ];
+                    }
+                } elseif ($msg->role === 'assistant') {
+                    $turns[] = [
+                        'role' => 'assistant',
+                        'content' => (string) $msg->content,
+                    ];
+                }
+                return $turns;
             })
+            ->values()
             ->toArray();
 
         // Add current user message to context
         $currentContext = array_merge($recentMessages, [
             [
                 'role' => 'user',
-                'content' => $request->message,
-                'timestamp' => now()->toISOString()
+                'content' => (string) $request->message,
             ]
         ]);
 
