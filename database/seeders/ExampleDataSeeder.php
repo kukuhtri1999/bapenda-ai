@@ -35,8 +35,8 @@ class ExampleDataSeeder extends Seeder
         if (!empty($wajib)) WajibPajak::insert($wajib);
 
         // Create 548 chat messages in bulk
-        $totalMessages = 548;
-        $batchMsg = 500;
+        $totalMessages = 1;
+        $batchMsg = 100;
         $messages = [];
         $chatColumns = Schema::getColumnListing('chat_messages');
 
