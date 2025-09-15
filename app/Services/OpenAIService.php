@@ -1132,7 +1132,7 @@ class OpenAIService
             // Base style + policy instruction (concise, KB-first, safe improvisation allowed)
             $apiMessages[] = [
                 'role' => 'system',
-                'content' => 'Anda adalah SALMA AI — Asisten Samsat Lamongan. Jawab ringkas (3–6 bullet atau 4–6 kalimat), ramah dan to the point. Prioritaskan Knowledge Base; jika informasi tidak lengkap, boleh beri panduan umum yang aman tanpa mencantumkan angka pasti.'
+                'content' => 'Anda adalah SALMA AI — Asisten Samsat Lamongan. Selalu jawab dalam Bahasa Indonesia (baku, semi-formal). Jangan gunakan bahasa daerah (mis. Jawa/Jawa Timuran), Inggris, atau bahasa lain. Jawab ringkas (3–6 poin bullet atau 4–6 kalimat), ramah dan to the point. Prioritaskan Knowledge Base; jika informasi tidak lengkap, boleh beri panduan umum yang aman tanpa mencantumkan angka pasti.'
             ];
 
             // Provide explicit KB_CONTEXT and estimation policy for flexible, KB-prioritized answers
@@ -1167,7 +1167,7 @@ class OpenAIService
                     ];
                 }
             }
-            // Determine top KB (used for image-only fast path)
+            // Determine top KB and evaluate image-only fast path with stricter relevance
             $kbTop = $relevantKnowledge[0] ?? null;
             $kbHtml = is_array($kbTop) ? (string)($kbTop['content'] ?? '') : '';
             $kbHasImages = false;
@@ -1176,8 +1176,22 @@ class OpenAIService
             } elseif (is_array($kbTop) && !empty($kbTop['images']) && is_array($kbTop['images'])) {
                 $kbHasImages = count($kbTop['images']) > 0;
             }
-            // If top KB contains images, skip model and return raw KB content with lightbox
+
+            $useImageFastPath = false;
             if ($kbHasImages && !empty($kbHtml)) {
+                $userText = (string)($latestUser['content'] ?? '');
+                $imageIntent = $this->hasImageIntent($userText);
+                $scoreTop = (float)($kbTop['score'] ?? 0);
+                $scoreSecond = (float)($relevantKnowledge[1]['score'] ?? 0);
+                $margin = $scoreTop - $scoreSecond;
+                $overlap = $this->keywordOverlapCountForKb(is_array($kbTop) ? $kbTop : [], $userText);
+                // Gate to avoid irrelevant repetition
+                if ($imageIntent || ($scoreTop >= 1.0 && $margin >= 0.3) || ($overlap >= 2 && $scoreTop >= 0.8)) {
+                    $useImageFastPath = true;
+                }
+            }
+
+            if ($useImageFastPath) {
                 if ($this->debug) Log::info('RAG path: image-only', ['kb_id' => $kbTop['id'] ?? null, 'title' => $kbTop['title'] ?? null]);
                 $htmlWithLightbox = $this->wrapImagesWithLightbox($kbHtml);
                 return [
@@ -1550,6 +1564,26 @@ class OpenAIService
     }
 
     /**
+     * Compute overlap count between user keywords and a single KB entry fields
+     */
+    private function keywordOverlapCountForKb(array $kb, string $userText): int
+    {
+        $kw = $this->extractKeywords($userText);
+        if (empty($kw)) return 0;
+        $hay = strtolower(
+            ($kb['title'] ?? '') . ' ' .
+                ($kb['question'] ?? '') . ' ' .
+                ($kb['search_content'] ?? '') . ' ' .
+                ($kb['answer'] ?? '')
+        );
+        $count = 0;
+        foreach ($kw as $k) {
+            if ($k && strpos($hay, strtolower($k)) !== false) $count++;
+        }
+        return $count;
+    }
+
+    /**
      * Wrap <img> tags with anchor for lightbox behavior, keeping src intact.
      */
     private function wrapImagesWithLightbox(string $html): string
@@ -1598,7 +1632,7 @@ IDENTITAS & PERAN:
 - Nama: SALMA AI — Asisten Samsat Lamongan
 - Peran: Customer Service AI yang ramah, profesional, dan membantu
 - Lokasi: Samsat Lamongan, Jawa Timur
-- Bahasa: Bahasa Indonesia yang sopan dan mudah dipahami
+- Bahasa: WAJIB Bahasa Indonesia (baku, semi-formal), jangan gunakan bahasa daerah (mis. Jawa/Jawa Timuran), Inggris, atau bahasa lain
 
 TUGAS UTAMA:
 1. Membantu masyarakat dengan informasi layanan Samsat Lamongan
