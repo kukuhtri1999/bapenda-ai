@@ -31,17 +31,19 @@ class OpenAIService
         $this->debug = (bool) (config('app.debug') || env('RAG_DEBUG', false));
     }
 
-    private function isMiniModel(?string $model = null): bool
-    {
-        $m = $model ?: $this->model;
-        $m = strtolower((string)$m);
-        return strpos($m, 'mini') !== false || strpos($m, 'gpt-5-mini') !== false;
-    }
-
     private function getAnalyticsModel(): string
     {
+        // Analytics historically relied on gpt-4o-mini behavior. Keep analytics
+        // using that model by default for now to avoid feature regressions when
+        // switching the main chat model to gpt-5-mini. Allow an explicit
+        // override via `services.openai.analytics_model` if needed.
         $m = config('services.openai.analytics_model');
-        return is_string($m) && strlen($m) > 0 ? $m : $this->model;
+        if (is_string($m) && strlen($m) > 0) {
+            return $m;
+        }
+
+        // Default analytics model (explicit) to gpt-4o-mini.
+        return 'gpt-4o-mini';
     }
 
     /**
@@ -294,7 +296,6 @@ class OpenAIService
         try {
             if (empty($topTopics)) return null;
             $model = $this->getAnalyticsModel();
-            $isMini = $this->isMiniModel($model);
 
             $topicsBrief = [];
             foreach ($topTopics as $t) {
@@ -302,9 +303,7 @@ class OpenAIService
             }
 
             $wordGoal = (int) config('analytics.strategy_word_goal', 950);
-            if ($isMini) $wordGoal = min(750, $wordGoal);
-            $minSteps = $isMini ? 8 : 12;
-            $instruction = "Kembalikan HANYA JSON valid (tanpa teks tambahan). Anda akan menerima hingga TOP " . count($topicsBrief) . " topik (maks. 3). Untuk setiap topik, buat ANALISIS STRATEGIS MENDALAM dalam Bahasa Indonesia. Fokus pada langkah yang dapat dieksekusi oleh instansi publik (Bapenda/Samsat) dan jelaskan teknisnya.\n\nStruktur JSON WAJIB persis:\n{ \"strategies\": [ {\n  \"topic_key\": string,\n  \"label\": string,\n  \"count\": number,\n  \"short_summary\": string (2-3 kalimat yang sangat ringkas),\n  \"detailed_strategy\": string (~" . $wordGoal . " kata, ±10%) yang menjelaskan: latar masalah, tujuan/indikator keberhasilan, rancangan solusi digital & operasional (alur sistem, integrasi, SOP, SDM), rencana komunikasi/edukasi (online & offline), risiko & mitigasi, serta tata kelola (governance/ownership). Tulis dalam paragraf-paragraf pendek 3-6 kalimat per paragraf agar mudah dibaca manusia.\n  \"implementation_steps\": [ {\n    \"title\": string (aksi konkrit, imperative),\n    \"description\": string (60-120 kata, paparkan detail teknis: API/endpoint, DB/log, otomasi job, SOP front-office, materi sosialisasi),\n    \"example\": string (contoh nyata yang relevan; bisa sebut format dokumen, pesan notifikasi, atau contoh konten),\n    \"estimated_time\": string (mis. '1-2 minggu', '2-4 minggu', '1-2 bulan'),\n    \"effort\": \"low\"|\"medium\"|\"high\"\n  } ],\n  \"suggested_owners\": [string],\n  \"timeline\": string (mis. \"0-3 bulan\", \"3-12 bulan\"),\n  \"kpis\": [string],\n  \"estimated_cost\": string pendek,\n  \"dependencies\": [string]\n} ] }\n\nKetentuan penting:\n- Untuk setiap topik, buat MINIMAL " . $minSteps . " langkah pada implementation_steps (boleh lebih jika relevan).\n- Gunakan konteks AGGREGATES untuk rasional & prioritas.\n- Hindari angka fiktif; gunakan rentang waktu umum.\n- Balas HANYA JSON.\n";
+            $instruction = "Kembalikan HANYA JSON valid (tanpa teks tambahan). Anda akan menerima hingga TOP " . count($topicsBrief) . " topik (maks. 3). Untuk setiap topik, buat ANALISIS STRATEGIS MENDALAM dalam Bahasa Indonesia. Fokus pada langkah yang dapat dieksekusi oleh instansi publik (Bapenda/Samsat) dan jelaskan teknisnya.\n\nStruktur JSON WAJIB persis:\n{ \"strategies\": [ {\n  \"topic_key\": string,\n  \"label\": string,\n  \"count\": number,\n  \"short_summary\": string (2-3 kalimat yang sangat ringkas),\n  \"detailed_strategy\": string (~" . $wordGoal . " kata, ±10%) yang menjelaskan: latar masalah, tujuan/indikator keberhasilan, rancangan solusi digital & operasional (alur sistem, integrasi, SOP, SDM), rencana komunikasi/edukasi (online & offline), risiko & mitigasi, serta tata kelola (governance/ownership). Tulis dalam paragraf-paragraf pendek 3-6 kalimat per paragraf agar mudah dibaca manusia.\n  \"implementation_steps\": [ {\n    \"title\": string (aksi konkrit, imperative),\n    \"description\": string (60-120 kata, paparkan detail teknis: API/endpoint, DB/log, otomasi job, SOP front-office, materi sosialisasi),\n    \"example\": string (contoh nyata yang relevan; bisa sebut format dokumen, pesan notifikasi, atau contoh konten),\n    \"estimated_time\": string (mis. '1-2 minggu', '2-4 minggu', '1-2 bulan'),\n    \"effort\": \"low\"|\"medium\"|\"high\"\n  } ],\n  \"suggested_owners\": [string],\n  \"timeline\": string (mis. \"0-3 bulan\", \"3-12 bulan\"),\n  \"kpis\": [string],\n  \"estimated_cost\": string pendek,\n  \"dependencies\": [string]\n} ] }\n\nKetentuan penting:\n- Untuk setiap topik, buat MINIMAL 12 langkah pada implementation_steps, usahakan 12–16 langkah jika relevan.\n- Gunakan konteks AGGREGATES untuk rasional & prioritas.\n- Hindari angka fiktif; gunakan rentang waktu umum.\n- Balas HANYA JSON.\n";
 
             $payload = [
                 'top_topics' => $topicsBrief,
@@ -316,14 +315,13 @@ class OpenAIService
                 ['role' => 'user', 'content' => $instruction . "\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)]
             ];
 
-            $call = function () use ($model, $messages, $isMini) {
-                $params = [
+            $call = function () use ($model, $messages) {
+                return $this->client->chat()->create([
                     'model' => $model,
                     'messages' => $messages,
-                    'max_completion_tokens' => $isMini ? 2300 : 5200,
-                ];
-                if (!$isMini) $params['response_format'] = ['type' => 'json_object'];
-                return $this->client->chat()->create($params);
+                    'max_completion_tokens' => 5200,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
             };
 
             $response = $this->retryRequest($call);
@@ -344,16 +342,15 @@ class OpenAIService
             }
             // Repair: ask to resend valid JSON only
             try {
-                $p2 = [
+                $resp2 = $this->client->chat()->create([
                     'model' => $model,
                     'messages' => [
                         ['role' => 'system', 'content' => 'Output JSON only.'],
                         ['role' => 'user', 'content' => 'Ulangi dan balas HANYA JSON valid sesuai skema strategi yang diminta.'],
                     ],
-                    'max_completion_tokens' => $isMini ? 1600 : 3600,
-                ];
-                if (!$isMini) $p2['response_format'] = ['type' => 'json_object'];
-                $resp2 = $this->client->chat()->create($p2);
+                    'max_completion_tokens' => 3600,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
                 $txt2 = trim($resp2->choices[0]->message->content ?? '');
                 $s2 = strpos($txt2, '{');
                 $e2 = strrpos($txt2, '}');
@@ -370,103 +367,11 @@ class OpenAIService
                 }
             } catch (\Throwable $t) {
             }
-            // Third attempt: simplified schema without response_format for broader compatibility
-            try {
-                $simpleSchema = "Balas HANYA JSON valid: { \n  \"strategies\": [ { \n    \"topic_key\": string, \n    \"label\": string, \n    \"count\": number, \n    \"short_summary\": string, \n    \"implementation_steps\": [ { \n      \"title\": string, \n      \"description\": string \n    } ] \n  } ] \n}\nGunakan DATA berikut dan buat tiap topik minimal " . ($isMini ? 6 : 10) . " langkah yang realistis.";
-                $payload = [
-                    'top_topics' => $topicsBrief,
-                    'aggregates' => mb_substr($aggText, 0, 6000),
-                ];
-                $resp3 = $this->client->chat()->create([
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'Output JSON only.'],
-                        ['role' => 'user', 'content' => $simpleSchema . "\n\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)],
-                    ],
-                    'max_completion_tokens' => $isMini ? 1600 : 2400,
-                ]);
-                $txt3 = trim($resp3->choices[0]->message->content ?? '');
-                $s3 = strpos($txt3, '{');
-                $e3 = strrpos($txt3, '}');
-                if ($s3 !== false && $e3 !== false && $e3 > $s3) {
-                    $maybe3 = substr($txt3, $s3, $e3 - $s3 + 1);
-                    $json3 = json_decode($maybe3, true);
-                    if (is_array($json3) && isset($json3['strategies'])) {
-                        $out = [];
-                        foreach ($json3['strategies'] as $s) {
-                            if (isset($s['topic_key'])) $out[$s['topic_key']] = $s;
-                        }
-                        if (!empty($out)) return $out;
-                    }
-                }
-            } catch (\Throwable $t) {
-                try {
-                    Log::warning('generateTopTopicStrategies simplified fallback failed', ['err' => $t->getMessage()]);
-                } catch (\Throwable $tt) {
-                }
-            }
-            // Heuristic fallback to avoid empty results on mini models
-            try {
-                return $this->buildStrategiesFallback($topicsBrief, $aggText, $categoryLabels);
-            } catch (\Throwable $t) {
-                return null;
-            }
+            return null;
         } catch (Exception $e) {
             Log::error('generateTopTopicStrategies error: ' . $e->getMessage());
-            try {
-                return $this->buildStrategiesFallback($topicsBrief ?? [], $aggText ?? '', $categoryLabels ?? []);
-            } catch (\Throwable $t) {
-                return null;
-            }
+            return null;
         }
-    }
-
-    private function buildStrategiesFallback(array $topicsBrief, string $aggText, array $categoryLabels = []): array
-    {
-        $out = [];
-        $templates = [
-            ['title' => 'Audit proses & pain points', 'desc' => 'Petakan alur layanan saat ini, identifikasi bottleneck, waktu tunggu, kesalahan input, dan titik kegagalan. Dokumentasikan temuan sebagai dasar perbaikan.'],
-            ['title' => 'Standarisasi SOP & formulir', 'desc' => 'Perbarui SOP layanan, format dokumen, dan checklist front-office agar seragam di semua kanal (loket, mobil keliling, online).'],
-            ['title' => 'Digitalisasi alur & integrasi', 'desc' => 'Rancang alur digital end-to-end, integrasi basis data (pajak, STNK, BPKB), dan otomatisasi notifikasi (SMS/WA/email).'],
-            ['title' => 'Kanal informasi resmi', 'desc' => 'Perbarui website/akun sosial dengan panduan ringkas, infografik, FAQ, dan jam operasional terbaru.'],
-            ['title' => 'Notifikasi & pengingat', 'desc' => 'Aktifkan pengingat jatuh tempo pajak dan status layanan dengan opt-in melalui WA/SMS untuk meningkatkan kepatuhan.'],
-            ['title' => 'Dashboard monitoring', 'desc' => 'Bangun dashboard sederhana: volume layanan, waktu proses, error rate, kepuasan, dan beban loket per jam.'],
-            ['title' => 'Pelatihan petugas', 'desc' => 'Latih petugas front-office dan admin terkait SOP baru, alur aplikasi, dan standar komunikasi.'],
-            ['title' => 'Uji coba terbatas (pilot)', 'desc' => 'Luncurkan pilot di 1-2 loket/layanan, kumpulkan umpan balik, dan perbaiki sebelum perluasan.'],
-            ['title' => 'Skala & komunikasi publik', 'desc' => 'Perluas implementasi bertahap dan lakukan sosialisasi terjadwal ke masyarakat melalui berbagai kanal.'],
-            ['title' => 'Evaluasi & perbaikan berkelanjutan', 'desc' => 'Tetapkan evaluasi berkala (bulanan/kuartal) untuk mengkaji KPI dan rencana perbaikan.'],
-        ];
-        foreach ($topicsBrief as $t) {
-            $key = (string)($t['key'] ?? ($t['name'] ?? 'topik'));
-            $label = (string)($t['label'] ?? $key);
-            $count = (int)($t['count'] ?? 0);
-            $summary = "Fokus pada $label: rapikan proses, digitalisasi langkah kunci, edukasi masyarakat, dan pantau hasil lewat KPI yang jelas.";
-            $detail = "Strategi $label menitikberatkan pada perbaikan operasional yang pragmatis: pemetaan proses, standardisasi SOP, digitalisasi alur utama, integrasi data, pengingat otomatis, serta komunikasi publik yang konsisten. Pelaksanaan dilakukan bertahap melalui pilot, disertai pelatihan petugas dan monitoring lewat dashboard. Risiko diantisipasi dengan mitigasi sederhana dan tata kelola yang jelas.";
-            $steps = [];
-            foreach ($templates as $tpl) {
-                $steps[] = [
-                    'title' => $tpl['title'],
-                    'description' => $tpl['desc'],
-                    'example' => '',
-                    'estimated_time' => '2-4 minggu',
-                    'effort' => 'medium',
-                ];
-            }
-            $out[$key] = [
-                'topic_key' => $key,
-                'label' => $label,
-                'count' => $count,
-                'short_summary' => $summary,
-                'detailed_strategy' => $detail,
-                'implementation_steps' => $steps,
-                'suggested_owners' => ['Tim Layanan', 'Tim IT/Operator', 'Humas/Komunikasi'],
-                'timeline' => '0–3 bulan',
-                'kpis' => ['Waktu proses rata-rata', 'Tingkat kepuasan', 'Persentase keberhasilan tanpa revisi', 'Kepatuhan terhadap jadwal pajak'],
-                'estimated_cost' => 'Rendah–sedang (optimalisasi proses & alat sederhana)',
-                'dependencies' => ['Akses data layanan', 'Komitmen pimpinan', 'Koordinasi lintas-bidang'],
-            ];
-        }
-        return $out;
     }
 
     /**
@@ -770,7 +675,6 @@ class OpenAIService
     {
         try {
             $model = $this->getAnalyticsModel();
-            $isMini = $this->isMiniModel($model);
 
             // Clip and normalize rows
             $maxRows = 220;
@@ -802,14 +706,13 @@ class OpenAIService
                 ['role' => 'user', 'content' => $schema . "\n\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)],
             ];
 
-            $call = function () use ($model, $messages, $isMini) {
-                $params = [
+            $call = function () use ($model, $messages) {
+                return $this->client->chat()->create([
                     'model' => $model,
                     'messages' => $messages,
-                    'max_completion_tokens' => $isMini ? 1800 : 2600,
-                ];
-                if (!$isMini) $params['response_format'] = ['type' => 'json_object'];
-                return $this->client->chat()->create($params);
+                    'max_completion_tokens' => 2600,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
             };
             $response = $this->retryRequest($call);
             $text = trim($response->choices[0]->message->content ?? '');
@@ -834,16 +737,15 @@ class OpenAIService
             }
 
             // Repair: ask model to return JSON only
-            $p2 = [
+            $resp2 = $this->client->chat()->create([
                 'model' => $model,
                 'messages' => [
                     ['role' => 'system', 'content' => 'Output JSON only.'],
                     ['role' => 'user', 'content' => 'Ulangi dan balas HANYA JSON valid sesuai skema.'],
                 ],
                 'max_completion_tokens' => 2000,
-            ];
-            if (!$isMini) $p2['response_format'] = ['type' => 'json_object'];
-            $resp2 = $this->client->chat()->create($p2);
+                'response_format' => ['type' => 'json_object'],
+            ]);
             $txt2 = trim($resp2->choices[0]->message->content ?? '');
             $s2 = strpos($txt2, '{');
             $e2 = strrpos($txt2, '}');
@@ -859,16 +761,15 @@ class OpenAIService
             // As a last attempt, request recommendations only to ensure arrays are filled
             try {
                 $recSchema = "Balas HANYA JSON valid: {\n  \"recommendations\": [string],\n  \"recommendations_detailed\": [{\n    \"category\": string, \"label\": string, \"count\": number|null, \"rationale\": string, \"actions\": [string], \"priority\": \"low\"|\"medium\"|\"high\", \"effort_estimate\": string\n  }]\n}\nGunakan DATA berikut untuk menyusun rekomendasi yang realistis dalam Bahasa Indonesia.";
-                $p3 = [
+                $resp3 = $this->client->chat()->create([
                     'model' => $model,
                     'messages' => [
                         ['role' => 'system', 'content' => 'Output JSON only.'],
                         ['role' => 'user', 'content' => $recSchema . "\n\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)],
                     ],
                     'max_completion_tokens' => 1200,
-                ];
-                if (!$isMini) $p3['response_format'] = ['type' => 'json_object'];
-                $resp3 = $this->client->chat()->create($p3);
+                    'response_format' => ['type' => 'json_object'],
+                ]);
                 $txt3 = trim($resp3->choices[0]->message->content ?? '');
                 $s3 = strpos($txt3, '{');
                 $e3 = strrpos($txt3, '}');
@@ -884,101 +785,9 @@ class OpenAIService
                 // ignore
             }
 
-            // Simplified no-response_format attempt for models with stricter JSON mode
-            try {
-                $simpleSchema = "Kembalikan HANYA JSON valid (tanpa penjelasan): {\n  \"combined_top_insight\": string,\n  \"insight_summary\": string,\n  \"recommendations\": [string],\n  \"recommendations_detailed\": [{ \n    \"category\": string, \"label\": string, \"count\": number|null, \"rationale\": string, \"actions\": [string] \n  }]\n}";
-                $resp4 = $this->client->chat()->create([
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'Output JSON only.'],
-                        ['role' => 'user', 'content' => $simpleSchema . "\n\nDATA:\n" . json_encode($payload, JSON_UNESCAPED_UNICODE)],
-                    ],
-                    'max_completion_tokens' => $isMini ? 1600 : 2200,
-                ]);
-                $txt4 = trim($resp4->choices[0]->message->content ?? '');
-                $s4 = strpos($txt4, '{');
-                $e4 = strrpos($txt4, '}');
-                if ($s4 !== false && $e4 !== false && $e4 > $s4) {
-                    $maybe4 = substr($txt4, $s4, $e4 - $s4 + 1);
-                    $json4 = json_decode($maybe4, true);
-                    if (is_array($json4)) {
-                        $json4 = $this->normalizeOneShotReport($json4);
-                        if (!empty($json4['combined_top_insight']) || !empty($json4['insight_summary']) || !empty($json4['recommendations'])) return $json4;
-                    }
-                }
-            } catch (\Throwable $t) {
-                // ignore
-            }
-
-            // Final fallback: synthesize a minimal, but complete, report to avoid breaking UI
-            try {
-                return $this->buildOneShotFallback($rows, $stats, $categoryLabels);
-            } catch (\Throwable $t) {
-                return null;
-            }
+            return null;
         } catch (Exception $e) {
             Log::error('generateOneShotAnalytics error: ' . $e->getMessage());
-            // Attempt non-JSON fallback on exception as well
-            try {
-                return $this->buildOneShotFallback($rows, $stats, $categoryLabels);
-            } catch (\Throwable $t) {
-                return null;
-            }
-        }
-    }
-
-    private function buildOneShotFallback(array $rows, array $stats, array $categoryLabels): ?array
-    {
-        try {
-            $insight = $this->generateBulletListInsight($rows) ?? '';
-            if ($insight === '') $insight = $this->generateInsightSummary(json_encode($rows, JSON_UNESCAPED_UNICODE), $categoryLabels) ?? '';
-            // Build a short summary by clipping words
-            $words = preg_split('/\s+/u', trim($insight));
-            $summary = '';
-            if (is_array($words) && !empty($words)) {
-                $cnt = min(400, max(220, count($words)));
-                $summary = implode(' ', array_slice($words, 0, $cnt));
-            }
-
-            $recs = $this->generateRecommendations(
-                $stats['category_counts'] ?? [],
-                $stats['common_issues'] ?? [],
-                $stats['sentiments'] ?? [],
-                $categoryLabels
-            );
-            $recommendations = is_array($recs) ? ($recs['recommendations'] ?? []) : [];
-            $recommendationsDetailed = is_array($recs) ? ($recs['recommendations_detailed'] ?? []) : [];
-
-            // Map category counts to list form if provided
-            $categories = [];
-            if (!empty($stats['category_counts']) && is_array($stats['category_counts'])) {
-                foreach ($stats['category_counts'] as $key => $count) {
-                    $label = isset($categoryLabels[$key]) ? (string)$categoryLabels[$key] : (string)$key;
-                    $categories[] = ['name' => (string)$key, 'label' => $label, 'count' => (int)$count];
-                }
-            }
-
-            $sentiments = $stats['sentiments'] ?? ['positive' => 0, 'neutral' => 0, 'negative' => 0];
-            foreach (['positive', 'neutral', 'negative'] as $k) {
-                if (!isset($sentiments[$k]) || !is_numeric($sentiments[$k])) $sentiments[$k] = 0;
-                else $sentiments[$k] = (int)$sentiments[$k];
-            }
-
-            return [
-                'combined_top_insight' => $insight,
-                'insight_summary' => $summary !== '' ? $summary : mb_substr($insight, 0, 2000),
-                'recommendations' => $recommendations,
-                'recommendations_detailed' => $recommendationsDetailed,
-                'categories' => $categories,
-                'sentiments' => $sentiments,
-                'geo_counts' => $stats['geo_counts'] ?? new \stdClass(),
-                'common_issues' => $stats['common_issues'] ?? [],
-            ];
-        } catch (\Throwable $t) {
-            try {
-                Log::warning('buildOneShotFallback failed', ['err' => $t->getMessage()]);
-            } catch (\Throwable $tt) {
-            }
             return null;
         }
     }
@@ -1332,7 +1141,7 @@ class OpenAIService
             // Base style + policy instruction (concise, KB-first, safe improvisation allowed)
             $apiMessages[] = [
                 'role' => 'system',
-                'content' => 'Anda adalah SALMA AI — Asisten Samsat Lamongan. Selalu jawab dalam Bahasa Indonesia (baku, semi-formal). Jangan gunakan bahasa daerah (mis. Jawa/Jawa Timuran), Inggris, atau bahasa lain. Gunakan format yang paling sesuai untuk pertanyaan: paragraf singkat, atau kombinasi paragraf dan poin. Jawaban harus ringkas, jelas, dan mudah dibaca. Prioritaskan Knowledge Base; jika informasi tidak lengkap, boleh beri panduan umum yang aman tanpa mencantumkan angka pasti.'
+                'content' => 'Anda adalah SALMA AI — Asisten Samsat Lamongan. Selalu jawab dalam Bahasa Indonesia (baku, semi-formal). Gunakan format yang sesuai: paragraf singkat atau poin. Prioritaskan Knowledge Base (KB) saat tersedia. Jika KB tidak memuat informasi yang diminta, Anda boleh menjawab menggunakan pengetahuan umum Anda (atau informasi internet yang umum) selama aman, akurat terpercaya, tidak berspekulasi, dan tidak menyebut angka pasti jika tidak ada di KB. Jelaskan jika jawaban bersifat umum dan sarankan verifikasi di Samsat.'
             ];
 
             // Provide explicit KB_CONTEXT and estimation policy for flexible, KB-prioritized answers
