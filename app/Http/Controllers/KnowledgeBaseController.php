@@ -74,6 +74,17 @@ class KnowledgeBaseController extends Controller
      */
     public function store(Request $request)
     {
+        // Debugging help: log session and CSRF presence (temporary)
+        try {
+            \Illuminate\Support\Facades\Log::info('KB.store debug', [
+                'session_id' => session()->getId(),
+                'session_cookie' => (bool) $request->cookie(session()->getName()),
+                'x_csrf_header' => (bool) $request->header('X-CSRF-TOKEN')
+            ]);
+        } catch (\Throwable $e) {
+            // ignore logging failures
+        }
+
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'content' => 'required|string',
@@ -182,6 +193,17 @@ class KnowledgeBaseController extends Controller
      */
     public function update(Request $request, KnowledgeBase $knowledgeBase)
     {
+        // Debugging help: log session and CSRF presence (temporary)
+        try {
+            \Illuminate\Support\Facades\Log::info('KB.update debug', [
+                'session_id' => session()->getId(),
+                'session_cookie' => (bool) $request->cookie(session()->getName()),
+                'x_csrf_header' => (bool) $request->header('X-CSRF-TOKEN')
+            ]);
+        } catch (\Throwable $e) {
+            // ignore logging failures
+        }
+
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'content' => 'required|string',
