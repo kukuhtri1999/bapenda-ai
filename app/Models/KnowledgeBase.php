@@ -40,6 +40,7 @@ class KnowledgeBase extends Model
     protected $casts = [
         'keywords' => 'array',
         'metadata' => 'array',
+        'tags' => 'array',
         'is_active' => 'boolean',
         'priority' => 'integer',
         'view_count' => 'integer',
@@ -93,8 +94,8 @@ class KnowledgeBase extends Model
             $this->question,
             $this->category,
             is_array($this->keywords) ? implode(' ', $this->keywords) : '',
-            // tags may be stored as CSV string
-            $this->tags,
+            // tags may be an array (JSON column) or string
+            is_array($this->tags) ? implode(' ', $this->tags) : ($this->tags ?? ''),
         ])->filter()->implode(' ');
 
         $this->search_content = $searchContent;
@@ -176,19 +177,7 @@ class KnowledgeBase extends Model
         return round($bytes, $precision) . ' ' . $units[$i];
     }
 
-    public function getTagsArrayAttribute()
-    {
-        return $this->tags ? explode(',', $this->tags) : [];
-    }
-
-    public function setTagsAttribute($value)
-    {
-        if (is_array($value)) {
-            $this->attributes['tags'] = implode(',', array_filter($value));
-        } else {
-            $this->attributes['tags'] = $value;
-        }
-    }
+    // Removed CSV-based tag mutator/accessor; using JSON cast instead
 
     /**
      * Helper methods

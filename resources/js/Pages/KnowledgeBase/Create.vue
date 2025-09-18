@@ -118,21 +118,32 @@ const removeFile = () => {
   filePreview.value = null;
 };
 
-const submit = () => {
-  // Convert tags string to array
-  if (form.tags) {
-    form.tags = form.tags
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter((tag) => tag);
-  }
+const parseTags = (value) => {
+  if (!value || typeof value !== 'string') return [];
+  return value
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+};
 
-  form.post(route('knowledge-base.store'), {
-    preserveScroll: true,
-    onSuccess: () => {
-      // Form will redirect on success
-    },
-  });
+const submit = () => {
+  const needsFormData = form.source_type === 'file' && !!form.file;
+  form
+    .transform((data) => ({
+      ...data,
+      tags: parseTags(data.tags),
+    }))
+    .post(route('knowledge-base.store'), {
+      preserveScroll: true,
+      headers: {
+        'X-CSRF-TOKEN': document.head.querySelector('meta[name="csrf-token"]')
+          .content,
+      },
+      forceFormData: needsFormData,
+      onSuccess: () => {
+        // Form will redirect on success
+      },
+    });
 };
 
 const cancel = () => {

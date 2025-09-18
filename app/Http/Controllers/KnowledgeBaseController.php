@@ -91,7 +91,7 @@ class KnowledgeBaseController extends Controller
             'category' => 'required|string|max:50',
             'type' => 'required|string|max:50',
             'source_type' => 'required|in:manual,file',
-            'tags' => 'nullable|string|max:500',
+            'tags' => 'nullable', // allow string or array; normalized below
             'keywords' => 'nullable|array',
             'keywords.*' => 'string|max:100',
             'priority' => 'nullable|integer|min:0|max:100',
@@ -114,9 +114,14 @@ class KnowledgeBaseController extends Controller
         // some migrations use question/answer, newer ones use title/content.
         $data['question'] = $data['title'] ?? ($data['question'] ?? null);
         $data['answer'] = $data['content'] ?? ($data['answer'] ?? null);
-        // Normalize tags: controller accepts string or array; store as JSON string if array
-        if (isset($data['tags']) && is_array($data['tags'])) {
-            $data['tags'] = json_encode($data['tags']);
+        // Normalize tags to JSON array for DB JSON column
+        if (isset($data['tags'])) {
+            if (is_string($data['tags'])) {
+                $arr = array_values(array_filter(array_map('trim', explode(',', $data['tags']))));
+                $data['tags'] = $arr;
+            } elseif (is_array($data['tags'])) {
+                $data['tags'] = array_values(array_filter(array_map('trim', $data['tags'])));
+            }
         }
         $data['created_by'] = Auth::id();
         $data['updated_by'] = Auth::id();
@@ -209,7 +214,7 @@ class KnowledgeBaseController extends Controller
             'content' => 'required|string',
             'category' => 'required|string|max:50',
             'type' => 'required|string|max:50',
-            'tags' => 'nullable|string|max:500',
+            'tags' => 'nullable', // allow string or array
             'keywords' => 'nullable|array',
             'keywords.*' => 'string|max:100',
             'priority' => 'nullable|integer|min:0|max:100',
@@ -227,8 +232,13 @@ class KnowledgeBaseController extends Controller
         $data = $validator->validated();
         $data['question'] = $data['title'] ?? ($data['question'] ?? null);
         $data['answer'] = $data['content'] ?? ($data['answer'] ?? null);
-        if (isset($data['tags']) && is_array($data['tags'])) {
-            $data['tags'] = json_encode($data['tags']);
+        if (isset($data['tags'])) {
+            if (is_string($data['tags'])) {
+                $arr = array_values(array_filter(array_map('trim', explode(',', $data['tags']))));
+                $data['tags'] = $arr;
+            } elseif (is_array($data['tags'])) {
+                $data['tags'] = array_values(array_filter(array_map('trim', $data['tags'])));
+            }
         }
         $data['updated_by'] = Auth::id();
 

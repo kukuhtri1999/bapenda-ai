@@ -124,21 +124,32 @@ const downloadCurrentFile = () => {
   window.open(route('knowledge-base.download', props.knowledgeBase.id));
 };
 
-const submit = () => {
-  // Convert tags string to array
-  if (form.tags) {
-    form.tags = form.tags
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter((tag) => tag);
-  }
+const parseTags = (value) => {
+  if (!value || typeof value !== 'string') return [];
+  return value
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+};
 
-  form.put(route('knowledge-base.update', props.knowledgeBase.id), {
-    preserveScroll: true,
-    onSuccess: () => {
-      // Form will redirect on success
-    },
-  });
+const submit = () => {
+  const needsFormData = form.source_type === 'file' && !!form.file;
+  form
+    .transform((data) => ({
+      ...data,
+      tags: parseTags(data.tags),
+    }))
+    .put(route('knowledge-base.update', props.knowledgeBase.id), {
+      preserveScroll: true,
+      headers: {
+        'X-CSRF-TOKEN': document.head.querySelector('meta[name="csrf-token"]')
+          .content,
+      },
+      forceFormData: needsFormData,
+      onSuccess: () => {
+        // Form will redirect on success
+      },
+    });
 };
 
 const cancel = () => {

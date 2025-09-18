@@ -2,14 +2,10 @@
 
 namespace App\Services;
 
-use OpenAI;
-use OpenAI\Client;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 use App\Models\KnowledgeBase;
 use Exception;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
+use OpenAI\Client;
 
 class OpenAIService
 {
@@ -22,13 +18,40 @@ class OpenAIService
 
     public function __construct()
     {
-        $this->client = OpenAI::client(config('services.openai.api_key'));
-        $this->model = config('services.openai.model', 'gpt-5-mini');
+        $this->client = \OpenAI::client((string) config('services.openai.api_key'));
+        $this->model = config('services.openai.model', 'gpt-4o-mini');
         $this->maxTokens = config('services.openai.max_tokens', 1500);
         $this->temperature = config('services.openai.temperature', 0.7);
         // Default timeout (seconds). Keep constant here to avoid config/env coupling at boot time.
         $this->defaultTimeout = 30;
-        $this->debug = (bool) (config('app.debug') || env('RAG_DEBUG', false));
+        $ragDebug = $_ENV['RAG_DEBUG'] ?? $_SERVER['RAG_DEBUG'] ?? false;
+        $this->debug = (bool) (config('app.debug', false) || filter_var($ragDebug, FILTER_VALIDATE_BOOLEAN));
+    }
+
+    /**
+     * Normalize OpenAI usage object/array to a common array shape.
+     */
+    private function normalizeUsage($usage): ?array
+    {
+        if (!$usage) return null;
+        // Coerce object to array-like lookups
+        $get = function ($obj, string $camel, string $snake) {
+            if (is_array($obj)) {
+                return $obj[$camel] ?? $obj[$snake] ?? null;
+            }
+            if (is_object($obj)) {
+                return $obj->{$camel} ?? $obj->{$snake} ?? null;
+            }
+            return null;
+        };
+        $prompt = $get($usage, 'promptTokens', 'prompt_tokens');
+        $completion = $get($usage, 'completionTokens', 'completion_tokens');
+        $total = $get($usage, 'totalTokens', 'total_tokens');
+        return [
+            'prompt_tokens' => is_numeric($prompt) ? (int)$prompt : null,
+            'completion_tokens' => is_numeric($completion) ? (int)$completion : null,
+            'total_tokens' => is_numeric($total) ? (int)$total : null,
+        ];
     }
 
     private function getAnalyticsModel(): string
@@ -1119,6 +1142,7 @@ class OpenAIService
     public function generateCustomerServiceResponse(array $messages, ?string $context = null): array
     {
         try {
+            if ($this->debug) Log::info('OpenAIService chat model', ['model' => $this->model]);
             // Get relevant knowledge from knowledge base (RAG)
             $relevantKnowledge = $this->getRelevantKnowledge($messages);
             if ($this->debug) {
@@ -1194,8 +1218,31 @@ class OpenAIService
                 $scoreSecond = (float)($relevantKnowledge[1]['score'] ?? 0);
                 $margin = $scoreTop - $scoreSecond;
                 $overlap = $this->keywordOverlapCountForKb(is_array($kbTop) ? $kbTop : [], $userText);
+                // Extra: tag overlap as an additional signal for image KBs
+                $tagOverlap = 0;
+                try {
+                    $tagsRaw = $kbTop['tags'] ?? '';
+                    $tags = [];
+                    if (is_string($tagsRaw)) {
+                        $tags = array_filter(array_map('trim', explode(',', strtolower($tagsRaw))));
+                    } elseif (is_array($tagsRaw)) {
+                        $tags = array_filter(array_map(fn($t) => strtolower(trim((string)$t)), $tagsRaw));
+                    }
+                    if (!empty($tags)) {
+                        $u = strtolower($userText);
+                        foreach ($tags as $tg) {
+                            if ($tg !== '' && strpos($u, $tg) !== false) $tagOverlap++;
+                        }
+                    }
+                } catch (\Throwable $t) {
+                }
                 // Gate to avoid irrelevant repetition
-                if ($imageIntent || ($scoreTop >= 1.0 && $margin >= 0.3) || ($overlap >= 2 && $scoreTop >= 0.8)) {
+                if (
+                    $imageIntent ||
+                    ($scoreTop >= 1.0 && $margin >= 0.3) ||
+                    ($overlap >= 2 && $scoreTop >= 0.9) ||
+                    ($tagOverlap >= 1 && $scoreTop >= 0.9)
+                ) {
                     $useImageFastPath = true;
                 }
             }
@@ -1243,16 +1290,13 @@ class OpenAIService
             $response = $this->client->chat()->create($params);
 
             $answerText = trim($response->choices[0]->message->content);
-            if ($this->debug) Log::info('RAG path: model', ['tokens' => (array)($response->usage ?? [])]);
+            $normUsage = $this->normalizeUsage($response->usage ?? null);
+            if ($this->debug) Log::info('RAG path: model', ['usage' => $normUsage, 'model' => $this->model]);
 
             return [
                 'success' => true,
                 'message' => $answerText,
-                'usage' => [
-                    'prompt_tokens' => $response->usage->promptTokens,
-                    'completion_tokens' => $response->usage->completionTokens,
-                    'total_tokens' => $response->usage->totalTokens,
-                ],
+                'usage' => $normUsage,
                 'knowledge_used' => count($relevantKnowledge)
             ];
         } catch (Exception $e) {
@@ -1407,7 +1451,7 @@ class OpenAIService
     {
         if ($html === '') return '';
         $repl = [
-            '/<\/(p|div|h[1-6]|li)>/i' => "$0\n",
+            '/<\/(p|div|h[1-6]|li)>/i' => '</$1>' . "\n",
             '/<br\s*\/?\s*>/i' => "\n",
         ];
         $tmp = preg_replace(array_keys($repl), array_values($repl), $html);
