@@ -207,7 +207,10 @@ const cancel = () => {
                     color="primary"
                     @click="submit"
                     :loading="form.processing"
-                    :disabled="!form.title || !form.content"
+                    :disabled="
+                      !form.title ||
+                      (form.source_type === 'manual' && !form.content)
+                    "
                   >
                     Save Entry
                   </VBtn>

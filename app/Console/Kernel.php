@@ -12,6 +12,11 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\TestClassifyChats::class,
         \App\Console\Commands\DebugRunAnalytics::class,
         \App\Console\Commands\BackfillKnowledgeBaseSearch::class,
+        \App\Console\Commands\TestRagQuery::class,
+        \App\Console\Commands\TestChatAsk::class,
+        \App\Console\Commands\TestKbAnswer::class,
+        \App\Console\Commands\IndexKnowledgeBaseToVector::class,
+        \App\Console\Commands\TestNewRagSystem::class,
     ];
 
     protected function schedule(Schedule $schedule)

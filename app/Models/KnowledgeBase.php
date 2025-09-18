@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
+use App\Services\EmbeddingService;
+use App\Services\PineconeService;
+use Illuminate\Support\Facades\Log;
 
 class KnowledgeBase extends Model
 {
@@ -75,6 +78,18 @@ class KnowledgeBase extends Model
 
         static::created(function ($model) {
             $model->increment('view_count', 0); // Initialize view count
+            // Index to vector database after creation
+            $model->indexToVectorDatabase();
+        });
+
+        static::updated(function ($model) {
+            // Update vector database when model is updated
+            $model->updateVectorDatabase();
+        });
+
+        static::deleted(function ($model) {
+            // Remove from vector database when deleted
+            $model->removeFromVectorDatabase();
         });
     }
 
@@ -238,5 +253,210 @@ class KnowledgeBase extends Model
             'published' => 'Published',
             'archived' => 'Archived',
         ];
+    }
+
+    /**
+     * Vector Database Operations
+     */
+
+    /**
+     * Index this knowledge base entry to vector database
+     */
+    public function indexToVectorDatabase(): bool
+    {
+        try {
+            // Only index active and published entries
+            if (!$this->is_active || $this->status !== 'published') {
+                Log::info("Skipping vector indexing for KB {$this->id}: inactive or unpublished");
+                return true;
+            }
+
+            $embeddingService = app(EmbeddingService::class);
+            $pineconeService = app(PineconeService::class);
+
+            // Prepare content for embedding
+            $content = $this->getContentForEmbedding();
+            if (empty($content)) {
+                Log::info("Skipping vector indexing for KB {$this->id}: empty content");
+                return true;
+            }
+
+            // Chunk the content
+            $chunks = $embeddingService->chunkText($content);
+            $vectors = [];
+
+            foreach ($chunks as $index => $chunk) {
+                $embedding = $embeddingService->embed($chunk);
+                if (!$embedding) {
+                    continue;
+                }
+
+                $vectors[] = $embeddingService->createVectorData(
+                    id: $this->id . '_chunk_' . $index,
+                    embedding: $embedding,
+                    metadata: [
+                        'kb_id' => $this->id,
+                        'title' => $this->title,
+                        'category' => $this->category,
+                        'type' => $this->type,
+                        'chunk_index' => $index,
+                        'chunk_text' => $chunk,
+                        'source_type' => $this->source_type,
+                        'is_active' => $this->is_active,
+                        'status' => $this->status,
+                        'created_at' => $this->created_at?->toISOString(),
+                        'updated_at' => $this->updated_at?->toISOString(),
+                    ]
+                );
+            }
+
+            if (!empty($vectors)) {
+                $success = $pineconeService->upsert($vectors);
+                if ($success) {
+                    Log::info("Successfully indexed KB {$this->id} to vector database with " . count($vectors) . " chunks");
+                }
+                return $success;
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Failed to index KB {$this->id} to vector database: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Update this entry in vector database
+     */
+    public function updateVectorDatabase(): bool
+    {
+        try {
+            // Check if content or active status changed
+            $contentChanged = $this->isDirty(['title', 'content', 'answer', 'category', 'type']);
+            $statusChanged = $this->isDirty(['is_active', 'status']);
+
+            if (!$contentChanged && !$statusChanged) {
+                return true; // No relevant changes
+            }
+
+            if (!$this->is_active || $this->status !== 'published') {
+                // If now inactive or unpublished, remove from vector database
+                return $this->removeFromVectorDatabase();
+            }
+
+            if ($contentChanged) {
+                // Content changed, need to re-index completely
+                $this->removeFromVectorDatabase();
+                return $this->indexToVectorDatabase();
+            }
+
+            if ($statusChanged) {
+                // Only status changed, update metadata in existing vectors
+                return $this->updateVectorMetadata();
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Failed to update KB {$this->id} in vector database: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Update only metadata in existing vectors
+     */
+    private function updateVectorMetadata(): bool
+    {
+        try {
+            $embeddingService = app(EmbeddingService::class);
+            $pineconeService = app(PineconeService::class);
+
+            // For metadata updates, we still need to upsert the vectors
+            // because Pinecone doesn't have a metadata-only update
+            $content = $this->getContentForEmbedding();
+            if (empty($content)) {
+                return true;
+            }
+
+            $chunks = $embeddingService->chunkText($content);
+            $vectors = [];
+
+            foreach ($chunks as $index => $chunk) {
+                $embedding = $embeddingService->embed($chunk);
+                if (!$embedding) {
+                    continue;
+                }
+
+                $vectors[] = $embeddingService->createVectorData(
+                    id: $this->id . '_chunk_' . $index,
+                    embedding: $embedding,
+                    metadata: [
+                        'kb_id' => $this->id,
+                        'title' => $this->title,
+                        'category' => $this->category,
+                        'type' => $this->type,
+                        'chunk_index' => $index,
+                        'chunk_text' => $chunk,
+                        'source_type' => $this->source_type,
+                        'is_active' => $this->is_active,
+                        'status' => $this->status,
+                        'created_at' => $this->created_at?->toISOString(),
+                        'updated_at' => $this->updated_at?->toISOString(),
+                    ]
+                );
+            }
+
+            if (!empty($vectors)) {
+                return $pineconeService->upsert($vectors);
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Failed to update vector metadata for KB {$this->id}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Remove this entry from vector database
+     */
+    public function removeFromVectorDatabase(): bool
+    {
+        try {
+            $pineconeService = app(PineconeService::class);
+
+            // Delete all chunks for this KB entry
+            return $pineconeService->deleteByFilter([
+                'kb_id' => ['$eq' => $this->id]
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Failed to remove KB {$this->id} from vector database: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get content for embedding (combines title, content, answer, etc.)
+     */
+    private function getContentForEmbedding(): string
+    {
+        $parts = array_filter([
+            $this->title,
+            $this->content,
+            $this->answer,
+            $this->excerpt,
+            $this->question,
+        ]);
+
+        return implode("\n\n", $parts);
+    }
+
+    /**
+     * Manually re-index this entry to vector database
+     */
+    public function reindexToVectorDatabase(): bool
+    {
+        $this->removeFromVectorDatabase();
+        return $this->indexToVectorDatabase();
     }
 }

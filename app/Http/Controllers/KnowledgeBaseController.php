@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use App\Services\PDFParserService;
+use Illuminate\Support\Facades\Log;
 
 class KnowledgeBaseController extends Controller
 {
@@ -87,7 +89,7 @@ class KnowledgeBaseController extends Controller
 
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
-            'content' => 'required|string',
+            'content' => $request->source_type === 'file' ? 'nullable|string' : 'required|string',
             'category' => 'required|string|max:50',
             'type' => 'required|string|max:50',
             'source_type' => 'required|in:manual,file',
@@ -100,7 +102,7 @@ class KnowledgeBaseController extends Controller
             'published_at' => 'nullable|date',
 
             // File upload validation
-            'file' => 'nullable|file|mimes:pdf,doc,docx,txt,md|max:10240', // 10MB max
+            'file' => $request->source_type === 'file' ? 'required|file|mimes:pdf,doc,docx,txt,md|max:10240' : 'nullable|file|mimes:pdf,doc,docx,txt,md|max:10240',
         ]);
 
         if ($validator->fails()) {
@@ -129,6 +131,27 @@ class KnowledgeBaseController extends Controller
         // Handle file upload for file source type
         if ($request->source_type === 'file' && $request->hasFile('file')) {
             $file = $request->file('file');
+
+            // Check if it's a PDF and extract text
+            if ($file->getMimeType() === 'application/pdf') {
+                try {
+                    $pdfParser = app(PDFParserService::class);
+                    $pdfData = $pdfParser->processPDFForKnowledgeBase($file);
+
+                    // Update data with PDF content
+                    if (empty($data['title']) || $data['title'] === $file->getClientOriginalName()) {
+                        $data['title'] = $pdfData['title'];
+                    }
+                    if (empty($data['content'])) {
+                        $data['content'] = $pdfData['content'];
+                    }
+                    $data['metadata'] = array_merge($data['metadata'] ?? [], $pdfData['metadata']);
+                } catch (\Exception $e) {
+                    Log::error('PDF processing failed: ' . $e->getMessage());
+                    return back()->withErrors(['file' => 'Failed to process PDF file: ' . $e->getMessage()])->withInput();
+                }
+            }
+
             $fileName = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $file->getClientOriginalExtension();
             $filePath = $file->storeAs('knowledge-base', $fileName, 'public');
 
@@ -137,10 +160,15 @@ class KnowledgeBaseController extends Controller
             $data['file_size'] = $file->getSize();
             $data['mime_type'] = $file->getMimeType();
 
-            // Extract content from file if possible
-            if (in_array($file->getMimeType(), ['text/plain', 'text/markdown'])) {
+            // Extract content from text files if content is empty
+            if (empty($data['content']) && in_array($file->getMimeType(), ['text/plain', 'text/markdown'])) {
                 $data['content'] = file_get_contents($file->getRealPath());
             }
+        }
+
+        // Validate that content exists after file processing for file uploads
+        if ($request->source_type === 'file' && empty($data['content'])) {
+            return back()->withErrors(['content' => 'Could not extract content from the uploaded file. Please ensure the file contains readable text.'])->withInput();
         }
 
         // Process embedded base64 images in HTML content (Quill) and move to storage

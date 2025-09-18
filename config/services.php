@@ -40,6 +40,16 @@ return [
         'max_tokens' => env('OPENAI_MAX_TOKENS', 1500),
         'temperature' => env('OPENAI_TEMPERATURE', 0.7),
         'request_timeout' => env('OPENAI_REQUEST_TIMEOUT', 30), // seconds
+        // Embedding model for vector database
+        'embedding_model' => env('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
+    ],
+
+    'pinecone' => [
+        'api_key' => env('PINECONE_API_KEY', 'pcsk_2EMYYN_F4gENYWvBMTnbh1RbprHKiym3P4aqNh2fRvF1LtyAAo5qPCdPr8ywBv7xnwpWPx'),
+        'environment' => env('PINECONE_ENVIRONMENT', 'us-east-1-aws'),
+        'index_name' => env('PINECONE_INDEX_NAME', 'bapenda-kb'),
+        'dimension' => env('PINECONE_DIMENSION', 1536), // For text-embedding-3-small
+        'metric' => env('PINECONE_METRIC', 'cosine'),
     ],
 
 ];
