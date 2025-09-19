@@ -145,6 +145,8 @@ class OpenAIService
      */
     public function generateCustomerServiceResponse(array $messages, ?string $context = null): array
     {
+        $debugInfo = [];
+
         try {
             // Get the latest user message
             $userMessage = $this->getLatestUserMessage($messages);
@@ -153,9 +155,12 @@ class OpenAIService
                     'success' => false,
                     'message' => 'Tidak ada pesan dari pengguna yang ditemukan.',
                     'usage' => null,
-                    'knowledge_used' => 0
+                    'knowledge_used' => 0,
+                    'debug' => ['error' => 'No user message found']
                 ];
             }
+
+            $debugInfo['user_message'] = $userMessage;
 
             // Generate embedding for user query
             $embeddingService = app(EmbeddingService::class);
@@ -163,8 +168,12 @@ class OpenAIService
 
             $queryEmbedding = $embeddingService->embed($userMessage);
             if (!$queryEmbedding) {
-                return $this->generateFallbackResponse($userMessage);
+                $debugInfo['embedding_error'] = 'Failed to generate embedding';
+                return array_merge($this->generateFallbackResponse($userMessage), ['debug' => $debugInfo]);
             }
+
+            $debugInfo['embedding_generated'] = true;
+            $debugInfo['embedding_length'] = count($queryEmbedding);
 
             // Search relevant knowledge from vector database (only active and published)
             $similarKnowledge = $pineconeService->query(
@@ -176,13 +185,33 @@ class OpenAIService
                 ]
             );
 
+            $debugInfo['vector_search'] = [
+                'results_count' => count($similarKnowledge),
+                'results' => array_map(function ($item) {
+                    return [
+                        'id' => $item['id'] ?? null,
+                        'score' => $item['score'] ?? null,
+                        'metadata' => $item['metadata'] ?? null
+                    ];
+                }, $similarKnowledge)
+            ];
+
             // Build context from retrieved knowledge
             $kbContext = $this->buildKnowledgeContext($similarKnowledge);
+            $debugInfo['vector_context_built'] = !empty($kbContext);
+            $debugInfo['vector_context_length'] = strlen($kbContext);
 
             // Fallback to traditional keyword search if vector search didn't find enough relevant content
             if (empty($kbContext)) {
                 $kbContext = $this->buildTraditionalKnowledgeContext($userMessage);
+                $debugInfo['fallback_to_keyword_search'] = true;
+                $debugInfo['keyword_context_length'] = strlen($kbContext);
+            } else {
+                $debugInfo['fallback_to_keyword_search'] = false;
             }
+
+            $debugInfo['final_context_used'] = !empty($kbContext);
+            $debugInfo['final_context_length'] = strlen($kbContext);
 
             // Generate professional customer service response
             $response = $this->generateContextualResponse($userMessage, $kbContext, $context);
@@ -191,11 +220,13 @@ class OpenAIService
                 'success' => true,
                 'message' => $response['message'],
                 'usage' => $response['usage'],
-                'knowledge_used' => count($similarKnowledge)
+                'knowledge_used' => count($similarKnowledge),
+                'debug' => $debugInfo
             ];
         } catch (Exception $e) {
             Log::error('AI Customer Service Error: ' . $e->getMessage());
-            return $this->generateFallbackResponse($userMessage ?? 'pertanyaan umum');
+            $debugInfo['exception'] = $e->getMessage();
+            return array_merge($this->generateFallbackResponse($userMessage ?? 'pertanyaan umum'), ['debug' => $debugInfo]);
         }
     }
 
@@ -476,6 +507,57 @@ LARANGAN:
             ->toArray();
 
         return $like;
+    }
+
+    /**
+     * Classify chats into categories and determine sentiment
+     * @param array $chats Each: ['chat_id' => string|int, 'text' => string]
+     * @param array $categoryLabels key => human label
+     * @return array ['success'=>bool,'message'=>string,'data'=>array|null]
+     */
+    public function classifyChats(array $chats, array $categoryLabels): array
+    {
+        try {
+            if (empty($chats)) return ['success' => true, 'message' => 'No chats', 'data' => []];
+
+            $model = config('services.openai.model', 'gpt-4o-mini');
+
+            $labels = [];
+            foreach ($categoryLabels as $k => $lbl) {
+                $labels[] = $k . '|' . $lbl;
+            }
+
+            $prepared = [];
+            foreach ($chats as $c) {
+                $txt = (string)($c['text'] ?? '');
+                $prepared[] = [
+                    'chat_id' => (string)($c['chat_id'] ?? ''),
+                    'text' => mb_substr(preg_replace('/\s+/', ' ', $txt), 0, 400)
+                ];
+            }
+
+            $schema = ['chat_id' => 'string', 'category' => 'key', 'sentiment' => 'positive|neutral|negative', 'confidence' => '0..1', 'snippet' => '<=200 chars'];
+            $payload = ['labels' => $labels, 'schema' => $schema, 'chats' => $prepared];
+
+            $messages = [
+                ['role' => 'system', 'content' => 'Return ONLY a JSON array. Classify into given labels; choose best match (avoid other). Provide simple sentiment and 0-1 confidence.'],
+                ['role' => 'user', 'content' => json_encode($payload, JSON_UNESCAPED_UNICODE)]
+            ];
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => $messages,
+                'max_completion_tokens' => 800,
+            ]);
+
+            $text = trim($response->choices[0]->message->content ?? '');
+            $arr = json_decode($text, true);
+            if (!is_array($arr)) return ['success' => false, 'message' => 'Parse failed', 'data' => null];
+            return ['success' => true, 'message' => $text, 'data' => $arr];
+        } catch (\Exception $e) {
+            Log::error('AI classify error: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage(), 'data' => null];
+        }
     }
 
     /**

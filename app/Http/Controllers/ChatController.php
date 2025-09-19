@@ -243,12 +243,39 @@ class ChatController extends Controller
                 'sent_at' => now()->format('Y-m-d H:i:s'),
             ];
 
-            return response()->json([
+            $response = [
                 'success' => true,
                 'message' => $userMessage,
                 'assistant_message' => $assistantMessage,
                 'usage' => $aiResponse['usage'] ?? null,
-            ]);
+            ];
+
+            // Add debug information when RAG_DEBUG is enabled
+            if (config('app.debug') && env('RAG_DEBUG', false)) {
+                $response['debug_info'] = [
+                    'classification' => [
+                        'topic' => $topic,
+                        'sentiment' => $sentiment,
+                        'confidence' => $confidence,
+                        'snippet' => $snippet,
+                        'classification_success' => !empty($cls['success']),
+                        'raw_classification' => $cls ?? null,
+                    ],
+                    'rag_processing' => $aiResponse['debug'] ?? null,
+                    'pinecone_config' => [
+                        'api_key_set' => !empty(config('services.pinecone.api_key')),
+                        'index_name' => config('services.pinecone.index_name'),
+                        'environment' => config('services.pinecone.environment'),
+                    ],
+                    'environment' => [
+                        'app_env' => config('app.env'),
+                        'openai_model' => config('services.openai.model'),
+                        'rag_debug' => env('RAG_DEBUG'),
+                    ]
+                ];
+            }
+
+            return response()->json($response);
         } else {
             // Update message with error details
             $meta = $userMessage->metadata ?? [];
