@@ -179,6 +179,11 @@ class OpenAIService
             // Build context from retrieved knowledge
             $kbContext = $this->buildKnowledgeContext($similarKnowledge);
 
+            // Fallback to traditional keyword search if vector search didn't find enough relevant content
+            if (empty($kbContext)) {
+                $kbContext = $this->buildTraditionalKnowledgeContext($userMessage);
+            }
+
             // Generate professional customer service response
             $response = $this->generateContextualResponse($userMessage, $kbContext, $context);
 
@@ -221,8 +226,8 @@ class OpenAIService
             $metadata = $match['metadata'] ?? [];
             $score = $match['score'] ?? 0;
 
-            // Only include high-relevance matches (score > 0.7)
-            if ($score < 0.7) {
+            // Only include high-relevance matches (score > 0.3 for now)
+            if ($score < 0.3) {
                 continue;
             }
 
@@ -237,6 +242,91 @@ class OpenAIService
         }
 
         return "REFERENSI KNOWLEDGE BASE:\n\n" . implode("\n---\n\n", $contextParts);
+    }
+
+    /**
+     * Build knowledge context using traditional keyword search as fallback
+     */
+    private function buildTraditionalKnowledgeContext(string $userMessage): string
+    {
+        // Extract keywords for search
+        $keywords = $this->extractKeywords($userMessage);
+        if (empty($keywords)) {
+            return '';
+        }
+
+        // Search using fulltext and LIKE queries
+        $knowledge = \App\Models\KnowledgeBase::active()
+            ->published()
+            ->where(function ($query) use ($keywords, $userMessage) {
+                // Try fulltext search first
+                $query->whereRaw('MATCH(title, search_content) AGAINST(? IN NATURAL LANGUAGE MODE)', [$userMessage])
+                    ->orWhere(function ($q) use ($keywords) {
+                        foreach ($keywords as $keyword) {
+                            $q->orWhere('title', 'LIKE', "%{$keyword}%")
+                                ->orWhere('content', 'LIKE', "%{$keyword}%")
+                                ->orWhere('answer', 'LIKE', "%{$keyword}%")
+                                ->orWhere('search_content', 'LIKE', "%{$keyword}%");
+                        }
+                    });
+            })
+            ->orderByDesc('priority')
+            ->orderByDesc('view_count')
+            ->limit(3)
+            ->get(['id', 'title', 'content', 'answer', 'excerpt', 'category', 'search_content'])
+            ->toArray();
+
+        if (empty($knowledge)) {
+            return '';
+        }
+
+        $contextParts = [];
+        foreach ($knowledge as $index => $kb) {
+            $content = $kb['content'] ?? '';
+            if (empty($content) && !empty($kb['answer'])) {
+                $content = $kb['answer'];
+            }
+            if (empty($content) && !empty($kb['search_content'])) {
+                $content = $kb['search_content'];
+            }
+
+            // Strip HTML and limit length
+            $plainContent = strip_tags($content);
+            $plainContent = mb_substr($plainContent, 0, 500);
+
+            $contextParts[] = "Referensi " . ($index + 1) . " (Keyword Match):\n" .
+                "Judul: " . ($kb['title'] ?? 'Tidak diketahui') . "\n" .
+                "Kategori: " . ($kb['category'] ?? 'umum') . "\n" .
+                "Konten: " . $plainContent . "\n";
+        }
+
+        return "REFERENSI KNOWLEDGE BASE:\n\n" . implode("\n---\n\n", $contextParts);
+    }
+
+    /**
+     * Extract keywords from user message for traditional search
+     */
+    private function extractKeywords(string $message): array
+    {
+        // Normalize and tokenize
+        $cleanMessage = strtolower($message);
+        $cleanMessage = preg_replace('/[^a-z0-9_\-\s]/u', ' ', $cleanMessage);
+        $tokens = preg_split('/\s+/', $cleanMessage, -1, PREG_SPLIT_NO_EMPTY);
+
+        // Basic Indonesian stopwords
+        $stop = ['dan', 'atau', 'yang', 'untuk', 'dengan', 'di', 'ke', 'dari', 'pada', 'ini', 'itu', 'apa', 'bagaimana', 'berapa', 'dimana', 'kapan', 'mengapa', 'saya', 'kami', 'kita', 'anda', 'kamu', 'ya', 'tidak', 'boleh', 'bisa', 'mohon', 'tolong'];
+
+        $terms = [];
+        foreach ($tokens as $t) {
+            if (strlen($t) < 3) continue;
+            if (in_array($t, $stop, true)) continue;
+            $terms[] = $t;
+        }
+
+        // Add domain-specific hints
+        $terms = array_merge($terms, ['samsat', 'lamongan', 'keliling', 'jadwal', 'jam', 'lokasi']);
+
+        return array_unique(array_slice($terms, 0, 10));
     }
 
     /**
