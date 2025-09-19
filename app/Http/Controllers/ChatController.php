@@ -410,4 +410,29 @@ class ChatController extends Controller
             'message' => 'Chat session closed successfully',
         ]);
     }
+
+    /**
+     * Convert markdown content to rich HTML
+     */
+    public function convertMarkdownToHtml(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'content' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid content provided'
+            ], 400);
+        }
+
+        $richContentProcessor = app(\App\Services\RichContentProcessor::class);
+        $htmlContent = $richContentProcessor->convertAIMarkdownToHTML($request->content);
+
+        return response()->json([
+            'success' => true,
+            'html' => $htmlContent
+        ]);
+    }
 }

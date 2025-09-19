@@ -252,7 +252,7 @@
                           <div
                             class="assistant-content text-grey-800 text-body-2"
                             style="line-height: 1.5"
-                            v-html="formatMessage(message.content)"
+                            v-html="getFormattedContent(message)"
                           ></div>
                           <div class="text-left mt-1">
                             <small
@@ -416,6 +416,7 @@ const messagesContainer = ref(null);
 const lightboxVisible = ref(false);
 const lightboxImages = ref([]);
 const lightboxIndex = ref(0);
+const formattedMessages = ref(new Map()); // Store formatted content by message ID
 
 // Quick suggestions
 const quickSuggestions = ref([
@@ -579,11 +580,66 @@ const formatTime = (timestamp) => {
   });
 };
 
-const formatMessage = (content) => {
+const formatMessage = async (content) => {
   if (!content) return '';
-  // If looks like HTML, return as-is to preserve structure and images
+
+  // If already looks like HTML, return as-is
   const looksHtml = /<\w+[\s\S]*>/m.test(content);
   if (looksHtml) return content;
+
+  // Check if content has markdown patterns (headers, lists, links)
+  const hasMarkdown = /^#{1,6}\s|^\d+\.\s|\[.*?\]\(.*?\)|!\[.*?\]\(.*?\)|\*\*(.*?)\*\*/m.test(
+    content,
+  );
+
+  if (hasMarkdown) {
+    try {
+      // Convert markdown to rich HTML using our API
+      const response = await fetch('/api/chat/convert-markdown', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN':
+            document
+              .querySelector('meta[name="csrf-token"]')
+              ?.getAttribute('content') || '',
+        },
+        body: JSON.stringify({
+          content,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.html;
+      }
+    } catch (error) {
+      console.warn('Failed to convert markdown:', error);
+    }
+  }
+
+  // Fallback to simple formatting
+  return content
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>')
+    .replace(/^(\d+\.\s)/gm, '<br>$1');
+};
+
+const getFormattedContent = (message) => {
+  const key = message.id || message.content;
+
+  // Return cached formatted content if available
+  if (formattedMessages.value.has(key)) {
+    return formattedMessages.value.get(key);
+  }
+
+  // Format message asynchronously and cache result
+  formatMessage(message.content).then((formatted) => {
+    formattedMessages.value.set(key, formatted);
+  });
+
+  // Return simple formatted content as fallback while processing
+  const content = message.content || '';
   return content
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')

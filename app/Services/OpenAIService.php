@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\KnowledgeBase;
+use App\Services\RichContentProcessor;
 use Exception;
 use Illuminate\Support\Facades\Log;
 use OpenAI\Client;
@@ -244,7 +245,7 @@ class OpenAIService
     }
 
     /**
-     * Build knowledge context from vector search results
+     * Build knowledge context from vector search results with rich content support
      */
     private function buildKnowledgeContext(array $similarKnowledge): string
     {
@@ -253,6 +254,8 @@ class OpenAIService
         }
 
         $contextParts = [];
+        $richContentProcessor = app(RichContentProcessor::class);
+
         foreach ($similarKnowledge as $index => $match) {
             $metadata = $match['metadata'] ?? [];
             $score = $match['score'] ?? 0;
@@ -262,10 +265,18 @@ class OpenAIService
                 continue;
             }
 
+            $chunkText = $metadata['chunk_text'] ?? '';
+
+            // Process rich content if available
+            $richContent = $richContentProcessor->extractRichContent($chunkText);
+            $formattedContent = $richContentProcessor->formatForAIResponse($richContent);
+            $aiInstructions = $richContentProcessor->generateAIInstructions($richContent);
+
             $contextParts[] = "Referensi " . ($index + 1) . " (Relevance: " . round($score, 2) . "):\n" .
                 "Judul: " . ($metadata['title'] ?? 'Tidak diketahui') . "\n" .
                 "Kategori: " . ($metadata['category'] ?? 'umum') . "\n" .
-                "Konten: " . ($metadata['chunk_text'] ?? '') . "\n";
+                "Konten: " . $formattedContent . "\n" .
+                $aiInstructions;
         }
 
         if (empty($contextParts)) {
@@ -421,6 +432,14 @@ PEDOMAN MENJAWAB:
 - Sertakan informasi kontak atau lokasi jika relevan
 - Jika tidak yakin, arahkan untuk menghubungi petugas langsung
 - Selalu akhiri dengan penawaran bantuan lebih lanjut
+
+FORMAT RICH CONTENT:
+- Jika referensi mengandung link, sertakan dalam format: [Text Link](URL)
+- Jika referensi menyebutkan gambar, referensikan dengan: \"Lihat gambar [nama/deskripsi]\"
+- Gunakan struktur heading (##, ###) untuk mengorganisir informasi
+- Gunakan daftar berurut (1., 2., 3.) untuk langkah-langkah prosedur
+- Gunakan daftar tidak berurut (-) untuk syarat atau poin-poin
+- Pertahankan formatting asli dari Knowledge Base jika membantu pemahaman
 
 LARANGAN:
 - Jangan memberikan informasi yang tidak akurat atau spekulatif

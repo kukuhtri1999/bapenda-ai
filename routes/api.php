@@ -16,6 +16,7 @@ Route::prefix('chat')->group(function () {
     Route::post('/message', [ChatController::class, 'sendMessage']);
     Route::get('/history', [ChatController::class, 'getChatHistory']);
     Route::post('/close', [ChatController::class, 'closeChat']);
+    Route::post('/convert-markdown', [ChatController::class, 'convertMarkdownToHtml']);
 });
 
 // Admin analytics
