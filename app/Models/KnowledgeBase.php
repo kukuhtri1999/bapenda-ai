@@ -25,6 +25,7 @@ class KnowledgeBase extends Model
         'source_type',
         'file_path',
         'file_name',
+        'file_type',
         'file_size',
         'mime_type',
         'images',

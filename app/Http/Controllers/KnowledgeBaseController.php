@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use App\Services\PDFParserService;
+use App\Services\DocumentChunkingService;
 use Illuminate\Support\Facades\Log;
 
 class KnowledgeBaseController extends Controller
@@ -178,6 +179,11 @@ class KnowledgeBaseController extends Controller
             if (!empty($images)) {
                 $data['images'] = $images;
             }
+        }
+
+        // Check if document is large and needs chunking
+        if (!empty($data['content']) && strlen($data['content']) > 1500) {
+            return $this->handleLargeDocument($data);
         }
 
         // Set published_at if status is published and no date specified
@@ -509,5 +515,70 @@ class KnowledgeBaseController extends Controller
             'total' => $exportData->count(),
             'exported_at' => now()->toISOString(),
         ]);
+    }
+
+    /**
+     * Handle large documents by chunking them into smaller pieces
+     */
+    private function handleLargeDocument(array $data)
+    {
+        $chunkingService = app(DocumentChunkingService::class);
+
+        // Chunk the document content
+        $chunks = $chunkingService->chunkDocument($data['content'], $data['title']);
+
+        $createdEntries = [];
+        $isMainEntry = true;
+
+        foreach ($chunks as $chunk) {
+            // Prepare data for this chunk
+            $chunkData = $data;
+            $chunkData['content'] = $chunk['content'];
+
+            // Update title and metadata for chunks
+            if ($chunk['total_chunks'] > 1) {
+                if ($isMainEntry) {
+                    // First chunk keeps the original title
+                    $chunkData['title'] = $data['title'];
+                    $chunkData['answer'] = $chunk['chunk_summary'];
+                } else {
+                    // Subsequent chunks get numbered titles
+                    $chunkData['title'] = $data['title'] . " - Part " . ($chunk['chunk_index'] + 1);
+                    $chunkData['answer'] = $chunk['chunk_summary'];
+                }
+            }
+
+            // Add chunk metadata
+            $chunkData['metadata'] = array_merge($data['metadata'] ?? [], [
+                'is_chunked' => true,
+                'chunk_index' => $chunk['chunk_index'],
+                'total_chunks' => $chunk['total_chunks'],
+                'char_count' => $chunk['char_count'],
+                'word_count' => $chunk['word_count'],
+                'original_title' => $data['title'],
+                'chunk_summary' => $chunk['chunk_summary']
+            ]);
+
+            // Update search content with chunk-specific content
+            $chunkData['search_content'] = $data['search_content'] . ' ' . $chunk['content'];
+
+            // Set published_at if status is published and no date specified
+            if ($chunkData['status'] === 'published' && (empty($chunkData['published_at']))) {
+                $chunkData['published_at'] = now();
+            }
+
+            // Create the chunk entry
+            $knowledgeBase = KnowledgeBase::create($chunkData);
+            $createdEntries[] = $knowledgeBase;
+
+            $isMainEntry = false;
+        }
+
+        $totalChunks = count($createdEntries);
+        $firstEntry = $createdEntries[0];
+
+        return redirect()
+            ->route('knowledge-base.show', $firstEntry)
+            ->with('success', "Large document successfully processed and split into {$totalChunks} manageable chunks for optimal search performance.");
     }
 }
