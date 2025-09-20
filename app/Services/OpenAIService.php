@@ -438,23 +438,589 @@ Berikan HANYA hasil terjemahan tanpa penjelasan tambahan.'
 
     public function generateInsightSummary(string $aggText, array $categoryLabels = []): ?string
     {
-        // Keep existing implementation
-        return null;
+        try {
+            $model = $this->getAnalyticsModel();
+            $prompt = "Anda adalah seorang analis data senior. Buat ringkasan insight profesional berdasarkan data analytics berikut:
+
+{$aggText}
+
+Berikan analisis dalam format profesional dengan:
+- Temuan kunci (2-3 poin utama)
+- Tren yang teridentifikasi
+- Implikasi untuk layanan
+
+Gunakan bahasa Indonesia profesional, maksimal 200 kata.";
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Anda adalah analis data profesional yang membuat insight ringkas dan akurat.'],
+                    ['role' => 'user', 'content' => $prompt]
+                ],
+                'max_tokens' => 300,
+                'temperature' => 0.3,
+            ]);
+
+            return trim($response->choices[0]->message->content ?? '');
+        } catch (Exception $e) {
+            Log::error('Failed to generate insight summary: ' . $e->getMessage());
+            return null;
+        }
     }
 
     public function generateDetailedAnalysis(string $aggText, array $categoryLabels = [], ?array $derived = null): ?string
     {
-        // Keep existing implementation
-        return null;
+        try {
+            $model = $this->getAnalyticsModel();
+
+            // Build category context
+            $categoryContext = '';
+            if (!empty($categoryLabels)) {
+                $categoryContext = "\nKategori layanan:\n";
+                foreach ($categoryLabels as $key => $label) {
+                    $categoryContext .= "- {$key}: {$label}\n";
+                }
+            }
+
+            $prompt = "Anda adalah seorang Senior Data Analyst di Samsat Lamongan. Buat dokumen analisis profesional lengkap berdasarkan data berikut:
+
+{$aggText}
+{$categoryContext}
+
+Buat dokumen analisis dengan struktur berikut dalam format Markdown:
+
+# 📊 Laporan Analisis Pelayanan Samsat Lamongan
+
+## Executive Summary
+[Ringkasan eksekutif dalam 2-3 paragraf yang menjelaskan temuan utama]
+
+## 🔍 Analisis Mendalam
+
+### Pola Permintaan Layanan
+[Analisis distribusi kategori layanan dan preferensi masyarakat]
+
+### Analisis Sentimen Pelanggan
+[Evaluasi kepuasan dan feedback pelanggan]
+
+### Tren Temporal dan Geografis
+[Pola waktu dan lokasi permintaan layanan]
+
+## 📈 Temuan Kunci
+1. **[Temuan 1]**: [Penjelasan detail]
+2. **[Temuan 2]**: [Penjelasan detail]
+3. **[Temuan 3]**: [Penjelasan detail]
+
+## ⚡ Insight Strategis
+[Implikasi bisnis dan operasional dari data]
+
+## 🎯 Area Prioritas
+[Area yang memerlukan perhatian khusus]
+
+---
+*Laporan ini dihasilkan oleh SALMA AI Analytics - Samsat Lamongan*
+
+Gunakan data aktual, berikan insight yang mendalam dan profesional.";
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Anda adalah Senior Data Analyst profesional yang membuat laporan analisis mendalam dengan format yang rapi dan insight yang bermakna.'],
+                    ['role' => 'user', 'content' => $prompt]
+                ],
+                'max_tokens' => 1500,
+                'temperature' => 0.4,
+            ]);
+
+            return trim($response->choices[0]->message->content ?? '');
+        } catch (Exception $e) {
+            Log::error('Failed to generate detailed analysis: ' . $e->getMessage());
+            return null;
+        }
     }
 
     public function generateRecommendations(array $categoryCounts, array $commonIssues, array $sentiments, array $categoryLabels = []): ?array
     {
-        // Keep existing implementation
-        return null;
+        try {
+            $model = $this->getAnalyticsModel();
+
+            // Build context from data
+            $dataContext = "Data Analytics Samsat Lamongan:\n\n";
+            $dataContext .= "Kategori Permintaan:\n";
+            foreach ($categoryCounts as $category => $count) {
+                $label = $categoryLabels[$category] ?? $category;
+                $dataContext .= "- {$label}: {$count} permintaan\n";
+            }
+
+            $dataContext .= "\nSentimen Pelanggan:\n";
+            foreach ($sentiments as $sentiment => $count) {
+                $dataContext .= "- {$sentiment}: {$count}\n";
+            }
+
+            if (!empty($commonIssues)) {
+                $dataContext .= "\nIsu Umum:\n";
+                foreach (array_slice($commonIssues, 0, 5, true) as $issue => $count) {
+                    $dataContext .= "- {$issue}: {$count} kali\n";
+                }
+            }
+
+            $prompt = "Berdasarkan data analytics berikut, berikan rekomendasi strategis untuk Samsat Lamongan:
+
+{$dataContext}
+
+Berikan output dalam format JSON dengan struktur berikut:
+{
+  \"recommendations\": [
+    \"Rekomendasi singkat 1\",
+    \"Rekomendasi singkat 2\",
+    \"Rekomendasi singkat 3\"
+  ],
+  \"detailed_recommendations\": [
+    {
+      \"category\": \"nama_kategori\",
+      \"label\": \"Label Kategori\",
+      \"priority\": \"high|medium|low\",
+      \"description\": \"Deskripsi masalah dan solusi\",
+      \"actions\": [
+        \"Aksi spesifik 1\",
+        \"Aksi spesifik 2\"
+      ],
+      \"expected_impact\": \"Dampak yang diharapkan\",
+      \"timeframe\": \"Jangka waktu implementasi\"
+    }
+  ]
+}
+
+Fokus pada 3-5 rekomendasi paling impactful berdasarkan volume dan prioritas.";
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Anda adalah konsultan manajemen yang membuat rekomendasi strategis berdasarkan data analytics. Selalu berikan output dalam format JSON yang valid.'],
+                    ['role' => 'user', 'content' => $prompt]
+                ],
+                'max_tokens' => 1000,
+                'temperature' => 0.3,
+            ]);
+
+            $content = trim($response->choices[0]->message->content ?? '');
+
+            // Extract JSON from response
+            $start = strpos($content, '{');
+            $end = strrpos($content, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $jsonStr = substr($content, $start, $end - $start + 1);
+                $result = json_decode($jsonStr, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $result;
+                }
+            }
+
+            // Fallback: create basic structure
+            return [
+                'recommendations' => [
+                    'Tingkatkan pelayanan untuk kategori dengan volume tertinggi',
+                    'Optimalkan respon time untuk meningkatkan kepuasan pelanggan',
+                    'Perluas informasi online untuk mengurangi pertanyaan berulang'
+                ],
+                'detailed_recommendations' => []
+            ];
+        } catch (Exception $e) {
+            Log::error('Failed to generate recommendations: ' . $e->getMessage());
+            return null;
+        }
     }
 
     // ... other analytics methods
+
+    /**
+     * Generate comprehensive one-shot analytics with professional formatting
+     */
+    public function generateOneShotAnalytics(array $rawRows, array $context, array $categoryLabels = []): array
+    {
+        try {
+            $model = $this->getAnalyticsModel();
+
+            // Build data summary
+            $dataSummary = "ANALYTICS DATA SUMMARY:\n";
+            $dataSummary .= "Total Messages: " . count($rawRows) . "\n";
+            $dataSummary .= "Date Range: " . ($context['date_range'][0] ?? 'N/A') . " to " . ($context['date_range'][1] ?? 'N/A') . "\n\n";
+
+            $dataSummary .= "CATEGORY DISTRIBUTION:\n";
+            foreach ($context['category_counts'] ?? [] as $cat => $count) {
+                $label = $categoryLabels[$cat] ?? $cat;
+                $dataSummary .= "- {$label}: {$count}\n";
+            }
+
+            $dataSummary .= "\nSENTIMENT ANALYSIS:\n";
+            foreach ($context['sentiments'] ?? [] as $sent => $count) {
+                $dataSummary .= "- {$sent}: {$count}\n";
+            }
+
+            $prompt = "Anda adalah Senior Data Analyst Samsat Lamongan. Berdasarkan data berikut, buat analisis komprehensif:
+
+{$dataSummary}
+
+Berikan output dalam format JSON dengan struktur berikut:
+{
+  \"combined_top_insight\": \"[Dokumen analisis profesional lengkap dalam format Markdown dengan insight mendalam, tren, dan rekomendasi strategis - minimal 800 kata]\",
+  \"insight_summary\": \"[Ringkasan eksekutif singkat 150-200 kata]\",
+  \"recommendations\": [\"Rekomendasi 1\", \"Rekomendasi 2\", \"Rekomendasi 3\"],
+  \"recommendations_detailed\": [
+    {
+      \"category\": \"kategori\",
+      \"label\": \"Label\",
+      \"priority\": \"high\",
+      \"description\": \"Deskripsi\",
+      \"actions\": [\"Aksi 1\", \"Aksi 2\"]
+    }
+  ]
+}
+
+PENTING:
+- combined_top_insight harus berupa dokumen Markdown profesional lengkap
+- Gunakan data real untuk insight yang akurat
+- Berikan analisis mendalam dengan visualisasi dan insight strategis";
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Anda adalah Senior Data Analyst yang membuat laporan analitis profesional. Selalu berikan output JSON yang valid dan lengkap.'],
+                    ['role' => 'user', 'content' => $prompt]
+                ],
+                'max_tokens' => 2000,
+                'temperature' => 0.4,
+            ]);
+
+            $content = trim($response->choices[0]->message->content ?? '');
+
+            // Extract and parse JSON
+            $start = strpos($content, '{');
+            $end = strrpos($content, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $jsonStr = substr($content, $start, $end - $start + 1);
+                $result = json_decode($jsonStr, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $result;
+                }
+            }
+
+            return [];
+        } catch (Exception $e) {
+            Log::error('Failed to generate one-shot analytics: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Generate basic insight and recommendations as fallback
+     */
+    public function generateBasicInsightAndRecommendations(array $rawRows, array $context): array
+    {
+        try {
+            $model = $this->getAnalyticsModel();
+
+            $dataContext = "Data: " . count($rawRows) . " messages\n";
+            $dataContext .= "Sentiments: " . json_encode($context['sentiments'] ?? []) . "\n";
+            $dataContext .= "Categories: " . json_encode($context['category_counts'] ?? []) . "\n";
+
+            $prompt = "Buat insight dan rekomendasi berdasarkan data berikut:
+
+{$dataContext}
+
+Format JSON:
+{
+  \"insight_long\": \"[Analisis mendalam dalam format Markdown - minimal 500 kata]\",
+  \"insight_summary\": \"[Ringkasan 100-150 kata]\",
+  \"recommendations\": [\"Rec 1\", \"Rec 2\", \"Rec 3\"],
+  \"recommendations_detailed\": [
+    {
+      \"category\": \"cat\",
+      \"label\": \"Label\",
+      \"priority\": \"high|medium|low\",
+      \"description\": \"Desc\",
+      \"actions\": [\"Action 1\", \"Action 2\"]
+    }
+  ]
+}";
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Buat analisis dan rekomendasi dalam format JSON yang valid.'],
+                    ['role' => 'user', 'content' => $prompt]
+                ],
+                'max_tokens' => 1500,
+                'temperature' => 0.4,
+            ]);
+
+            $content = trim($response->choices[0]->message->content ?? '');
+
+            $start = strpos($content, '{');
+            $end = strrpos($content, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $jsonStr = substr($content, $start, $end - $start + 1);
+                $result = json_decode($jsonStr, true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    return $result;
+                }
+            }
+
+            return [];
+        } catch (Exception $e) {
+            Log::error('Failed to generate basic insights: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Generate detailed strategies for top topics with 5 implementation steps
+     */
+    public function generateTopTopicStrategies(array $topTopics, string $aggText, array $categoryLabels = []): array
+    {
+        try {
+            $model = $this->getAnalyticsModel();
+            $strategies = [];
+
+            foreach ($topTopics as $topic) {
+                $topicKey = $topic['key'] ?? '';
+                $topicLabel = $topic['label'] ?? $topicKey;
+                $topicCount = $topic['count'] ?? 0;
+
+                $prompt = "Anda adalah Strategic Business Consultant untuk Samsat Lamongan.
+
+Topik: {$topicLabel} ({$topicCount} permintaan)
+Data: {$aggText}
+
+Buat strategi implementasi dengan TEPAT 5 langkah detail untuk menangani topik ini:
+
+Format JSON:
+{
+  \"topic_name\": \"{$topicLabel}\",
+  \"topic_count\": {$topicCount},
+  \"topic_overview\": \"Ringkasan analisis tentang topik ini berdasarkan data permintaan wajib pajak (2-3 kalimat)\",
+  \"implementation_steps\": [
+    {
+      \"step\": 1,
+      \"title\": \"Judul Langkah Singkat\",
+      \"description\": \"Deskripsi detail langkah ini (100-150 kata) - jelaskan what, why, how\",
+      \"deliverables\": [\"Deliverable 1\", \"Deliverable 2\"],
+      \"timeline\": \"2-4 minggu\",
+      \"effort_level\": \"high|medium|low\",
+      \"success_metrics\": [\"Metrik 1\", \"Metrik 2\"],
+      \"resources_needed\": [\"Resource 1\", \"Resource 2\"]
+    }
+  ],
+  \"expected_outcome\": \"Hasil yang diharapkan dari implementasi strategi ini\",
+  \"risk_mitigation\": [\"Risk 1 dan mitigasinya\", \"Risk 2 dan mitigasinya\"]
+}
+
+REQUIREMENTS:
+- HARUS ada tepat 5 implementation_steps
+- Setiap step harus detail dan actionable
+- Fokus pada solusi praktis untuk Samsat Lamongan
+- Berikan timeline dan effort level yang realistis";
+
+                $response = $this->client->chat()->create([
+                    'model' => $model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'Anda adalah Strategic Business Consultant yang membuat roadmap implementasi detail. Selalu berikan tepat 5 langkah yang actionable.'],
+                        ['role' => 'user', 'content' => $prompt]
+                    ],
+                    'max_tokens' => 1200,
+                    'temperature' => 0.3,
+                ]);
+
+                $content = trim($response->choices[0]->message->content ?? '');
+
+                $start = strpos($content, '{');
+                $end = strrpos($content, '}');
+                if ($start !== false && $end !== false && $end > $start) {
+                    $jsonStr = substr($content, $start, $end - $start + 1);
+                    $result = json_decode($jsonStr, true);
+                    if (json_last_error() === JSON_ERROR_NONE && isset($result['implementation_steps'])) {
+                        // Ensure topic info is included
+                        if (!isset($result['topic_name'])) {
+                            $result['topic_name'] = $topicLabel;
+                        }
+                        if (!isset($result['topic_count'])) {
+                            $result['topic_count'] = $topicCount;
+                        }
+                        if (!isset($result['topic_overview'])) {
+                            $result['topic_overview'] = "Analisis menunjukkan bahwa {$topicLabel} merupakan topik yang sering ditanyakan dengan {$topicCount} permintaan dari wajib pajak.";
+                        }
+
+                        // Ensure exactly 5 steps
+                        $steps = array_slice($result['implementation_steps'], 0, 5);
+                        if (count($steps) < 5) {
+                            // Fill missing steps with placeholder
+                            while (count($steps) < 5) {
+                                $stepNum = count($steps) + 1;
+                                $steps[] = [
+                                    'step' => $stepNum,
+                                    'title' => "Langkah {$stepNum}: Evaluasi dan Optimisasi",
+                                    'description' => "Evaluasi hasil implementasi langkah sebelumnya dan lakukan optimisasi berdasarkan feedback dan data performa.",
+                                    'deliverables' => ['Laporan evaluasi', 'Rencana optimisasi'],
+                                    'timeline' => '1-2 minggu',
+                                    'effort_level' => 'medium',
+                                    'success_metrics' => ['Peningkatan performa', 'Feedback positif'],
+                                    'resources_needed' => ['Tim evaluasi', 'Data analytics']
+                                ];
+                            }
+                        }
+                        $result['implementation_steps'] = $steps;
+                        $strategies[$topicKey] = $result;
+                    }
+                }
+            }
+
+            return $strategies;
+        } catch (Exception $e) {
+            Log::error('Failed to generate top topic strategies: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Generate single insight document as fallback
+     */
+    public function generateSingleInsightDocument(array $rawRows, array $context, array $topTopics = []): ?string
+    {
+        try {
+            $model = $this->getAnalyticsModel();
+
+            // Build comprehensive data context
+            $totalMessages = count($rawRows);
+            $dateRange = isset($context['date_range']) ? $context['date_range'][0] . " sampai " . $context['date_range'][1] : 'N/A';
+            $sentiments = $context['sentiments'] ?? [];
+            $categories = $context['category_counts'] ?? [];
+
+            // Build category context
+            $categoryText = "";
+            if (!empty($categories)) {
+                $categoryText = "Distribusi Kategori Permintaan:\n";
+                foreach ($categories as $cat => $count) {
+                    $percentage = $totalMessages > 0 ? round(($count / $totalMessages) * 100, 1) : 0;
+                    $categoryText .= "- {$cat}: {$count} permintaan ({$percentage}%)\n";
+                }
+            }
+
+            // Build sentiment context
+            $sentimentText = "";
+            if (!empty($sentiments)) {
+                $sentimentText = "Distribusi Sentimen:\n";
+                foreach ($sentiments as $sentiment => $count) {
+                    $percentage = $totalMessages > 0 ? round(($count / $totalMessages) * 100, 1) : 0;
+                    $sentimentText .= "- {$sentiment}: {$count} ({$percentage}%)\n";
+                }
+            }
+
+            // Build top topics context
+            $topTopicsText = "";
+            if (!empty($topTopics)) {
+                $topTopicsText = "Top 3 Topik Terpopuler:\n";
+                foreach (array_slice($topTopics, 0, 3) as $i => $topic) {
+                    $topTopicsText .= ($i + 1) . ". {$topic['label']}: {$topic['count']} permintaan\n";
+                }
+            }
+
+            $prompt = "Anda adalah Senior Data Analyst Samsat Lamongan. Buat dokumen analisis profesional berdasarkan data berikut:
+
+DATA ANALYTICS:
+- Total Percakapan: {$totalMessages}
+- Periode Analisis: {$dateRange}
+- Sumber Data: AI Chat Samsat Lamongan
+
+{$categoryText}
+
+{$sentimentText}
+
+{$topTopicsText}
+
+BUAT DOKUMEN PROFESIONAL dengan struktur TEPAT seperti ini:
+
+# 📊 ANALISIS DATA LAYANAN SAMSAT LAMONGAN
+
+## **Bab 1. Pendahuluan Analisis**
+
+Tujuan analisis periode ini.
+
+Ringkasan data yang digunakan (jumlah percakapan, periode waktu, channel/AI chat).
+
+## **Bab 2. Gambaran Umum Data Percakapan**
+
+Volume percakapan (total, rata-rata harian/mingguan).
+
+Distribusi kanal percakapan (misal: website, WA, chatbot aplikasi).
+
+Profil umum interaksi (misal: jam sibuk, durasi percakapan).
+
+## **Bab 3. Analisis Sentimen**
+
+Persentase sentimen positif, netral, negatif.
+
+Perubahan tren sentimen dari waktu ke waktu.
+
+Faktor yang paling sering memunculkan sentimen negatif/positif.
+
+## **Bab 4. Analisis Topik Percakapan**
+
+Top 3 Topik Terpopuler (misalnya: pembayaran, denda keterlambatan, informasi layanan).
+
+Ringkasan tiap topik (jumlah chat, sentimen dominan).
+
+Visualisasi (grafik frekuensi & sentimen per topik).
+
+## **Bab 5. Strategi Tindak Lanjut**
+
+Strategi online (peningkatan FAQ chatbot, kampanye media sosial, edukasi video).
+
+Strategi offline (sosialisasi langsung, peningkatan layanan di loket).
+
+Strategi hybrid (integrasi event offline dengan notifikasi online, QR edukasi pajak, reminder otomatis + call center follow up).
+
+## **Bab 6. Insight & Rekomendasi**
+
+Apa yang perlu diprioritaskan dari temuan topik & sentimen.
+
+Rekomendasi jangka pendek (quick win).
+
+Rekomendasi jangka menengah (perbaikan SOP layanan, integrasi data).
+
+Potensi jangka panjang (prediksi tren wajib pajak dengan AI).
+
+## **Bab 7. Kesimpulan**
+
+Ringkasan hasil analisis (top 3 topik, pola sentimen, strategi utama).
+
+Nilai tambah penggunaan AI chat sebagai sumber big data percakapan.
+
+---
+*Laporan dihasilkan oleh SALMA AI Analytics - Samsat Lamongan*
+
+REQUIREMENTS:
+- Gunakan data real yang diberikan
+- Setiap bab MAKSIMAL 300-500 kata untuk efisiensi
+- Total dokumen target 2100-3500 kata (7 bab x 300-500 kata)
+- Format Markdown professional dengan heading yang jelas
+- Fokus pada insight praktis dan actionable
+- Hindari pengulangan informasi antar bab";
+
+            $response = $this->client->chat()->create([
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Anda adalah Senior Data Analyst yang membuat dokumen insight profesional dengan format Markdown yang rapi dan insight yang bermakna. Buat dokumen yang efisien dan to-the-point.'],
+                    ['role' => 'user', 'content' => $prompt]
+                ],
+                'max_tokens' => 1000,
+                'temperature' => 0.3,
+            ]);
+
+            return trim($response->choices[0]->message->content ?? '');
+        } catch (Exception $e) {
+            Log::error('Failed to generate single insight document: ' . $e->getMessage());
+            return null;
+        }
+    }
 
     /**
      * Generate AI response for customer service chat with RAG

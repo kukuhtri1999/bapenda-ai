@@ -4,18 +4,21 @@ namespace App\Services;
 
 use Probots\Pinecone\Client as PineconeClient;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 use Exception;
 
 class PineconeService
 {
     private PineconeClient $client;
     private string $indexName;
+    private string $apiKey;
     private int $dimension;
 
     public function __construct()
     {
+        $this->apiKey = config('services.pinecone.api_key');
         $this->client = new PineconeClient(
-            apiKey: config('services.pinecone.api_key')
+            apiKey: $this->apiKey
         );
         $this->indexName = config('services.pinecone.index_name');
         $this->dimension = config('services.pinecone.dimension');
@@ -144,20 +147,81 @@ class PineconeService
     public function deleteAll(): bool
     {
         try {
-            // Get index host
-            $indexHost = $this->getIndexHost();
-            if (!$indexHost) {
-                return false;
+            $maxRetries = 3;
+            $retryDelay = 1; // seconds
+
+            for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+                Log::info("Delete all attempt {$attempt}/{$maxRetries}");
+
+                $host = $this->getIndexHost();
+                if (!$host) {
+                    Log::error("Failed to get index host on attempt {$attempt}");
+                    if ($attempt < $maxRetries) {
+                        sleep($retryDelay);
+                        continue;
+                    }
+                    return false;
+                }
+
+                // Step 1: Try Delete All method with deleteAll flag
+                $response = Http::timeout(30)->withHeaders([
+                    'Api-Key' => $this->apiKey,
+                    'Content-Type' => 'application/json',
+                ])->post("{$host}/vectors/delete", [
+                    'deleteAll' => true
+                ]);
+
+                if ($response->successful()) {
+                    Log::info('Successfully cleared all vectors using deleteAll method');
+                    return true;
+                }
+
+                Log::warning("Delete all method failed on attempt {$attempt}", [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
+
+                // Step 2: Try Namespace Deletion approach if deleteAll failed
+                $response = Http::timeout(30)->withHeaders([
+                    'Api-Key' => $this->apiKey,
+                    'Content-Type' => 'application/json',
+                ])->post("{$host}/vectors/delete", [
+                    'deleteAll' => true,
+                    'namespace' => ''
+                ]);
+
+                if ($response->successful()) {
+                    Log::info('Successfully cleared all vectors using namespace method');
+                    return true;
+                }
+
+                // Step 3: Try alternative namespace approach
+                $response = Http::timeout(30)->withHeaders([
+                    'Api-Key' => $this->apiKey,
+                    'Content-Type' => 'application/json',
+                ])->post("{$host}/vectors/delete", [
+                    'namespace' => '',
+                    'deleteAll' => true
+                ]);
+
+                if ($response->successful()) {
+                    Log::info('Successfully cleared vectors from default namespace');
+                    return true;
+                }
+
+                if ($attempt < $maxRetries) {
+                    Log::info("Retrying in {$retryDelay} seconds...");
+                    sleep($retryDelay);
+                }
             }
 
-            $this->client->setIndexHost($indexHost);
-            $response = $this->client->data()->vectors()->delete(
-                deleteAll: true
-            );
-
-            return $response->successful();
-        } catch (Exception $e) {
-            Log::error("Failed to delete all vectors from Pinecone: " . $e->getMessage());
+            Log::error('All deletion methods failed after maximum retries');
+            return false;
+        } catch (\Exception $e) {
+            Log::error('Exception during deleteAll operation', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return false;
         }
     }
@@ -168,23 +232,57 @@ class PineconeService
     private function getIndexHost(): ?string
     {
         try {
-            $response = $this->client->control()->index($this->indexName)->describe();
+            $maxRetries = 3;
+            $retryDelay = 1; // seconds
 
-            if ($response->successful()) {
-                $indexData = $response->json();
-                $host = $indexData['host'] ?? null;
+            for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+                Log::info("Getting index host attempt {$attempt}/{$maxRetries}");
 
-                // Ensure HTTPS protocol
-                if ($host && !str_starts_with($host, 'http')) {
-                    $host = 'https://' . $host;
+                $response = Http::timeout(30)->withHeaders([
+                    'Api-Key' => $this->apiKey,
+                ])->get("https://api.pinecone.io/indexes/{$this->indexName}");
+
+                if ($response->successful()) {
+                    $indexData = $response->json();
+
+                    // Try multiple possible host locations in the response
+                    $host = null;
+                    if (isset($indexData['host'])) {
+                        $host = $indexData['host'];
+                    } elseif (isset($indexData['status']['host'])) {
+                        $host = $indexData['status']['host'];
+                    }
+
+                    if ($host) {
+                        // Ensure the host has the https:// prefix
+                        if (!str_starts_with($host, 'http')) {
+                            $host = 'https://' . $host;
+                        }
+                        Log::info("Successfully retrieved index host: {$host}");
+                        return $host;
+                    }
+
+                    Log::warning("Host not found in response data", ['data' => $indexData]);
+                } else {
+                    Log::warning("Failed to get index host on attempt {$attempt}", [
+                        'status' => $response->status(),
+                        'body' => $response->body()
+                    ]);
                 }
 
-                return $host;
+                if ($attempt < $maxRetries) {
+                    Log::info("Retrying host retrieval in {$retryDelay} seconds...");
+                    sleep($retryDelay);
+                }
             }
 
+            Log::error("Failed to get index host after {$maxRetries} attempts");
             return null;
-        } catch (Exception $e) {
-            Log::error("Failed to get index host: " . $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error('Exception when getting index host', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return null;
         }
     }

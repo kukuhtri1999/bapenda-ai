@@ -693,7 +693,8 @@ class KnowledgeBaseController extends Controller
 
             // Run the rebuild command programmatically
             $exitCode = \Artisan::call('kb:sync-pinecone', [
-                '--dry-run' => $dryRun
+                '--dry-run' => $dryRun,
+                '--force' => !$dryRun // Use force for actual rebuilds to skip confirmation
             ]);
 
             $output = \Artisan::output();
