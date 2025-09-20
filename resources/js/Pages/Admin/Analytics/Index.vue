@@ -294,12 +294,131 @@
                 <!-- Topic Overview -->
                 <div
                   v-if="s.topic_overview"
-                  class="mt-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r"
+                  class="mt-3 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r"
                 >
                   <p class="text-sm text-blue-800 leading-relaxed">
                     <strong>📋 Analisis Overview:</strong>
                     {{ s.topic_overview }}
                   </p>
+                </div>
+
+                <!-- Top Questions Section -->
+                <div
+                  v-if="s.top_questions && s.top_questions.length"
+                  class="mt-4 p-4 bg-green-50 border-l-4 border-green-400 rounded-r"
+                >
+                  <h6
+                    class="font-semibold text-green-800 mb-3 flex items-center"
+                  >
+                    <svg
+                      class="w-5 h-5 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      ></path>
+                    </svg>
+                    5 Informasi Teratas yang Paling Sering Ditanyakan
+                  </h6>
+                  <div class="space-y-2">
+                    <div
+                      v-for="(question, qIdx) in s.top_questions.slice(0, 5)"
+                      :key="qIdx"
+                      class="flex items-start"
+                    >
+                      <span
+                        class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full mr-3 mt-0.5 flex-shrink-0"
+                      >
+                        {{ qIdx + 1 }}
+                      </span>
+                      <p class="text-sm text-green-700">{{ question }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Further Analysis Section -->
+                <div
+                  v-if="s.further_analysis"
+                  class="mt-4 p-4 bg-purple-50 border-l-4 border-purple-400 rounded-r"
+                >
+                  <h6
+                    class="font-semibold text-purple-800 mb-3 flex items-center"
+                  >
+                    <svg
+                      class="w-5 h-5 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                      ></path>
+                    </svg>
+                    Analisis Mendalam
+                  </h6>
+                  <p class="text-sm text-purple-700 leading-relaxed">
+                    {{ s.further_analysis }}
+                  </p>
+                </div>
+
+                <!-- Example Chat Messages Section -->
+                <div
+                  v-if="
+                    s.example_chat_messages && s.example_chat_messages.length
+                  "
+                  class="mt-4 p-4 bg-orange-50 border-l-4 border-orange-400 rounded-r"
+                >
+                  <h6
+                    class="font-semibold text-orange-800 mb-3 flex items-center"
+                  >
+                    <svg
+                      class="w-5 h-5 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                      ></path>
+                    </svg>
+                    7 Contoh Pesan Chat Wajib Pajak
+                  </h6>
+                  <div class="space-y-3">
+                    <div
+                      v-for="(message, mIdx) in s.example_chat_messages.slice(
+                        0,
+                        7,
+                      )"
+                      :key="mIdx"
+                      class="bg-white border border-orange-200 rounded-lg p-3 shadow-sm"
+                    >
+                      <div class="flex items-start">
+                        <div
+                          class="bg-orange-100 text-orange-700 text-xs font-semibold px-2 py-1 rounded-full mr-3 mt-0.5 flex-shrink-0"
+                        >
+                          {{ mIdx + 1 }}
+                        </div>
+                        <div class="flex-1">
+                          <div
+                            class="bg-gray-100 text-gray-800 text-sm p-2 rounded-lg italic"
+                          >
+                            "{{ message }}"
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -712,12 +831,134 @@
                     <!-- Topic Overview -->
                     <div
                       v-if="s.topic_overview"
-                      class="mt-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r"
+                      class="mt-3 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r"
                     >
                       <p class="text-sm text-blue-800 leading-relaxed">
                         <strong>📋 Analisis Overview:</strong>
                         {{ s.topic_overview }}
                       </p>
+                    </div>
+
+                    <!-- Top Questions Section -->
+                    <div
+                      v-if="s.top_questions && s.top_questions.length"
+                      class="mt-4 p-4 bg-green-50 border-l-4 border-green-400 rounded-r"
+                    >
+                      <h6
+                        class="font-semibold text-green-800 mb-3 flex items-center"
+                      >
+                        <svg
+                          class="w-5 h-5 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          ></path>
+                        </svg>
+                        5 Informasi Teratas yang Paling Sering Ditanyakan
+                      </h6>
+                      <div class="space-y-2">
+                        <div
+                          v-for="(question, qIdx) in s.top_questions.slice(
+                            0,
+                            5,
+                          )"
+                          :key="qIdx"
+                          class="flex items-start"
+                        >
+                          <span
+                            class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full mr-3 mt-0.5 flex-shrink-0"
+                          >
+                            {{ qIdx + 1 }}
+                          </span>
+                          <p class="text-sm text-green-700">{{ question }}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Further Analysis Section -->
+                    <div
+                      v-if="s.further_analysis"
+                      class="mt-4 p-4 bg-purple-50 border-l-4 border-purple-400 rounded-r"
+                    >
+                      <h6
+                        class="font-semibold text-purple-800 mb-3 flex items-center"
+                      >
+                        <svg
+                          class="w-5 h-5 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                          ></path>
+                        </svg>
+                        Analisis Mendalam
+                      </h6>
+                      <p class="text-sm text-purple-700 leading-relaxed">
+                        {{ s.further_analysis }}
+                      </p>
+                    </div>
+
+                    <!-- Example Chat Messages Section -->
+                    <div
+                      v-if="
+                        s.example_chat_messages &&
+                        s.example_chat_messages.length
+                      "
+                      class="mt-4 p-4 bg-orange-50 border-l-4 border-orange-400 rounded-r"
+                    >
+                      <h6
+                        class="font-semibold text-orange-800 mb-3 flex items-center"
+                      >
+                        <svg
+                          class="w-5 h-5 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                          ></path>
+                        </svg>
+                        7 Contoh Pesan Chat Wajib Pajak
+                      </h6>
+                      <div class="space-y-3">
+                        <div
+                          v-for="(
+                            message, mIdx
+                          ) in s.example_chat_messages.slice(0, 7)"
+                          :key="mIdx"
+                          class="bg-white border border-orange-200 rounded-lg p-3 shadow-sm"
+                        >
+                          <div class="flex items-start">
+                            <div
+                              class="bg-orange-100 text-orange-700 text-xs font-semibold px-2 py-1 rounded-full mr-3 mt-0.5 flex-shrink-0"
+                            >
+                              {{ mIdx + 1 }}
+                            </div>
+                            <div class="flex-1">
+                              <div
+                                class="bg-gray-100 text-gray-800 text-sm p-2 rounded-lg italic"
+                              >
+                                "{{ message }}"
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -956,6 +1197,7 @@ import axios from 'axios';
 import VueApexCharts from 'vue3-apexcharts';
 import flatpickr from 'flatpickr';
 import { toast } from 'vue3-toastify';
+import Swal from 'sweetalert2';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import 'flatpickr/dist/flatpickr.min.css';
 
@@ -1034,11 +1276,59 @@ const updatePreCount = async () => {
 };
 
 const confirmStart = async () => {
-  if (!startIso.value || !endIso.value) return alert('Pilih tanggal mulai dan selesai.');
-  if (startIso.value > endIso.value) return alert('Start harus sebelum End.');
-  if (
-    !confirm(`Start analysis for ${startDisplay.value} → ${endDisplay.value}?`)
-  ) return;
+  if (!startIso.value || !endIso.value) {
+    await Swal.fire({
+      icon: 'warning',
+      title: 'Incomplete Date Selection',
+      text: 'Please select both start and end dates.',
+      confirmButtonColor: '#3b82f6',
+    });
+    return;
+  }
+
+  if (startIso.value > endIso.value) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Invalid Date Range',
+      text: 'Start date must be before end date.',
+      confirmButtonColor: '#3b82f6',
+    });
+    return;
+  }
+
+  const result = await Swal.fire({
+    title: 'Start AI Analytics Analysis?',
+    html: `
+      <div class="text-left">
+        <p class="mb-3"><strong>Analysis Period:</strong></p>
+        <p class="text-sm text-gray-600 mb-2">📅 From: <span class="font-semibold">${startDisplay.value}</span></p>
+        <p class="text-sm text-gray-600 mb-3">📅 To: <span class="font-semibold">${endDisplay.value}</span></p>
+        <div class="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
+          <p class="text-sm text-blue-800">
+            <strong>🤖 AI Analysis will include:</strong><br>
+            • Chat conversation patterns<br>
+            • Top 3 strategic topics with detailed implementation plans<br>
+            • Professional insights and recommendations
+          </p>
+        </div>
+      </div>
+    `,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonColor: '#3b82f6',
+    cancelButtonColor: '#6b7280',
+    confirmButtonText: '🚀 Start Analysis',
+    cancelButtonText: 'Cancel',
+    reverseButtons: true,
+    customClass: {
+      popup: 'text-left',
+      title: 'text-lg font-semibold',
+      htmlContainer: 'text-sm',
+    },
+  });
+
+  if (!result.isConfirmed) return;
+
   loading.value = true;
   showLoading.value = true;
 
@@ -1048,6 +1338,9 @@ const confirmStart = async () => {
     position: 'top-right',
   });
 
+  // Ensure loading popup shows for at least 1 second for UX
+  const minDisplayTime = new Promise((resolve) => setTimeout(resolve, 1000));
+
   try {
     const res = await axios.post('/api/admin/analytics/start', {
       start_date: startIso.value,
@@ -1056,10 +1349,14 @@ const confirmStart = async () => {
     });
     const j = res.data;
     reportSummary.value = j;
-    loading.value = false;
+
+    // Wait for minimum display time
+    await minDisplayTime;
+
     // If sync mode and summary is present, show it immediately
     if (j.processing_mode === 'sync') {
       if (j.summary_json) {
+        loading.value = false;
         showLoading.value = false;
         await loadReports();
         return;
@@ -1068,19 +1365,26 @@ const confirmStart = async () => {
         // fetch the saved report to ensure we have summary_json
         const r = await fetch(`/api/admin/analytics/reports/${j.report_id}`);
         reportSummary.value = await r.json();
+        loading.value = false;
         showLoading.value = false;
         await loadReports();
         return;
       }
     }
+    // For async mode, keep loading popup and start polling
     pollToken.value++;
     pollReport(j.report_id, pollToken.value);
   } catch (e) {
+    // Wait for minimum display time even on error
+    await minDisplayTime;
     loading.value = false;
     showLoading.value = false;
-    alert(
-      `Failed to start analysis: ${e?.response?.data?.message || e.message}`,
-    );
+    await Swal.fire({
+      icon: 'error',
+      title: 'Analysis Failed',
+      text: `Failed to start analysis: ${e?.response?.data?.message || e.message}`,
+      confirmButtonColor: '#3b82f6',
+    });
   }
 };
 

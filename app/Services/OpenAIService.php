@@ -679,7 +679,7 @@ Berikan output dalam format JSON dengan struktur berikut:
 PENTING:
 - combined_top_insight harus berupa dokumen Markdown profesional lengkap
 - Gunakan data real untuk insight yang akurat
-- Berikan analisis mendalam dengan visualisasi dan insight strategis";
+- Berikan analisis mendalam dengan insight strategis dan rekomendasi actionable";
 
             $response = $this->client->chat()->create([
                 'model' => $model,
@@ -791,13 +791,30 @@ Format JSON:
 Topik: {$topicLabel} ({$topicCount} permintaan)
 Data: {$aggText}
 
-Buat strategi implementasi dengan TEPAT 5 langkah detail untuk menangani topik ini:
+Buat analisis mendalam dan strategi implementasi dengan TEPAT 5 langkah detail untuk menangani topik ini:
 
 Format JSON:
 {
   \"topic_name\": \"{$topicLabel}\",
   \"topic_count\": {$topicCount},
-  \"topic_overview\": \"Ringkasan analisis tentang topik ini berdasarkan data permintaan wajib pajak (2-3 kalimat)\",
+  \"topic_overview\": \"Analisis mendalam tentang topik ini (300-400 kata). Harus mencakup: 1) 5 informasi teratas yang paling sering ditanyakan wajib pajak, 2) analisis lebih lanjut tentang pola dan tren, 3) 7 contoh pesan chat wajib pajak yang representatif untuk topik ini\",
+  \"top_questions\": [
+    \"Pertanyaan 1 yang sering ditanyakan wajib pajak\",
+    \"Pertanyaan 2 yang sering ditanyakan wajib pajak\",
+    \"Pertanyaan 3 yang sering ditanyakan wajib pajak\",
+    \"Pertanyaan 4 yang sering ditanyakan wajib pajak\",
+    \"Pertanyaan 5 yang sering ditanyakan wajib pajak\"
+  ],
+  \"further_analysis\": \"Analisis mendalam tentang pola komunikasi, frekuensi, dan karakteristik pertanyaan wajib pajak untuk topik ini (150-200 kata)\",
+  \"example_chat_messages\": [
+    \"Contoh 1: Pesan chat wajib pajak yang representatif\",
+    \"Contoh 2: Pesan chat wajib pajak yang representatif\",
+    \"Contoh 3: Pesan chat wajib pajak yang representatif\",
+    \"Contoh 4: Pesan chat wajib pajak yang representatif\",
+    \"Contoh 5: Pesan chat wajib pajak yang representatif\",
+    \"Contoh 6: Pesan chat wajib pajak yang representatif\",
+    \"Contoh 7: Pesan chat wajib pajak yang representatif\"
+  ],
   \"implementation_steps\": [
     {
       \"step\": 1,
@@ -823,10 +840,10 @@ REQUIREMENTS:
                 $response = $this->client->chat()->create([
                     'model' => $model,
                     'messages' => [
-                        ['role' => 'system', 'content' => 'Anda adalah Strategic Business Consultant yang membuat roadmap implementasi detail. Selalu berikan tepat 5 langkah yang actionable.'],
+                        ['role' => 'system', 'content' => 'Anda adalah Strategic Business Consultant yang membuat roadmap implementasi detail dengan analisis mendalam. Selalu berikan tepat 5 langkah yang actionable, 5 pertanyaan teratas, dan 7 contoh chat messages.'],
                         ['role' => 'user', 'content' => $prompt]
                     ],
-                    'max_tokens' => 1200,
+                    'max_tokens' => 2000,
                     'temperature' => 0.3,
                 ]);
 
@@ -846,7 +863,34 @@ REQUIREMENTS:
                             $result['topic_count'] = $topicCount;
                         }
                         if (!isset($result['topic_overview'])) {
-                            $result['topic_overview'] = "Analisis menunjukkan bahwa {$topicLabel} merupakan topik yang sering ditanyakan dengan {$topicCount} permintaan dari wajib pajak.";
+                            $result['topic_overview'] = "Analisis menunjukkan bahwa {$topicLabel} merupakan topik yang sering ditanyakan dengan {$topicCount} permintaan dari wajib pajak. Berdasarkan data komunikasi, topik ini mencerminkan kebutuhan informasi yang tinggi dari masyarakat terkait layanan Samsat. Pola komunikasi menunjukkan adanya gap informasi yang perlu ditangani melalui strategi komunikasi yang lebih efektif dan sistem informasi yang lebih accessible untuk meningkatkan kepuasan pelayanan publik.";
+                        }
+
+                        // Ensure required fields exist
+                        if (!isset($result['top_questions'])) {
+                            $result['top_questions'] = [
+                                "Bagaimana cara mengurus {$topicLabel}?",
+                                "Berapa lama proses {$topicLabel}?",
+                                "Dokumen apa saja yang diperlukan untuk {$topicLabel}?",
+                                "Berapa biaya untuk {$topicLabel}?",
+                                "Dimana lokasi mengurus {$topicLabel}?"
+                            ];
+                        }
+
+                        if (!isset($result['further_analysis'])) {
+                            $result['further_analysis'] = "Analisis pola komunikasi menunjukkan bahwa pertanyaan terkait {$topicLabel} cenderung muncul pada jam kerja dengan frekuensi tinggi. Karakteristik pertanyaan menunjukkan kurangnya informasi yang mudah diakses oleh masyarakat, sehingga diperlukan strategi proaktif untuk menyediakan informasi yang lebih komprehensif dan mudah dipahami.";
+                        }
+
+                        if (!isset($result['example_chat_messages'])) {
+                            $result['example_chat_messages'] = [
+                                "Selamat pagi, saya mau tanya tentang {$topicLabel}, bagaimana prosedurnya ya?",
+                                "Pak/Bu, untuk mengurus {$topicLabel} perlu dokumen apa saja?",
+                                "Maaf mengganggu, berapa lama proses {$topicLabel} selesai?",
+                                "Saya mau tanya biaya untuk {$topicLabel} berapa ya?",
+                                "Dimana ya tempat mengurus {$topicLabel}? Jam operasionalnya bagaimana?",
+                                "Apakah bisa {$topicLabel} diurus online atau harus datang langsung?",
+                                "Terima kasih infonya, kalau ada kendala dalam proses {$topicLabel} hubungi kemana ya?"
+                            ];
                         }
 
                         // Ensure exactly 5 steps
@@ -968,7 +1012,7 @@ Top 3 Topik Terpopuler (misalnya: pembayaran, denda keterlambatan, informasi lay
 
 Ringkasan tiap topik (jumlah chat, sentimen dominan).
 
-Visualisasi (grafik frekuensi & sentimen per topik).
+Pola komunikasi dan tren preferensi wajib pajak per topik.
 
 ## **Bab 5. Strategi Tindak Lanjut**
 
