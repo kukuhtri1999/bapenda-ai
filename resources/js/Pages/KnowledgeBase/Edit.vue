@@ -1,12 +1,14 @@
 <script setup>
 import {
-  ref, computed, onMounted, reactive,
+  ref, computed, onMounted, reactive, inject,
 } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { QuillEditor } from '@vueup/vue-quill';
 import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
+
+const $toast = inject('$toast');
 
 const props = defineProps({
   knowledgeBase: Object,
@@ -190,12 +192,13 @@ const submit = async () => {
 
     if (response.data.success) {
       formState.success = true;
-      // Redirect to the updated entry or index
-      if (response.data.redirect) {
-        window.location.href = response.data.redirect;
-      } else {
-        router.visit(`/knowledge-base/${props.knowledgeBase.id}`);
-      }
+      // Show success toast
+      $toast.success(
+        response.data.message || 'Knowledge base entry updated successfully!',
+      );
+
+      // Navigate to index page using SPA
+      router.visit('/knowledge-base');
     }
   } catch (error) {
     console.error('Form submission error:', error);
@@ -204,17 +207,21 @@ const submit = async () => {
       if (error.response.status === 422) {
         // Validation errors
         formState.errors = error.response.data.errors || {};
+        $toast.error('Please check the form for validation errors.');
       } else if (error.response.status === 419) {
         // CSRF token expired
+        $toast.error('Session expired. Please refresh the page and try again.');
         console.log('CSRF token expired, refreshing page...');
         window.location.reload();
       } else {
         formState.errors = {
           general: ['An error occurred while updating the data.'],
         };
+        $toast.error('An error occurred while updating the data.');
       }
     } else {
       formState.errors = { general: ['Network error occurred.'] };
+      $toast.error('Network error occurred while updating.');
     }
   } finally {
     formState.processing = false;

@@ -5,7 +5,9 @@ import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createVuetify } from 'vuetify';
+import Vue3Toastify, { toast } from 'vue3-toastify';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import 'vue3-toastify/dist/index.css';
 
 // Vuetify
 import 'vuetify/styles';
@@ -50,6 +52,15 @@ createInertiaApp({
       .use(plugin)
       .use(ZiggyVue)
       .use(vuetify)
+      .use(Vue3Toastify, {
+        autoClose: 3000,
+        position: 'top-right',
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      })
+      .provide('$toast', toast)
       .mount(el);
   },
   progress: {

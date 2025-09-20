@@ -18,6 +18,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\IndexKnowledgeBaseToVector::class,
         \App\Console\Commands\TestNewRagSystem::class,
         \App\Console\Commands\InspectKb::class,
+        \App\Console\Commands\TestChatPerformance::class,
     ];
 
     protected function schedule(Schedule $schedule)

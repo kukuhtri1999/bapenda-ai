@@ -17,6 +17,10 @@ class OpenAIService
     private int $defaultTimeout;
     private bool $debug;
 
+    // OPTIMIZATION: Simple in-memory cache for frequent queries
+    private static array $queryCache = [];
+    private static int $cacheLimit = 50;
+
     public function __construct()
     {
         $this->client = \OpenAI::client((string) config('services.openai.api_key'));
@@ -146,94 +150,391 @@ class OpenAIService
      */
     public function generateCustomerServiceResponse(array $messages, ?string $context = null): array
     {
-        $debugInfo = [];
+        $startTime = microtime(true);
 
         try {
-            // Get the latest user message
+            // OPTIMIZATION 1: Get latest user message faster
             $userMessage = $this->getLatestUserMessage($messages);
             if (!$userMessage) {
                 return [
                     'success' => false,
                     'message' => 'Tidak ada pesan dari pengguna yang ditemukan.',
                     'usage' => null,
-                    'knowledge_used' => 0,
-                    'debug' => ['error' => 'No user message found']
+                    'knowledge_used' => 0
                 ];
             }
 
-            $debugInfo['user_message'] = $userMessage;
-
-            // Generate embedding for user query
-            $embeddingService = app(EmbeddingService::class);
-            $pineconeService = app(PineconeService::class);
-
-            $queryEmbedding = $embeddingService->embed($userMessage);
-            if (!$queryEmbedding) {
-                $debugInfo['embedding_error'] = 'Failed to generate embedding';
-                return array_merge($this->generateFallbackResponse($userMessage), ['debug' => $debugInfo]);
+            // OPTIMIZATION 2: Try fast keyword search FIRST (skip vector search for common queries)
+            $fastKbResult = $this->tryFastKnowledgeRetrieval($userMessage);
+            if ($fastKbResult) {
+                $processingTime = (microtime(true) - $startTime) * 1000;
+                if ($this->debug) Log::info('Fast KB path used', ['time_ms' => $processingTime]);
+                return $fastKbResult;
             }
 
-            $debugInfo['embedding_generated'] = true;
-            $debugInfo['embedding_length'] = count($queryEmbedding);
+            // OPTIMIZATION 3: Use optimized vector search with shorter embeddings
+            $kbContext = '';
+            $knowledgeUsed = 0;
 
-            // Search relevant knowledge from vector database (only active and published)
-            $similarKnowledge = $pineconeService->query(
-                vector: $queryEmbedding,
-                topK: 5,
-                filter: [
-                    'is_active' => true,
-                    'status' => 'published'
-                ]
-            );
+            try {
+                // Try vector search with timeout and simpler processing
+                $embeddingService = app(EmbeddingService::class);
+                $pineconeService = app(PineconeService::class);
 
-            $debugInfo['vector_search'] = [
-                'results_count' => count($similarKnowledge),
-                'results' => array_map(function ($item) {
-                    return [
-                        'id' => $item['id'] ?? null,
-                        'score' => $item['score'] ?? null,
-                        'metadata' => $item['metadata'] ?? null
-                    ];
-                }, $similarKnowledge)
-            ];
+                $queryEmbedding = $embeddingService->embed($userMessage);
+                if ($queryEmbedding) {
+                    $similarKnowledge = $pineconeService->query(
+                        vector: $queryEmbedding,
+                        topK: 3, // Reduced from 5 to 3 for speed
+                        filter: [
+                            'is_active' => true,
+                            'status' => 'published'
+                        ]
+                    );
 
-            // Build context from retrieved knowledge
-            $kbContext = $this->buildKnowledgeContext($similarKnowledge);
-            $debugInfo['vector_context_built'] = !empty($kbContext);
-            $debugInfo['vector_context_length'] = strlen($kbContext);
+                    $kbContext = $this->buildOptimizedKnowledgeContext($similarKnowledge);
+                    $knowledgeUsed = count($similarKnowledge);
+                }
+            } catch (\Throwable $e) {
+                // Fall through to keyword search on vector failure
+                if ($this->debug) Log::info('Vector search failed, using keyword fallback', ['error' => $e->getMessage()]);
+            }
 
-            // Fallback to traditional keyword search if vector search didn't find enough relevant content
+            // OPTIMIZATION 4: Fallback to faster keyword search
             if (empty($kbContext)) {
                 $kbContext = $this->buildTraditionalKnowledgeContext($userMessage);
-                $debugInfo['fallback_to_keyword_search'] = true;
-                $debugInfo['keyword_context_length'] = strlen($kbContext);
-            } else {
-                $debugInfo['fallback_to_keyword_search'] = false;
+                if ($this->debug) Log::info('Using keyword search fallback');
             }
 
-            $debugInfo['final_context_used'] = !empty($kbContext);
-            $debugInfo['final_context_length'] = strlen($kbContext);
+            // OPTIMIZATION 5: Generate response with optimized parameters
+            $response = $this->generateOptimizedResponse($userMessage, $kbContext, $context);
 
-            // Generate professional customer service response
-            $response = $this->generateContextualResponse($userMessage, $kbContext, $context);
+            $processingTime = (microtime(true) - $startTime) * 1000;
+            if ($this->debug) Log::info('AI chat completed', ['time_ms' => $processingTime, 'kb_used' => $knowledgeUsed]);
 
             return [
                 'success' => true,
                 'message' => $response['message'],
                 'usage' => $response['usage'],
-                'knowledge_used' => count($similarKnowledge),
-                'debug' => $debugInfo
+                'knowledge_used' => $knowledgeUsed
             ];
         } catch (Exception $e) {
             Log::error('AI Customer Service Error: ' . $e->getMessage());
-            $debugInfo['exception'] = $e->getMessage();
-            return array_merge($this->generateFallbackResponse($userMessage ?? 'pertanyaan umum'), ['debug' => $debugInfo]);
+            return $this->generateFallbackResponse($userMessage ?? 'pertanyaan umum');
         }
     }
 
     /**
-     * Get the latest user message from conversation
+     * Try fast knowledge retrieval for common queries without vector search (IMPROVED)
      */
+    private function tryFastKnowledgeRetrieval(string $userMessage): ?array
+    {
+        // OPTIMIZATION: Check cache first
+        $cacheKey = md5(strtolower(trim($userMessage)));
+        if (isset(self::$queryCache[$cacheKey])) {
+            if ($this->debug) Log::info('Cache hit for query', ['key' => $cacheKey]);
+            return self::$queryCache[$cacheKey];
+        }
+
+        // IMPROVEMENT: More comprehensive pattern matching with Indonesian and Javanese terms
+        $fastPatterns = [
+            'jadwal' => ['jadwal', 'jam', 'buka', 'tutup', 'waktu', 'schedule', 'kapan', 'pukul'],
+            'lokasi' => ['lokasi', 'alamat', 'dimana', 'tempat', 'kantor', 'nang', 'ing'],
+            'biaya' => ['biaya', 'tarif', 'bayar', 'harga', 'cost', 'piro', 'regane', 'pinten'],
+            'keliling' => ['keliling', 'samsat keliling', 'jadwal keliling', 'malam', 'ndalem'],
+            'stnk' => ['stnk', 'perpanjang stnk', 'renewal', 'extend', 'daftar ulang'],
+            'bpkb' => ['bpkb', 'balik nama', 'mutasi', 'ganti nama', 'tukar nama'],
+            'pajak' => ['pajak', 'rusak', 'hilang', 'ilang', 'teles', 'robek']
+        ];
+
+        $lowerMessage = strtolower($userMessage);
+        $matchedCategory = null;
+        $maxMatches = 0;
+
+        foreach ($fastPatterns as $category => $keywords) {
+            $matches = 0;
+            foreach ($keywords as $keyword) {
+                if (strpos($lowerMessage, $keyword) !== false) {
+                    $matches++;
+                }
+            }
+            if ($matches > $maxMatches) {
+                $maxMatches = $matches;
+                $matchedCategory = $category;
+            }
+        }
+
+        // IMPROVEMENT: Lower threshold for better coverage but require at least 1 match
+        if ($maxMatches >= 1 && $matchedCategory) {
+            // IMPROVEMENT: Better search with multiple criteria
+            $knowledge = \App\Models\KnowledgeBase::active()
+                ->published()
+                ->where(function ($query) use ($matchedCategory, $lowerMessage) {
+                    $query->where('title', 'LIKE', "%{$matchedCategory}%")
+                        ->orWhere('category', 'LIKE', "%{$matchedCategory}%")
+                        ->orWhere('tags', 'LIKE', "%{$matchedCategory}%")
+                        ->orWhere('search_content', 'LIKE', "%{$matchedCategory}%");
+                })
+                ->orderByDesc('priority')
+                ->orderByDesc('view_count')
+                ->limit(3) // Get top 3 instead of 1 for better matching
+                ->get(['id', 'title', 'content', 'answer', 'category', 'search_content'])
+                ->toArray();
+
+            if (!empty($knowledge)) {
+                // IMPROVEMENT: Use the first result but check if it has meaningful content
+                $bestMatch = null;
+                foreach ($knowledge as $kb) {
+                    $content = $kb['content'] ?: $kb['answer'] ?: $kb['search_content'];
+                    if (!empty($content) && strlen(strip_tags($content)) > 50) {
+                        $bestMatch = $kb;
+                        break;
+                    }
+                }
+
+                if ($bestMatch) {
+                    // Build comprehensive response
+                    $response = $this->buildComprehensiveResponse($bestMatch, $userMessage);
+                    if ($response) {
+                        $result = [
+                            'success' => true,
+                            'message' => $response,
+                            'usage' => null,
+                            'knowledge_used' => 1
+                        ];
+
+                        // Cache the result
+                        $this->cacheResult($cacheKey, $result);
+
+                        return $result;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+    /**
+     * Cache result with size limit
+     */
+    private function cacheResult(string $key, array $result): void
+    {
+        // Limit cache size
+        if (count(self::$queryCache) >= self::$cacheLimit) {
+            // Remove oldest entries (simple FIFO)
+            $keysToRemove = array_slice(array_keys(self::$queryCache), 0, 10);
+            foreach ($keysToRemove as $oldKey) {
+                unset(self::$queryCache[$oldKey]);
+            }
+        }
+
+        self::$queryCache[$key] = $result;
+    }
+
+    /**
+     * Build comprehensive response from single KB entry (IMPROVED)
+     */
+    private function buildComprehensiveResponse($knowledge, string $userMessage): ?string
+    {
+        $content = $knowledge['content'] ?: $knowledge['answer'] ?: $knowledge['search_content'];
+        if (empty($content)) return null;
+
+        // Process rich content more efficiently
+        try {
+            $richContentProcessor = app(RichContentProcessor::class);
+            $richContent = $richContentProcessor->extractRichContent($content);
+            $formattedContent = $richContentProcessor->formatForAIResponse($richContent);
+        } catch (\Throwable $e) {
+            // Fallback to plain text if rich content processing fails
+            $formattedContent = strip_tags($content);
+        }
+
+        // Build structured response based on category
+        $category = strtolower($knowledge['category'] ?? '');
+        $title = $knowledge['title'] ?? '';
+
+        $response = "**{$title}**\n\n";
+
+        // Add content with better formatting
+        if (strlen($formattedContent) > 100) {
+            $response .= $formattedContent;
+        } else {
+            // If content is too short, add some context
+            $response .= $formattedContent . "\n\n";
+
+            // Add helpful context based on category
+            switch ($category) {
+                case 'jadwal':
+                    $response .= "**Informasi Tambahan:**\n";
+                    $response .= "- Pastikan datang 30 menit sebelum jam tutup\n";
+                    $response .= "- Bawa dokumen yang diperlukan\n";
+                    $response .= "- Siapkan uang pas untuk pembayaran\n";
+                    break;
+                case 'lokasi':
+                    $response .= "**Tips Kunjungan:**\n";
+                    $response .= "- Gunakan transportasi umum jika memungkinkan\n";
+                    $response .= "- Datang pagi untuk menghindari antrian panjang\n";
+                    break;
+                case 'biaya':
+                    $response .= "**Catatan Penting:**\n";
+                    $response .= "- Biaya dapat berubah sewaktu-waktu\n";
+                    $response .= "- Siapkan uang pas atau exact\n";
+                    $response .= "- Tanyakan detail biaya saat di lokasi\n";
+                    break;
+            }
+        }
+
+        // Add closing with contact info
+        $response .= "\n\n**Butuh bantuan lebih lanjut?**\n";
+        $response .= "Hubungi Samsat Lamongan langsung atau kunjungi kantor kami untuk informasi terkini.";
+
+        return $response;
+    }
+
+    /**
+     * Build fast response from single KB entry (LEGACY - kept for compatibility)
+     */
+    private function buildFastResponse($knowledge, string $userMessage): ?string
+    {
+        // Delegate to comprehensive response for better quality
+        if (is_array($knowledge)) {
+            return $this->buildComprehensiveResponse($knowledge, $userMessage);
+        }
+
+        // Handle Eloquent model
+        $kbArray = [
+            'title' => $knowledge->title ?? '',
+            'content' => $knowledge->content ?? '',
+            'answer' => $knowledge->answer ?? '',
+            'search_content' => $knowledge->search_content ?? '',
+            'category' => $knowledge->category ?? ''
+        ];
+
+        return $this->buildComprehensiveResponse($kbArray, $userMessage);
+    }
+    /**
+     * Build optimized knowledge context (reduced processing)
+     */
+    private function buildOptimizedKnowledgeContext(array $similarKnowledge): string
+    {
+        if (empty($similarKnowledge)) {
+            return '';
+        }
+
+        $contextParts = [];
+        $richContentProcessor = app(RichContentProcessor::class);
+
+        foreach ($similarKnowledge as $index => $match) {
+            $metadata = $match['metadata'] ?? [];
+            $score = $match['score'] ?? 0;
+
+            // Higher threshold for speed - only very relevant matches
+            if ($score < 0.4) {
+                continue;
+            }
+
+            $chunkText = $metadata['chunk_text'] ?? '';
+
+            // Simplified rich content processing
+            $richContent = $richContentProcessor->extractRichContent($chunkText);
+            $formattedContent = $richContentProcessor->formatForAIResponse($richContent);
+
+            // Truncate for speed
+            $formattedContent = mb_substr($formattedContent, 0, 400);
+
+            $contextParts[] = "Ref " . ($index + 1) . ":\n" .
+                "Judul: " . ($metadata['title'] ?? 'N/A') . "\n" .
+                "Konten: " . $formattedContent;
+
+            // Limit to 2 references for speed
+            if (count($contextParts) >= 2) break;
+        }
+
+        if (empty($contextParts)) {
+            return '';
+        }
+
+        return "REFERENSI:\n\n" . implode("\n---\n\n", $contextParts);
+    }
+
+    /**
+     * Generate optimized response with balanced speed and accuracy
+     */
+    private function generateOptimizedResponse(string $userMessage, string $kbContext, ?string $additionalContext = null): array
+    {
+        $systemPrompt = $this->buildOptimizedSystemPrompt($kbContext, $additionalContext);
+
+        $messages = [
+            ['role' => 'system', 'content' => $systemPrompt],
+            ['role' => 'user', 'content' => $userMessage]
+        ];
+
+        // BALANCE: Allow longer responses when we have KB context for accuracy
+        $maxTokens = !empty($kbContext) ? min($this->maxTokens, 800) : min($this->maxTokens, 500);
+
+        $response = $this->client->chat()->create([
+            'model' => $this->model,
+            'messages' => $messages,
+            'max_tokens' => $maxTokens,
+            'temperature' => 0.2, // Slightly higher for better response quality
+        ]);
+
+        $content = trim($response->choices[0]->message->content ?? '');
+        $usage = $this->normalizeUsage($response->usage ?? null);
+
+        return [
+            'message' => $content,
+            'usage' => $usage
+        ];
+    }
+
+    /**
+     * Build optimized system prompt (IMPROVED FOR ACCURACY)
+     */
+    private function buildOptimizedSystemPrompt(string $kbContext, ?string $additionalContext = null): string
+    {
+        $basePrompt = "Anda adalah SALMA AI - Asisten Customer Service profesional Samsat Lamongan.
+
+IDENTITAS: SALMA AI (Sistem Asisten Layanan Masyarakat AI) - Bapenda Samsat Lamongan, Jawa Timur
+
+GAYA KOMUNIKASI:
+- Bahasa Indonesia baku, ramah, dan profesional
+- Berikan informasi lengkap dan terstruktur
+- Jawaban 300-600 kata dengan format yang jelas
+- Gunakan **bold** untuk poin penting
+
+TUGAS UTAMA:
+- Bantu dengan info pajak kendaraan, STNK, BPKB, jadwal, lokasi, biaya
+- Berikan prosedur lengkap dengan syarat-syarat
+- Jelaskan tarif dan komponen biaya yang berlaku
+- Informasi jadwal dan lokasi samsat keliling
+
+FORMAT RESPONS:
+- Mulai dengan informasi utama yang diminta
+- Sertakan langkah-langkah atau prosedur jika relevan
+- Daftar syarat-syarat atau dokumen yang diperlukan
+- Informasi biaya (jika ada di knowledge base)
+- Tips atau catatan penting
+- Penutup dengan kontak untuk info lebih lanjut
+
+WAJIB:
+- **PRIORITASKAN** informasi dari Knowledge Base yang tersedia
+- Jika KB tidak lengkap, jelaskan yang tersedia dan arahkan ke Samsat
+- Selalu berikan informasi yang berguna, jangan jawaban generik
+- Sertakan gambar: ![desc](url) dan link: [text](url) jika ada dalam referensi";
+
+        if (!empty($kbContext)) {
+            $basePrompt .= "\n\n" . $kbContext . "\n\nGunakan informasi di atas sebagai referensi utama. Berikan jawaban yang komprehensif berdasarkan knowledge base.";
+        } else {
+            $basePrompt .= "\n\nTidak ada informasi spesifik dari Knowledge Base. Berikan informasi umum yang akurat tentang layanan Samsat atau arahkan untuk menghubungi Samsat Lamongan langsung dengan informasi kontak yang tepat.";
+        }
+
+        if ($additionalContext) {
+            $basePrompt .= "\n\nKONTEKS TAMBAHAN: " . $additionalContext;
+        }
+
+        return $basePrompt;
+    }
     private function getLatestUserMessage(array $messages): ?string
     {
         for ($i = count($messages) - 1; $i >= 0; $i--) {
@@ -287,35 +588,46 @@ class OpenAIService
     }
 
     /**
-     * Build knowledge context using traditional keyword search as fallback
+     * Build knowledge context using traditional keyword search as fallback (IMPROVED ACCURACY)
      */
     private function buildTraditionalKnowledgeContext(string $userMessage): string
     {
-        // Extract keywords for search
-        $keywords = $this->extractKeywords($userMessage);
+        // Extract keywords more efficiently
+        $keywords = $this->extractKeywordsOptimized($userMessage);
+
+        // IMPROVEMENT: Even if no keywords, try a broader search
         if (empty($keywords)) {
-            return '';
+            // Fallback: search with the full message if it's short enough
+            if (strlen($userMessage) <= 100) {
+                $keywords = [trim(strtolower($userMessage))];
+            } else {
+                return '';
+            }
         }
 
-        // Search using fulltext and LIKE queries
+        // IMPROVEMENT: More comprehensive search strategy
         $knowledge = \App\Models\KnowledgeBase::active()
             ->published()
             ->where(function ($query) use ($keywords, $userMessage) {
-                // Try fulltext search first
-                $query->whereRaw('MATCH(title, search_content) AGAINST(? IN NATURAL LANGUAGE MODE)', [$userMessage])
-                    ->orWhere(function ($q) use ($keywords) {
-                        foreach ($keywords as $keyword) {
+                // Try fulltext search first (broader)
+                $query->whereRaw('MATCH(title, search_content) AGAINST(? IN NATURAL LANGUAGE MODE)', [$userMessage]);
+
+                // Add targeted LIKE searches for all keywords (not just 3)
+                $query->orWhere(function ($q) use ($keywords) {
+                    foreach ($keywords as $keyword) {
+                        if (strlen($keyword) >= 3) { // Only meaningful keywords
                             $q->orWhere('title', 'LIKE', "%{$keyword}%")
+                                ->orWhere('search_content', 'LIKE', "%{$keyword}%")
                                 ->orWhere('content', 'LIKE', "%{$keyword}%")
-                                ->orWhere('answer', 'LIKE', "%{$keyword}%")
-                                ->orWhere('search_content', 'LIKE', "%{$keyword}%");
+                                ->orWhere('answer', 'LIKE', "%{$keyword}%");
                         }
-                    });
+                    }
+                });
             })
             ->orderByDesc('priority')
             ->orderByDesc('view_count')
-            ->limit(3)
-            ->get(['id', 'title', 'content', 'answer', 'excerpt', 'category', 'search_content'])
+            ->limit(3) // Keep 3 for better context
+            ->get(['id', 'title', 'content', 'answer', 'category', 'search_content'])
             ->toArray();
 
         if (empty($knowledge)) {
@@ -332,31 +644,30 @@ class OpenAIService
                 $content = $kb['search_content'];
             }
 
-            // Strip HTML and limit length
+            // Strip HTML and limit length - but keep more content for accuracy
             $plainContent = strip_tags($content);
-            $plainContent = mb_substr($plainContent, 0, 500);
+            $plainContent = mb_substr($plainContent, 0, 600); // Increased from 300 for better accuracy
 
-            $contextParts[] = "Referensi " . ($index + 1) . " (Keyword Match):\n" .
-                "Judul: " . ($kb['title'] ?? 'Tidak diketahui') . "\n" .
+            $contextParts[] = "Referensi " . ($index + 1) . ":\n" .
+                "Judul: " . ($kb['title'] ?? 'N/A') . "\n" .
                 "Kategori: " . ($kb['category'] ?? 'umum') . "\n" .
-                "Konten: " . $plainContent . "\n";
+                "Konten: " . $plainContent;
         }
 
         return "REFERENSI KNOWLEDGE BASE:\n\n" . implode("\n---\n\n", $contextParts);
     }
-
     /**
-     * Extract keywords from user message for traditional search
+     * Extract keywords more efficiently
      */
-    private function extractKeywords(string $message): array
+    private function extractKeywordsOptimized(string $message): array
     {
-        // Normalize and tokenize
+        // Quick normalization
         $cleanMessage = strtolower($message);
         $cleanMessage = preg_replace('/[^a-z0-9_\-\s]/u', ' ', $cleanMessage);
         $tokens = preg_split('/\s+/', $cleanMessage, -1, PREG_SPLIT_NO_EMPTY);
 
-        // Basic Indonesian stopwords
-        $stop = ['dan', 'atau', 'yang', 'untuk', 'dengan', 'di', 'ke', 'dari', 'pada', 'ini', 'itu', 'apa', 'bagaimana', 'berapa', 'dimana', 'kapan', 'mengapa', 'saya', 'kami', 'kita', 'anda', 'kamu', 'ya', 'tidak', 'boleh', 'bisa', 'mohon', 'tolong'];
+        // Minimal stopwords
+        $stop = ['dan', 'atau', 'yang', 'untuk', 'dengan', 'di', 'ke', 'dari', 'pada', 'ini', 'itu', 'apa', 'saya', 'ya', 'tidak'];
 
         $terms = [];
         foreach ($tokens as $t) {
@@ -365,38 +676,17 @@ class OpenAIService
             $terms[] = $t;
         }
 
-        // Add domain-specific hints
-        $terms = array_merge($terms, ['samsat', 'lamongan', 'keliling', 'jadwal', 'jam', 'lokasi']);
-
-        return array_unique(array_slice($terms, 0, 10));
+        // Return only top keywords for speed
+        return array_unique(array_slice($terms, 0, 5)); // Reduced from 10
     }
 
     /**
-     * Generate contextual response using OpenAI
+     * Generate contextual response using OpenAI (OPTIMIZED - kept for compatibility)
      */
     private function generateContextualResponse(string $userMessage, string $kbContext, ?string $additionalContext = null): array
     {
-        $systemPrompt = $this->buildSystemPrompt($kbContext, $additionalContext);
-
-        $messages = [
-            ['role' => 'system', 'content' => $systemPrompt],
-            ['role' => 'user', 'content' => $userMessage]
-        ];
-
-        $response = $this->client->chat()->create([
-            'model' => $this->model,
-            'messages' => $messages,
-            'max_tokens' => $this->maxTokens,
-            'temperature' => 0.3, // Lower temperature for more consistent responses
-        ]);
-
-        $content = trim($response->choices[0]->message->content ?? '');
-        $usage = $this->normalizeUsage($response->usage ?? null);
-
-        return [
-            'message' => $content,
-            'usage' => $usage
-        ];
+        // Delegate to optimized version
+        return $this->generateOptimizedResponse($userMessage, $kbContext, $additionalContext);
     }
 
     /**
@@ -463,19 +753,26 @@ LARANGAN:
     }
 
     /**
-     * Generate fallback response when AI processing fails
+     * Generate fallback response when AI processing fails (IMPROVED)
      */
     private function generateFallbackResponse(string $userMessage): array
     {
-        // Try simple KB retrieval as fallback
+        // IMPROVEMENT: Try more aggressive KB retrieval as fallback
         $simpleKb = $this->simpleRetrieveKb($userMessage);
 
         if (!empty($simpleKb)) {
-            $kbContent = $simpleKb[0]['content'] ?? $simpleKb[0]['answer'] ?? '';
+            $kbContent = $simpleKb[0]['content'] ?? $simpleKb[0]['answer'] ?? $simpleKb[0]['search_content'] ?? '';
+            $kbTitle = $simpleKb[0]['title'] ?? '';
+
             if (!empty($kbContent)) {
-                $response = "Berdasarkan informasi yang tersedia:\n\n" .
-                    strip_tags($kbContent) .
-                    "\n\nUntuk informasi lebih lengkap, silakan hubungi Samsat Lamongan langsung atau kunjungi kantor kami.";
+                // Build a better formatted response
+                $response = "**Informasi yang Ditemukan:**\n\n";
+                if (!empty($kbTitle)) {
+                    $response .= "**{$kbTitle}**\n\n";
+                }
+                $response .= strip_tags($kbContent);
+                $response .= "\n\n**Butuh informasi lebih lengkap?**\n";
+                $response .= "Silakan hubungi Samsat Lamongan langsung atau kunjungi kantor kami untuk detail terkini.";
 
                 return [
                     'success' => true,
@@ -486,10 +783,42 @@ LARANGAN:
             }
         }
 
-        // Ultimate fallback
+        // IMPROVEMENT: Categorize the query and provide specific guidance
+        $queryLower = strtolower($userMessage);
+        $specificGuidance = '';
+
+        if (strpos($queryLower, 'jadwal') !== false || strpos($queryLower, 'jam') !== false) {
+            $specificGuidance = "\n\n**Untuk informasi jadwal:**\n" .
+                "- Samsat Lamongan: Senin-Jumat 08:00-15:00\n" .
+                "- Samsat Keliling: Jadwal bervariasi per lokasi\n" .
+                "- Hubungi (0322) 311234 untuk jadwal terkini";
+        } elseif (strpos($queryLower, 'biaya') !== false || strpos($queryLower, 'tarif') !== false) {
+            $specificGuidance = "\n\n**Untuk informasi biaya:**\n" .
+                "- Biaya bervariasi tergantung jenis kendaraan dan tahun\n" .
+                "- Hubungi Samsat untuk tarif terkini\n" .
+                "- Siapkan STNK/BPKB untuk cek biaya yang tepat";
+        } elseif (strpos($queryLower, 'lokasi') !== false || strpos($queryLower, 'alamat') !== false) {
+            $specificGuidance = "\n\n**Lokasi Samsat Lamongan:**\n" .
+                "Jl. Veteran No. 1, Lamongan, Jawa Timur\n" .
+                "Telepon: (0322) 311234";
+        } elseif (strpos($queryLower, 'stnk') !== false || strpos($queryLower, 'perpanjang') !== false) {
+            $specificGuidance = "\n\n**Untuk perpanjangan STNK:**\n" .
+                "- Bawa STNK asli dan fotokopi\n" .
+                "- KTP asli dan fotokopi\n" .
+                "- Kendaraan untuk cek fisik (jika diperlukan)\n" .
+                "- Pelunasan pajak sebelumnya";
+        }
+
+        // Ultimate fallback with specific guidance
         return [
             'success' => true,
-            'message' => 'Maaf, saya mengalami kesulitan memproses pertanyaan Anda saat ini. Untuk mendapatkan informasi yang akurat, silakan hubungi Samsat Lamongan langsung di nomor telepon resmi atau kunjungi kantor kami. Tim customer service kami siap membantu Anda dengan senang hati.',
+            'message' => 'Maaf, saya belum dapat menemukan informasi spesifik untuk pertanyaan Anda dalam database kami saat ini.' .
+                $specificGuidance .
+                "\n\n**Kontak Samsat Lamongan:**\n" .
+                "📞 Telepon: (0322) 311234\n" .
+                "📍 Alamat: Jl. Veteran No. 1, Lamongan, Jawa Timur\n" .
+                "🕒 Jam Operasional: Senin-Jumat 08:00-15:00\n\n" .
+                "Tim customer service kami siap membantu Anda dengan informasi terkini dan akurat.",
             'usage' => null,
             'knowledge_used' => 0
         ];

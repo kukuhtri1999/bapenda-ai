@@ -47,6 +47,7 @@
     "vue-eslint-parser": "^9.4.2",
     "vue3-apexcharts": "^1.8.0",
     "vue3-datepicker": "^0.4.0",
+    "vue3-toastify": "^0.2.8",
     "vuetify": "^3.5.10"
   }
 }
