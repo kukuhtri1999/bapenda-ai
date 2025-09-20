@@ -33,6 +33,317 @@ class OpenAIService
     }
 
     /**
+     * Enhanced Javanese to Indonesian translation using OpenAI for better understanding
+     */
+    private function translateJavaneseQuery(string $query): array
+    {
+        $originalQuery = $query;
+        $lowerQuery = strtolower($query);
+
+        // Quick check for common Javanese indicators
+        $javaneseIndicators = [
+            'opo',
+            'piro',
+            'carone',
+            'carane',
+            'kepiye',
+            'kepriye',
+            'nek',
+            'nnek',
+            'arep',
+            'nang',
+            'ning',
+            'kene',
+            'kono',
+            'iki',
+            'iku',
+            'kae',
+            'kuwi',
+            'gawe',
+            'tuku',
+            'adol',
+            'lunga',
+            'mulih',
+            'nggon',
+            'omah',
+            'kene',
+            'ngendi',
+            'piye',
+            'ngono',
+            'ngene',
+            'tekan',
+            'wis',
+            'durung',
+            'lagi',
+            'mengko',
+            'saiki',
+            'wingi',
+            'sesuk',
+            'biyen',
+            'bengi',
+            'awan',
+            'esuk',
+            'sore',
+            'kanca',
+            'konco',
+            'bocah',
+            'wong',
+            'bapak',
+            'ibu',
+            'mbak',
+            'mas',
+            'dik',
+            'de',
+            'nduk',
+            'le',
+            'yo',
+            'ta',
+            'to',
+            'kan',
+            'lho',
+            'monggo',
+            'nggih',
+            'inggih',
+            'nuwun',
+            'maturnuwun',
+            'sugeng',
+            'sampun',
+            'sing',
+            'sek',
+            'iso',
+            'ora',
+            'gak',
+            'ilang',
+            'teles',
+            'anyar',
+            'lawas'
+        ];
+
+        $detectedJavanese = [];
+        foreach ($javaneseIndicators as $indicator) {
+            if (strpos($lowerQuery, $indicator) !== false) {
+                $detectedJavanese[] = $indicator;
+            }
+        }
+
+        // If no Javanese detected, return original
+        if (empty($detectedJavanese)) {
+            return [
+                'original' => $originalQuery,
+                'translated' => $originalQuery,
+                'detected_javanese' => [],
+                'is_javanese' => false,
+                'translation_method' => 'none'
+            ];
+        }
+
+        // Use OpenAI for translation if Javanese is detected
+        try {
+            $translatedQuery = $this->translateWithOpenAI($originalQuery);
+
+            return [
+                'original' => $originalQuery,
+                'translated' => $translatedQuery,
+                'detected_javanese' => $detectedJavanese,
+                'is_javanese' => true,
+                'translation_method' => 'openai'
+            ];
+        } catch (\Exception $e) {
+            // Fallback to static dictionary if OpenAI fails
+            Log::warning('OpenAI translation failed, using fallback', [
+                'error' => $e->getMessage(),
+                'query' => $originalQuery
+            ]);
+
+            $translatedQuery = $this->translateWithStaticDictionary($originalQuery, $detectedJavanese);
+
+            return [
+                'original' => $originalQuery,
+                'translated' => $translatedQuery,
+                'detected_javanese' => $detectedJavanese,
+                'is_javanese' => true,
+                'translation_method' => 'fallback'
+            ];
+        }
+    }
+
+    /**
+     * Translate Javanese to Indonesian using OpenAI
+     */
+    private function translateWithOpenAI(string $query): string
+    {
+        $messages = [
+            [
+                'role' => 'system',
+                'content' => 'Anda adalah translator ahli bahasa Jawa ke bahasa Indonesia. Tugas Anda adalah menerjemahkan pertanyaan dari bahasa Jawa (dialek Jawa Timur/Lamongan) ke bahasa Indonesia yang baku dan natural.
+
+ATURAN PENTING:
+- Terjemahkan HANYA jika ada kata/frasa bahasa Jawa yang terdeteksi
+- Jika sudah dalam bahasa Indonesia, kembalikan teks aslinya
+- Pertahankan konteks dan makna pertanyaan
+- Gunakan bahasa Indonesia yang formal dan jelas
+- Fokus pada konteks layanan pajak/samsat
+
+CONTOH:
+- "Opo iki pajak anyar?" → "Apa ini pajak baru?"
+- "Piro biaya perpanjang STNK?" → "Berapa biaya perpanjang STNK?"
+- "Carone ngurus pajak motor piye?" → "Bagaimana cara mengurus pajak motor?"
+- "Nek pengen lapor online gimana?" → "Kalau ingin lapor online bagaimana?"
+
+Berikan HANYA hasil terjemahan tanpa penjelasan tambahan.'
+            ],
+            [
+                'role' => 'user',
+                'content' => $query
+            ]
+        ];
+
+        $response = $this->client->chat()->create([
+            'model' => 'gpt-4o-mini', // Use fast model for translation
+            'messages' => $messages,
+            'max_tokens' => 150,
+            'temperature' => 0.1, // Low temperature for consistent translation
+        ]);
+
+        $translatedText = trim($response->choices[0]->message->content ?? '');
+
+        // If translation is empty or too similar to original, return original
+        if (empty($translatedText) || $translatedText === $query) {
+            return $query;
+        }
+
+        return $translatedText;
+    }
+
+    /**
+     * Fallback translation using static dictionary
+     */
+    private function translateWithStaticDictionary(string $query, array $detectedJavanese): string
+    {
+        // Static dictionary as fallback
+        $translations = [
+            // Questions words
+            'carone' => 'bagaimana caranya',
+            'carane' => 'bagaimana caranya',
+            'kepiye' => 'bagaimana',
+            'kepriye' => 'bagaimana',
+            'piro' => 'berapa',
+            'pinten' => 'berapa',
+            'opo' => 'apa',
+            'ngendi' => 'dimana',
+            'endi' => 'dimana',
+            'kapan' => 'kapan',
+            'nalika' => 'kapan',
+            'sopo' => 'siapa',
+
+            // Conditional and modal
+            'nek' => 'kalau',
+            'nnek' => 'kalau',
+            'yen' => 'kalau',
+            'menawa' => 'kalau',
+            'arep' => 'akan',
+            'pengen' => 'ingin',
+            'kudu' => 'harus',
+            'mesti' => 'harus',
+            'iso' => 'bisa',
+            'bisa' => 'bisa',
+
+            // Location and direction
+            'nang' => 'di',
+            'ning' => 'di',
+            'nggon' => 'tempat',
+            'omah' => 'rumah',
+            'kantor' => 'kantor',
+            'kene' => 'sini',
+            'kono' => 'sana',
+
+            // Actions
+            'gawe' => 'buat',
+            'nggawe' => 'membuat',
+            'tuku' => 'beli',
+            'adol' => 'jual',
+            'ngurus' => 'mengurus',
+            'lunga' => 'pergi',
+            'mulih' => 'pulang',
+            'golek' => 'cari',
+            'njaluk' => 'minta',
+            'njupuk' => 'mengambil',
+            'mbayar' => 'membayar',
+            'bayar' => 'membayar',
+            'tekan' => 'sampai',
+            'nggarti' => 'mengganti',
+            'ngganti' => 'mengganti',
+
+            // Time expressions
+            'saiki' => 'sekarang',
+            'mengko' => 'nanti',
+            'wingi' => 'kemarin',
+            'sesuk' => 'besok',
+            'biyen' => 'dulu',
+            'bengi' => 'malam',
+            'awan' => 'siang',
+            'esuk' => 'pagi',
+            'sore' => 'sore',
+
+            // Status and condition
+            'wis' => 'sudah',
+            'durung' => 'belum',
+            'lagi' => 'sedang',
+            'isih' => 'masih',
+            'anyar' => 'baru',
+            'lawas' => 'lama',
+            'apik' => 'bagus',
+            'rusak' => 'rusak',
+            'ilang' => 'hilang',
+            'teles' => 'rusak',
+            'robek' => 'sobek',
+
+            // Money and cost
+            'duwit' => 'uang',
+            'arto' => 'uang',
+            'regane' => 'harganya',
+            'ragane' => 'harganya',
+            'larang' => 'mahal',
+            'murah' => 'murah',
+
+            // Demonstratives
+            'iki' => 'ini',
+            'iku' => 'itu',
+            'kae' => 'itu',
+            'kuwi' => 'itu',
+            'sing' => 'yang',
+            'sek' => 'yang',
+
+            // Negation
+            'ora' => 'tidak',
+            'gak' => 'tidak',
+
+            // Politeness markers
+            'monggo' => 'silakan',
+            'nggih' => 'ya',
+            'inggih' => 'ya',
+            'nuwun' => 'terima kasih',
+            'maturnuwun' => 'terima kasih',
+
+            // Vehicle terms
+            'montor' => 'motor',
+            'kendharaan' => 'kendaraan',
+
+            // Document terms
+            'surat' => 'surat',
+            'kertas' => 'dokumen'
+        ];
+
+        $translatedQuery = $query;
+        foreach ($translations as $javanese => $indonesian) {
+            $translatedQuery = preg_replace('/\b' . preg_quote($javanese, '/') . '\b/i', $indonesian, $translatedQuery);
+        }
+
+        // Clean up extra spaces
+        return preg_replace('/\s+/', ' ', trim($translatedQuery));
+    }
+
+    /**
      * Normalize OpenAI usage object/array to a common array shape.
      */
     private function normalizeUsage($usage): ?array
@@ -164,8 +475,21 @@ class OpenAIService
                 ];
             }
 
-            // OPTIMIZATION 2: Try fast keyword search FIRST (skip vector search for common queries)
-            $fastKbResult = $this->tryFastKnowledgeRetrieval($userMessage);
+            // ENHANCEMENT: Translate Javanese to Indonesian for better understanding
+            $translation = $this->translateJavaneseQuery($userMessage);
+            $searchQuery = $translation['translated'];
+            $isJavanese = $translation['is_javanese'];
+
+            if ($this->debug && $isJavanese) {
+                Log::info('Javanese query detected', [
+                    'original' => $translation['original'],
+                    'translated' => $translation['translated'],
+                    'detected' => $translation['detected_javanese']
+                ]);
+            }
+
+            // OPTIMIZATION 2: Try fast keyword search FIRST (using translated query)
+            $fastKbResult = $this->tryFastKnowledgeRetrieval($searchQuery, $isJavanese);
             if ($fastKbResult) {
                 $processingTime = (microtime(true) - $startTime) * 1000;
                 if ($this->debug) Log::info('Fast KB path used', ['time_ms' => $processingTime]);
@@ -177,11 +501,11 @@ class OpenAIService
             $knowledgeUsed = 0;
 
             try {
-                // Try vector search with timeout and simpler processing
+                // Try vector search with timeout and simpler processing (use translated query)
                 $embeddingService = app(EmbeddingService::class);
                 $pineconeService = app(PineconeService::class);
 
-                $queryEmbedding = $embeddingService->embed($userMessage);
+                $queryEmbedding = $embeddingService->embed($searchQuery);
                 if ($queryEmbedding) {
                     $similarKnowledge = $pineconeService->query(
                         vector: $queryEmbedding,
@@ -200,14 +524,14 @@ class OpenAIService
                 if ($this->debug) Log::info('Vector search failed, using keyword fallback', ['error' => $e->getMessage()]);
             }
 
-            // OPTIMIZATION 4: Fallback to faster keyword search
+            // OPTIMIZATION 4: Fallback to faster keyword search (use translated query)
             if (empty($kbContext)) {
-                $kbContext = $this->buildTraditionalKnowledgeContext($userMessage);
+                $kbContext = $this->buildTraditionalKnowledgeContext($searchQuery);
                 if ($this->debug) Log::info('Using keyword search fallback');
             }
 
-            // OPTIMIZATION 5: Generate response with optimized parameters
-            $response = $this->generateOptimizedResponse($userMessage, $kbContext, $context);
+            // OPTIMIZATION 5: Generate response with optimized parameters (include Javanese context)
+            $response = $this->generateOptimizedResponse($userMessage, $searchQuery, $kbContext, $context, $isJavanese);
 
             $processingTime = (microtime(true) - $startTime) * 1000;
             if ($this->debug) Log::info('AI chat completed', ['time_ms' => $processingTime, 'kb_used' => $knowledgeUsed]);
@@ -225,9 +549,9 @@ class OpenAIService
     }
 
     /**
-     * Try fast knowledge retrieval for common queries without vector search (IMPROVED)
+     * Try fast knowledge retrieval for common queries without vector search (IMPROVED WITH JAVANESE)
      */
-    private function tryFastKnowledgeRetrieval(string $userMessage): ?array
+    private function tryFastKnowledgeRetrieval(string $userMessage, bool $isJavanese = false): ?array
     {
         // OPTIMIZATION: Check cache first
         $cacheKey = md5(strtolower(trim($userMessage)));
@@ -238,13 +562,13 @@ class OpenAIService
 
         // IMPROVEMENT: More comprehensive pattern matching with Indonesian and Javanese terms
         $fastPatterns = [
-            'jadwal' => ['jadwal', 'jam', 'buka', 'tutup', 'waktu', 'schedule', 'kapan', 'pukul'],
-            'lokasi' => ['lokasi', 'alamat', 'dimana', 'tempat', 'kantor', 'nang', 'ing'],
-            'biaya' => ['biaya', 'tarif', 'bayar', 'harga', 'cost', 'piro', 'regane', 'pinten'],
-            'keliling' => ['keliling', 'samsat keliling', 'jadwal keliling', 'malam', 'ndalem'],
-            'stnk' => ['stnk', 'perpanjang stnk', 'renewal', 'extend', 'daftar ulang'],
-            'bpkb' => ['bpkb', 'balik nama', 'mutasi', 'ganti nama', 'tukar nama'],
-            'pajak' => ['pajak', 'rusak', 'hilang', 'ilang', 'teles', 'robek']
+            'jadwal' => ['jadwal', 'jam', 'buka', 'tutup', 'waktu', 'schedule', 'kapan', 'pukul', 'nalika'],
+            'lokasi' => ['lokasi', 'alamat', 'dimana', 'tempat', 'kantor', 'nang', 'ing', 'endi'],
+            'biaya' => ['biaya', 'tarif', 'bayar', 'harga', 'cost', 'piro', 'regane', 'pinten', 'duwit', 'arto'],
+            'keliling' => ['keliling', 'samsat keliling', 'jadwal keliling', 'malam', 'ndalem', 'bengi'],
+            'stnk' => ['stnk', 'perpanjang stnk', 'renewal', 'extend', 'daftar ulang', 'nggarti'],
+            'bpkb' => ['bpkb', 'balik nama', 'mutasi', 'ganti nama', 'tukar nama', 'ngganti'],
+            'pajak' => ['pajak', 'rusak', 'hilang', 'ilang', 'teles', 'robek', 'anyar', 'lawas']
         ];
 
         $lowerMessage = strtolower($userMessage);
@@ -293,8 +617,8 @@ class OpenAIService
                 }
 
                 if ($bestMatch) {
-                    // Build comprehensive response
-                    $response = $this->buildComprehensiveResponse($bestMatch, $userMessage);
+                    // Build comprehensive response with Javanese context
+                    $response = $this->buildComprehensiveResponse($bestMatch, $userMessage, $isJavanese);
                     if ($response) {
                         $result = [
                             'success' => true,
@@ -332,9 +656,9 @@ class OpenAIService
     }
 
     /**
-     * Build comprehensive response from single KB entry (IMPROVED)
+     * Build comprehensive response from single KB entry (IMPROVED WITH JAVANESE)
      */
-    private function buildComprehensiveResponse($knowledge, string $userMessage): ?string
+    private function buildComprehensiveResponse($knowledge, string $userMessage, bool $isJavanese = false): ?string
     {
         $content = $knowledge['content'] ?: $knowledge['answer'] ?: $knowledge['search_content'];
         if (empty($content)) return null;
@@ -384,13 +708,17 @@ class OpenAIService
             }
         }
 
-        // Add closing with contact info
-        $response .= "\n\n**Butuh bantuan lebih lanjut?**\n";
-        $response .= "Hubungi Samsat Lamongan langsung atau kunjungi kantor kami untuk informasi terkini.";
+        // Add Javanese-friendly closing if detected
+        if ($isJavanese) {
+            $response .= "\n\n**Butuh bantuan lebih lanjut?**\n";
+            $response .= "Monggo hubungi Samsat Lamongan langsung atau berkunjung ke kantor kami untuk informasi terkini.";
+        } else {
+            $response .= "\n\n**Butuh bantuan lebih lanjut?**\n";
+            $response .= "Hubungi Samsat Lamongan langsung atau kunjungi kantor kami untuk informasi terkini.";
+        }
 
         return $response;
     }
-
     /**
      * Build fast response from single KB entry (LEGACY - kept for compatibility)
      */
@@ -458,16 +786,24 @@ class OpenAIService
     }
 
     /**
-     * Generate optimized response with balanced speed and accuracy
+     * Generate optimized response with balanced speed and accuracy (ENHANCED FOR JAVANESE)
      */
-    private function generateOptimizedResponse(string $userMessage, string $kbContext, ?string $additionalContext = null): array
+    private function generateOptimizedResponse(string $userMessage, string $searchQuery, string $kbContext, ?string $additionalContext = null, bool $isJavanese = false): array
     {
-        $systemPrompt = $this->buildOptimizedSystemPrompt($kbContext, $additionalContext);
+        $systemPrompt = $this->buildOptimizedSystemPrompt($kbContext, $additionalContext, $isJavanese);
 
         $messages = [
             ['role' => 'system', 'content' => $systemPrompt],
             ['role' => 'user', 'content' => $userMessage]
         ];
+
+        // Add translation context if Javanese was detected
+        if ($isJavanese && $searchQuery !== $userMessage) {
+            $messages[] = [
+                'role' => 'system',
+                'content' => "Catatan: Pengguna bertanya dalam bahasa Jawa. Query diterjemahkan menjadi: \"$searchQuery\". Berikan respons dalam bahasa Indonesia yang ramah dan mudah dipahami."
+            ];
+        }
 
         // BALANCE: Allow longer responses when we have KB context for accuracy
         $maxTokens = !empty($kbContext) ? min($this->maxTokens, 800) : min($this->maxTokens, 500);
@@ -489,9 +825,9 @@ class OpenAIService
     }
 
     /**
-     * Build optimized system prompt (IMPROVED FOR ACCURACY)
+     * Build optimized system prompt (ENHANCED FOR JAVANESE SUPPORT)
      */
-    private function buildOptimizedSystemPrompt(string $kbContext, ?string $additionalContext = null): string
+    private function buildOptimizedSystemPrompt(string $kbContext, ?string $additionalContext = null, bool $isJavanese = false): string
     {
         $basePrompt = "Anda adalah SALMA AI - Asisten Customer Service profesional Samsat Lamongan.
 
@@ -501,15 +837,24 @@ GAYA KOMUNIKASI:
 - Bahasa Indonesia baku, ramah, dan profesional
 - Berikan informasi lengkap dan terstruktur
 - Jawaban 300-600 kata dengan format yang jelas
-- Gunakan **bold** untuk poin penting
+- Gunakan **bold** untuk poin penting";
 
-TUGAS UTAMA:
+        // Add Javanese understanding note if detected
+        if ($isJavanese) {
+            $basePrompt .= "\n- PENTING: Pengguna menggunakan bahasa Jawa. Respon dengan bahasa Indonesia yang ramah dan mudah dipahami untuk penutur Jawa";
+        }
+
+        $basePrompt .= "\n\nTUGAS UTAMA:
 - Bantu dengan info pajak kendaraan, STNK, BPKB, jadwal, lokasi, biaya
 - Berikan prosedur lengkap dengan syarat-syarat
 - Jelaskan tarif dan komponen biaya yang berlaku
-- Informasi jadwal dan lokasi samsat keliling
+- Informasi jadwal dan lokasi samsat keliling";
 
-FORMAT RESPONS:
+        if ($isJavanese) {
+            $basePrompt .= "\n- Pahami istilah Jawa seperti: opo (apa), piro (berapa), nek (kalau), carone (caranya), dll";
+        }
+
+        $basePrompt .= "\n\nFORMAT RESPONS:
 - Mulai dengan informasi utama yang diminta
 - Sertakan langkah-langkah atau prosedur jika relevan
 - Daftar syarat-syarat atau dokumen yang diperlukan
@@ -685,8 +1030,8 @@ WAJIB:
      */
     private function generateContextualResponse(string $userMessage, string $kbContext, ?string $additionalContext = null): array
     {
-        // Delegate to optimized version
-        return $this->generateOptimizedResponse($userMessage, $kbContext, $additionalContext);
+        // Delegate to optimized version with default parameters for compatibility
+        return $this->generateOptimizedResponse($userMessage, $userMessage, $kbContext, $additionalContext, false);
     }
 
     /**

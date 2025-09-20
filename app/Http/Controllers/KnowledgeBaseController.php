@@ -672,4 +672,87 @@ class KnowledgeBaseController extends Controller
             ->route('knowledge-base.show', $firstEntry)
             ->with('success', "Large document successfully processed and split into {$totalChunks} manageable chunks for optimal search performance.");
     }
+
+    /**
+     * Sync Knowledge Base with Pinecone vector database
+     */
+    public function syncPinecone(Request $request)
+    {
+        try {
+            $dryRun = $request->boolean('dry_run', false);
+
+            // Run the sync command programmatically
+            $exitCode = \Artisan::call('kb:sync-pinecone', [
+                '--dry-run' => $dryRun
+            ]);
+
+            $output = \Artisan::output();
+
+            // Parse the output to extract statistics
+            $stats = $this->parseSyncOutput($output);
+
+            return response()->json([
+                'success' => $exitCode === 0,
+                'message' => $exitCode === 0 ? 'Sync completed successfully' : 'Sync completed with errors',
+                'stats' => $stats,
+                'output' => $output,
+                'dry_run' => $dryRun
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Pinecone sync API error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Sync failed: ' . $e->getMessage(),
+                'stats' => null
+            ], 500);
+        }
+    }
+
+    /**
+     * Parse sync command output to extract statistics
+     */
+    private function parseSyncOutput(string $output): array
+    {
+        $stats = [
+            'db_entries' => 0,
+            'pinecone_vectors' => 0,
+            'orphaned' => 0,
+            'missing' => 0,
+            'removed' => 0,
+            'added' => 0,
+            'errors' => 0
+        ];
+
+        // Extract numbers from output using regex
+        if (preg_match('/Found (\d+) active KB entries/', $output, $matches)) {
+            $stats['db_entries'] = (int)$matches[1];
+        }
+
+        if (preg_match('/Found (\d+) vectors in Pinecone/', $output, $matches)) {
+            $stats['pinecone_vectors'] = (int)$matches[1];
+        }
+
+        if (preg_match('/Orphaned vectors.*?: (\d+)/', $output, $matches)) {
+            $stats['orphaned'] = (int)$matches[1];
+        }
+
+        if (preg_match('/Missing vectors.*?: (\d+)/', $output, $matches)) {
+            $stats['missing'] = (int)$matches[1];
+        }
+
+        if (preg_match('/Removed: (\d+) orphaned/', $output, $matches)) {
+            $stats['removed'] = (int)$matches[1];
+        }
+
+        if (preg_match('/Added: (\d+) missing/', $output, $matches)) {
+            $stats['added'] = (int)$matches[1];
+        }
+
+        if (preg_match('/Errors: (\d+)/', $output, $matches)) {
+            $stats['errors'] = (int)$matches[1];
+        }
+
+        return $stats;
+    }
 }

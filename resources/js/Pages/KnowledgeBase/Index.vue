@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { router } from '@inertiajs/vue3';
+import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
 const props = defineProps({
@@ -21,6 +22,10 @@ const selectedItems = ref([]);
 const bulkAction = ref('');
 const confirmDelete = ref(false);
 const itemToDelete = ref(null);
+const syncDialog = ref(false);
+const syncProgress = ref(false);
+const syncResults = ref(null);
+const syncDryRun = ref(true);
 
 const headers = [
   { title: 'Title', key: 'title', sortable: true },
@@ -147,6 +152,43 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
   month: 'short',
   day: 'numeric',
 });
+
+const openSyncDialog = () => {
+  syncDialog.value = true;
+  syncResults.value = null;
+  syncDryRun.value = true;
+};
+
+const syncPinecone = async () => {
+  try {
+    syncProgress.value = true;
+
+    const response = await axios.post(route('knowledge-base.sync-pinecone'), {
+      dry_run: syncDryRun.value,
+    });
+
+    syncResults.value = response.data;
+
+    if (!syncDryRun.value) {
+      // If it was a real sync, refresh the page data
+      router.reload({ only: ['knowledgeBases'] });
+    }
+  } catch (error) {
+    console.error('Sync error:', error);
+    syncResults.value = {
+      success: false,
+      message: error.response?.data?.message || 'Sync failed',
+      stats: null,
+    };
+  } finally {
+    syncProgress.value = false;
+  }
+};
+
+const closeSyncDialog = () => {
+  syncDialog.value = false;
+  syncResults.value = null;
+};
 </script>
 
 <template>
@@ -168,6 +210,15 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   </p>
                 </VCol>
                 <VCol cols="12" md="6" class="text-right">
+                  <VBtn
+                    color="info"
+                    size="large"
+                    @click="openSyncDialog"
+                    prepend-icon="mdi-sync"
+                    class="mr-3"
+                  >
+                    Sync Pinecone
+                  </VBtn>
                   <VBtn
                     color="primary"
                     size="large"
@@ -506,6 +557,186 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
           </VCard>
         </VCol>
       </VRow>
+
+      <!-- Sync Pinecone Dialog -->
+      <VDialog v-model="syncDialog" max-width="800" persistent>
+        <VCard>
+          <VCardTitle class="d-flex align-center">
+            <VIcon color="info" class="mr-2">mdi-sync</VIcon>
+            Sync Pinecone Vector Database
+          </VCardTitle>
+
+          <VCardText>
+            <div v-if="!syncResults">
+              <p class="mb-4">
+                This will synchronize your Knowledge Base with the Pinecone
+                vector database:
+              </p>
+              <VList density="compact">
+                <VListItem>
+                  <VListItemTitle
+                    >• Remove orphaned vectors (exist in Pinecone but not in
+                    database)</VListItemTitle
+                  >
+                </VListItem>
+                <VListItem>
+                  <VListItemTitle
+                    >• Add missing vectors (exist in database but not in
+                    Pinecone)</VListItemTitle
+                  >
+                </VListItem>
+                <VListItem>
+                  <VListItemTitle
+                    >• Ensure data consistency between systems</VListItemTitle
+                  >
+                </VListItem>
+              </VList>
+
+              <VCheckbox
+                v-model="syncDryRun"
+                label="Dry run (analyze only, don't make changes)"
+                color="primary"
+                class="mt-4"
+              ></VCheckbox>
+            </div>
+
+            <!-- Sync Results -->
+            <div v-if="syncResults">
+              <VAlert
+                :type="syncResults.success ? 'success' : 'error'"
+                class="mb-4"
+                prominent
+              >
+                <VAlertTitle>{{ syncResults.message }}</VAlertTitle>
+              </VAlert>
+
+              <div v-if="syncResults.stats">
+                <h4 class="text-h6 mb-3">Sync Statistics:</h4>
+                <VRow>
+                  <VCol cols="6" md="3">
+                    <VCard variant="outlined" class="text-center pa-3">
+                      <div class="text-h4 text-primary">
+                        {{ syncResults.stats.db_entries }}
+                      </div>
+                      <div class="text-caption">DB Entries</div>
+                    </VCard>
+                  </VCol>
+                  <VCol cols="6" md="3">
+                    <VCard variant="outlined" class="text-center pa-3">
+                      <div class="text-h4 text-info">
+                        {{ syncResults.stats.pinecone_vectors }}
+                      </div>
+                      <div class="text-caption">Pinecone Vectors</div>
+                    </VCard>
+                  </VCol>
+                  <VCol cols="6" md="3">
+                    <VCard variant="outlined" class="text-center pa-3">
+                      <div class="text-h4 text-warning">
+                        {{ syncResults.stats.orphaned }}
+                      </div>
+                      <div class="text-caption">Orphaned</div>
+                    </VCard>
+                  </VCol>
+                  <VCol cols="6" md="3">
+                    <VCard variant="outlined" class="text-center pa-3">
+                      <div class="text-h4 text-error">
+                        {{ syncResults.stats.missing }}
+                      </div>
+                      <div class="text-caption">Missing</div>
+                    </VCard>
+                  </VCol>
+                </VRow>
+
+                <div
+                  v-if="
+                    !syncResults.dry_run &&
+                    (syncResults.stats.removed > 0 ||
+                      syncResults.stats.added > 0)
+                  "
+                  class="mt-4"
+                >
+                  <h4 class="text-h6 mb-3">Actions Performed:</h4>
+                  <VRow>
+                    <VCol cols="6">
+                      <VCard variant="outlined" class="text-center pa-3">
+                        <div class="text-h4 text-success">
+                          {{ syncResults.stats.removed }}
+                        </div>
+                        <div class="text-caption">Removed</div>
+                      </VCard>
+                    </VCol>
+                    <VCol cols="6">
+                      <VCard variant="outlined" class="text-center pa-3">
+                        <div class="text-h4 text-success">
+                          {{ syncResults.stats.added }}
+                        </div>
+                        <div class="text-caption">Added</div>
+                      </VCard>
+                    </VCol>
+                  </VRow>
+                </div>
+
+                <div v-if="syncResults.stats.errors > 0" class="mt-4">
+                  <VAlert type="error">
+                    {{ syncResults.stats.errors }} errors occurred during sync
+                  </VAlert>
+                </div>
+              </div>
+
+              <div
+                v-if="
+                  syncResults.dry_run &&
+                  syncResults.stats &&
+                  (syncResults.stats.orphaned > 0 ||
+                    syncResults.stats.missing > 0)
+                "
+                class="mt-4"
+              >
+                <VAlert type="info">
+                  <VAlertTitle>Ready to Sync</VAlertTitle>
+                  Uncheck "Dry run" and click "Sync Now" to perform the actual
+                  synchronization.
+                </VAlert>
+              </div>
+            </div>
+          </VCardText>
+
+          <VCardActions>
+            <VSpacer></VSpacer>
+            <VBtn @click="closeSyncDialog" :disabled="syncProgress">
+              {{ syncResults ? 'Close' : 'Cancel' }}
+            </VBtn>
+            <VBtn
+              v-if="!syncResults"
+              color="info"
+              @click="syncPinecone"
+              :loading="syncProgress"
+              :disabled="syncProgress"
+            >
+              {{ syncDryRun ? 'Analyze' : 'Sync Now' }}
+            </VBtn>
+            <VBtn
+              v-if="
+                syncResults &&
+                syncResults.dry_run &&
+                syncResults.stats &&
+                (syncResults.stats.orphaned > 0 ||
+                  syncResults.stats.missing > 0)
+              "
+              color="primary"
+              @click="
+                syncDryRun = false;
+                syncResults = null;
+                syncPinecone();
+              "
+              :loading="syncProgress"
+              :disabled="syncProgress"
+            >
+              Perform Sync
+            </VBtn>
+          </VCardActions>
+        </VCard>
+      </VDialog>
 
       <!-- Delete Confirmation Dialog -->
       <VDialog v-model="confirmDelete" max-width="400">

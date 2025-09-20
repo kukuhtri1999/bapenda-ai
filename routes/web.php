@@ -44,6 +44,7 @@ Route::middleware([
     Route::post('/knowledge-base/{knowledgeBase}/toggle-status', [KnowledgeBaseController::class, 'index'])->name('knowledge-base.index');
     Route::post('/knowledge-base/{knowledgeBase}/toggle-status', [KnowledgeBaseController::class, 'toggleStatus'])->name('knowledge-base.toggle-status');
     Route::post('/knowledge-base/bulk-action', [KnowledgeBaseController::class, 'bulkAction'])->name('knowledge-base.bulk-action');
+    Route::post('/knowledge-base/sync-pinecone', [KnowledgeBaseController::class, 'syncPinecone'])->name('knowledge-base.sync-pinecone');
     Route::get('/knowledge-base/{knowledgeBase}/download', [KnowledgeBaseController::class, 'downloadFile'])->name('knowledge-base.download');
 
     // App Settings Routes
