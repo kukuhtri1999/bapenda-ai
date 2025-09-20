@@ -434,12 +434,14 @@ PEDOMAN MENJAWAB:
 - Selalu akhiri dengan penawaran bantuan lebih lanjut
 
 FORMAT RICH CONTENT:
+- PENTING: Jika ada gambar dalam referensi, SELALU sertakan menggunakan format markdown: ![Deskripsi Gambar](URL_gambar)
 - Jika referensi mengandung link, sertakan dalam format: [Text Link](URL)
-- Jika referensi menyebutkan gambar, referensikan dengan: \"Lihat gambar [nama/deskripsi]\"
 - Gunakan struktur heading (##, ###) untuk mengorganisir informasi
 - Gunakan daftar berurut (1., 2., 3.) untuk langkah-langkah prosedur
 - Gunakan daftar tidak berurut (-) untuk syarat atau poin-poin
-- Pertahankan formatting asli dari Knowledge Base jika membantu pemahaman
+- Gunakan **bold** untuk menekankan poin penting
+- Pertahankan dan konversi semua gambar/link dari Knowledge Base ke markdown
+- Jika ada gambar tutorial atau infografis, pastikan menyertakannya dalam respons
 
 LARANGAN:
 - Jangan memberikan informasi yang tidak akurat atau spekulatif

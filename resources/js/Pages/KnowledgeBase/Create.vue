@@ -1,7 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useForm } from '@inertiajs/vue3';
+import {
+  ref, computed, onMounted, reactive,
+} from 'vue';
+import { router } from '@inertiajs/vue3';
 import { QuillEditor } from '@vueup/vue-quill';
+import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 
@@ -11,7 +14,7 @@ const props = defineProps({
   statuses: Object,
 });
 
-const form = useForm({
+const form = reactive({
   title: '',
   content: '',
   category: 'pajak',
@@ -22,6 +25,12 @@ const form = useForm({
   tags: '',
   file: null,
   is_active: true,
+});
+
+const formState = reactive({
+  processing: false,
+  errors: {},
+  success: false,
 });
 
 const isClient = ref(false);
@@ -126,24 +135,81 @@ const parseTags = (value) => {
     .filter(Boolean);
 };
 
-const submit = () => {
+const submit = async () => {
+  formState.processing = true;
+  formState.errors = {};
+
   const needsFormData = form.source_type === 'file' && !!form.file;
-  form
-    .transform((data) => ({
-      ...data,
-      tags: parseTags(data.tags),
-    }))
-    .post(route('knowledge-base.store'), {
-      preserveScroll: true,
+
+  try {
+    // Prepare form data
+    const formData = new FormData();
+
+    // Add all form fields
+    formData.append('title', form.title);
+    formData.append('content', form.content);
+    formData.append('category', form.category);
+    formData.append('type', form.type);
+    formData.append('status', form.status);
+    formData.append('source_type', form.source_type);
+    formData.append('priority', form.priority);
+    formData.append('is_active', form.is_active ? '1' : '0');
+
+    // Handle tags
+    const tags = parseTags(form.tags);
+    tags.forEach((tag, index) => {
+      formData.append(`tags[${index}]`, tag);
+    });
+
+    // Add file if present
+    if (form.file) {
+      formData.append('file', form.file);
+    }
+
+    // Get CSRF token
+    const csrfToken = document.head.querySelector(
+      'meta[name="csrf-token"]',
+    )?.content;
+
+    const response = await axios.post('/knowledge-base', formData, {
       headers: {
-        'X-CSRF-TOKEN': document.head.querySelector('meta[name="csrf-token"]')
-          .content,
-      },
-      forceFormData: needsFormData,
-      onSuccess: () => {
-        // Form will redirect on success
+        'Content-Type': 'multipart/form-data',
+        'X-CSRF-TOKEN': csrfToken,
+        Accept: 'application/json',
       },
     });
+
+    if (response.data.success) {
+      formState.success = true;
+      // Redirect to the created entry or index
+      if (response.data.redirect) {
+        window.location.href = response.data.redirect;
+      } else {
+        router.visit('/knowledge-base');
+      }
+    }
+  } catch (error) {
+    console.error('Form submission error:', error);
+
+    if (error.response) {
+      if (error.response.status === 422) {
+        // Validation errors
+        formState.errors = error.response.data.errors || {};
+      } else if (error.response.status === 419) {
+        // CSRF token expired
+        console.log('CSRF token expired, refreshing page...');
+        window.location.reload();
+      } else {
+        formState.errors = {
+          general: ['An error occurred while saving the data.'],
+        };
+      }
+    } else {
+      formState.errors = { general: ['Network error occurred.'] };
+    }
+  } finally {
+    formState.processing = false;
+  }
 };
 
 const cancel = () => {
@@ -156,7 +222,7 @@ const cancel = () => {
     <div class="pa-0 relative">
       <Transition name="fade">
         <div
-          v-if="form.processing"
+          v-if="formState.processing"
           class="absolute inset-0 bg-white/60 backdrop-blur-sm z-20 flex items-center justify-center"
         >
           <div class="flex flex-col items-center gap-3">
@@ -237,7 +303,7 @@ const cancel = () => {
                     <VRadioGroup
                       v-model="form.source_type"
                       inline
-                      :error-messages="form.errors.source_type"
+                      :error-messages="formState.errors.source_type"
                     >
                       <template #label>
                         <span class="text-subtitle-1 font-weight-medium"
@@ -314,8 +380,12 @@ const cancel = () => {
                       </div>
                     </VCardText>
                   </VCard>
-                  <VAlert v-if="form.errors.file" type="error" class="mt-3">
-                    {{ form.errors.file }}
+                  <VAlert
+                    v-if="formState.errors.file"
+                    type="error"
+                    class="mt-3"
+                  >
+                    {{ formState.errors.file }}
                   </VAlert>
                 </div>
 
@@ -324,7 +394,7 @@ const cancel = () => {
                   v-model="form.title"
                   label="Title *"
                   variant="outlined"
-                  :error-messages="form.errors.title"
+                  :error-messages="formState.errors.title"
                   class="mb-4"
                   prepend-inner-icon="mdi-format-title"
                 ></VTextField>
@@ -344,10 +414,10 @@ const cancel = () => {
                     "
                   />
                   <div
-                    v-if="form.errors.content"
+                    v-if="formState.errors.content"
                     class="text-error text-caption mt-2"
                   >
-                    {{ form.errors.content }}
+                    {{ formState.errors.content }}
                   </div>
                 </div>
               </VCardText>
@@ -367,7 +437,7 @@ const cancel = () => {
                       :items="priorityItems"
                       label="Priority"
                       variant="outlined"
-                      :error-messages="form.errors.priority"
+                      :error-messages="formState.errors.priority"
                     ></VSelect>
                   </VCol>
                   <VCol cols="12" md="6">
@@ -375,7 +445,7 @@ const cancel = () => {
                       v-model="form.tags"
                       label="Tags"
                       variant="outlined"
-                      :error-messages="form.errors.tags"
+                      :error-messages="formState.errors.tags"
                       hint="Separate tags with commas"
                       persistent-hint
                       prepend-inner-icon="mdi-tag-multiple"
@@ -400,7 +470,7 @@ const cancel = () => {
                   :items="statusItems"
                   label="Status"
                   variant="outlined"
-                  :error-messages="form.errors.status"
+                  :error-messages="formState.errors.status"
                   class="mb-4"
                 ></VSelect>
 
@@ -408,7 +478,7 @@ const cancel = () => {
                   v-model="form.is_active"
                   label="Active"
                   color="success"
-                  :error-messages="form.errors.is_active"
+                  :error-messages="formState.errors.is_active"
                   hide-details
                 ></VSwitch>
               </VCardText>
@@ -426,7 +496,7 @@ const cancel = () => {
                   :items="categoryItems"
                   label="Category"
                   variant="outlined"
-                  :error-messages="form.errors.category"
+                  :error-messages="formState.errors.category"
                   class="mb-4"
                 ></VSelect>
 
@@ -435,7 +505,7 @@ const cancel = () => {
                   :items="typeItems"
                   label="Type"
                   variant="outlined"
-                  :error-messages="form.errors.type"
+                  :error-messages="formState.errors.type"
                 ></VSelect>
               </VCardText>
             </VCard>
@@ -463,7 +533,7 @@ const cancel = () => {
                 <VBtn
                   color="primary"
                   @click="submit"
-                  :loading="form.processing"
+                  :loading="formState.processing"
                   :disabled="
                     !form.title ||
                     (form.source_type === 'manual' && !form.content)

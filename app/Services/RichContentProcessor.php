@@ -164,10 +164,11 @@ class RichContentProcessor
     public function formatForAIResponse(array $richContentData): string
     {
         if (!$richContentData['has_rich_content']) {
-            return $richContentData['text'];
+            // Even for plain text, improve formatting
+            return $this->improveTextFormatting($richContentData['text']);
         }
 
-        $formatted = $richContentData['text'];
+        $formatted = $this->improveTextFormatting($richContentData['text']);
 
         // Add instructions for rich content elements
         $richInstructions = [];
@@ -175,32 +176,57 @@ class RichContentProcessor
         foreach ($richContentData['elements'] as $element) {
             switch ($element['type']) {
                 case 'link':
-                    $richInstructions[] = "Link: " . $element['text'] . " - " . $element['url'];
-                    break;
-
-                case 'image':
-                    $richInstructions[] = "Gambar: " . $element['alt'] . " (" . $element['src'] . ")";
-                    if (!empty($element['caption'])) {
-                        $richInstructions[] = "Keterangan: " . $element['caption'];
-                    }
+                    $richInstructions[] = "Link tersedia: [" . $element['text'] . "](" . $element['url'] . ")";
                     break;
 
                 case 'header':
-                    $richInstructions[] = "Judul (Level " . $element['level'] . "): " . $element['text'];
+                    $richInstructions[] = "Heading tersedia (Level " . $element['level'] . "): " . $element['text'];
                     break;
 
                 case 'list':
-                    $listType = $element['ordered'] ? 'Daftar Berurut' : 'Daftar';
-                    $richInstructions[] = $listType . ": " . implode(', ', $element['items']);
+                    $listType = $element['ordered'] ? 'Daftar berurut' : 'Daftar poin';
+                    $richInstructions[] = $listType . " tersedia: " . implode(', ', array_slice($element['items'], 0, 3)) . (count($element['items']) > 3 ? '...' : '');
                     break;
             }
         }
 
         if (!empty($richInstructions)) {
-            $formatted .= "\n\nElemen Tambahan:\n" . implode("\n", $richInstructions);
+            $formatted .= "\n\nElemen Rich Content yang Tersedia:\n" . implode("\n", $richInstructions);
         }
 
         return $formatted;
+    }
+
+    /**
+     * Improve text formatting for better readability
+     */
+    private function improveTextFormatting(string $text): string
+    {
+        // Fix missing spaces between words that got concatenated
+        $text = preg_replace('/([a-z])([A-Z])/', '$1 $2', $text); // CamelCase
+        $text = preg_replace('/([A-Za-z])(\d)/', '$1 $2', $text); // Letter + Number
+        $text = preg_replace('/(\d)([A-Za-z])/', '$1 $2', $text); // Number + Letter
+
+        // Fix common spacing issues
+        $text = preg_replace('/([.!?:;,])([A-Za-z])/', '$1 $2', $text); // Punctuation + Letter
+        $text = preg_replace('/([A-Za-z])\(/', '$1 (', $text); // Letter + (
+        $text = preg_replace('/\)([A-Za-z])/', ') $1', $text); // ) + Letter
+
+        // Fix spacing around quotes
+        $text = preg_replace('/([A-Za-z])"/', '$1 "', $text);
+        $text = preg_replace('"([A-Za-z])', '" $1', $text);
+
+        // Ensure proper paragraph breaks
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        // Clean up multiple spaces
+        $text = preg_replace('/\s{2,}/', ' ', $text);
+
+        // Fix line breaks
+        $text = preg_replace('/\n\s+/', "\n", $text);
+        $text = preg_replace('/\s+\n/', "\n", $text);
+
+        return trim($text);
     }
 
     /**
@@ -221,7 +247,7 @@ class RichContentProcessor
                     break;
 
                 case 'image':
-                    $instructions[] = "Referensikan gambar: " . $element['alt'];
+                    $instructions[] = "WAJIB sertakan gambar: ![" . $element['alt'] . "](" . $element['src'] . ")";
                     break;
 
                 case 'header':
@@ -237,7 +263,7 @@ class RichContentProcessor
 
         if (!empty($instructions)) {
             return "\n\nPETUNJUK FORMAT JAWABAN:\n" . implode("\n", $instructions) .
-                "\nJawaban harus menyertakan semua elemen di atas dengan format yang sesuai.";
+                "\nJawaban harus menyertakan semua elemen di atas dengan format markdown yang tepat.";
         }
 
         return '';
@@ -255,8 +281,8 @@ class RichContentProcessor
         // Strip remaining HTML tags
         $text = strip_tags($html);
 
-        // Normalize whitespace
-        $text = preg_replace('/\s+/', ' ', $text);
+        // Improve the extracted text formatting
+        $text = $this->improveTextFormatting($text);
 
         return trim($text);
     }
@@ -303,64 +329,100 @@ class RichContentProcessor
         // First handle image references and convert to actual images with lightbox support
         $html = preg_replace_callback('/!\[([^\]]*)\]\(([^)]+)\)/', function ($matches) {
             $alt = $matches[1] ?: 'Gambar';
-            $src = $matches[2];
+            $src = trim($matches[2]);
 
-            // Check if it's a storage path and convert to full URL
-            if (strpos($src, '/storage/') === 0) {
-                $src = url($src);
+            // Handle different URL formats
+            if (strpos($src, 'http') === 0) {
+                // Already a full URL (like stored images from Quill)
+                $fullUrl = $src;
+            } elseif (strpos($src, '/storage/') === 0) {
+                // Relative storage path
+                $fullUrl = url($src);
+            } else {
+                // Assume it's a storage path without leading slash
+                $fullUrl = url('/storage/' . ltrim($src, '/'));
             }
 
-            return '<div class="my-4">
-                <a href="' . $src . '" class="kb-lightbox inline-block">
-                    <img src="' . $src . '" alt="' . $alt . '" class="max-w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer" loading="lazy" />
+            return '<div class="my-4 text-center">
+                <a href="' . $fullUrl . '" class="kb-lightbox inline-block">
+                    <img src="' . $fullUrl . '" alt="' . htmlspecialchars($alt) . '" class="max-w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer border" loading="lazy" style="max-height: 400px;" />
                 </a>
-                <p class="text-sm text-gray-600 mt-2 italic">' . $alt . '</p>
+                ' . (!empty($alt) ? '<p class="text-sm text-gray-600 mt-2 italic">' . htmlspecialchars($alt) . '</p>' : '') . '
             </div>';
         }, $html);
 
         // Convert links [text](url) to clickable links
-        $html = preg_replace('/\[([^\]]+)\]\(([^)]+)\)/', '<a href="$2" target="_blank" class="text-blue-600 hover:text-blue-800 underline">$1</a>', $html);
+        $html = preg_replace('/\[([^\]]+)\]\(([^)]+)\)/', '<a href="$2" target="_blank" class="text-blue-600 hover:text-blue-800 underline font-medium">$1</a>', $html);
 
         // Convert bold text
-        $html = preg_replace('/\*\*(.*?)\*\*/', '<strong class="font-semibold">$1</strong>', $html);
+        $html = preg_replace('/\*\*(.*?)\*\*/', '<strong class="font-semibold text-gray-900">$1</strong>', $html);
 
         // Convert headers first (from most specific to least specific)
-        $html = preg_replace('/^### (.+)$/m', '<h3 class="text-lg font-semibold text-gray-800 mt-4 mb-2">$1</h3>', $html);
-        $html = preg_replace('/^## (.+)$/m', '<h2 class="text-xl font-bold text-gray-900 mt-6 mb-3">$1</h2>', $html);
-        $html = preg_replace('/^# (.+)$/m', '<h1 class="text-2xl font-bold text-gray-900 mt-6 mb-4">$1</h1>', $html);
+        $html = preg_replace('/^### (.+)$/m', '<h3 class="text-lg font-semibold text-gray-800 mt-6 mb-3 border-l-4 border-blue-500 pl-3">$1</h3>', $html);
+        $html = preg_replace('/^## (.+)$/m', '<h2 class="text-xl font-bold text-gray-900 mt-8 mb-4 border-l-4 border-purple-500 pl-3">$1</h2>', $html);
+        $html = preg_replace('/^# (.+)$/m', '<h1 class="text-2xl font-bold text-gray-900 mt-8 mb-5 border-l-4 border-pink-500 pl-3">$1</h1>', $html);
 
-        // Convert numbered lists (handle complete list blocks)
-        $html = preg_replace_callback('/(?:^[ ]*\d+\.[ ]+.+(?:\n|$))+/m', function ($matches) {
-            $listBlock = $matches[0];
-            $lines = explode("\n", trim($listBlock));
+        // Convert numbered lists with improved regex - handle various numbering formats
+        $html = preg_replace_callback('/(?:^[ ]*\d+[\.\):][ ]+.+(?:\n|$))+/m', function ($matches) {
+            $listBlock = trim($matches[0]);
+            $lines = explode("\n", $listBlock);
 
-            $html = '<ol class="list-decimal ml-6 my-3 space-y-1">';
+            $html = '<ol class="list-decimal list-inside ml-4 my-4 space-y-2 bg-gray-50 p-4 rounded-lg border-l-4 border-blue-300">';
             foreach ($lines as $line) {
                 $line = trim($line);
-                if (preg_match('/^\d+\.[ ]+(.+)$/', $line, $match)) {
+                // More flexible pattern for numbered items
+                if (preg_match('/^\d+[\.\):][ ]+(.+)$/', $line, $match)) {
                     $itemText = trim($match[1]);
-                    $html .= '<li class="text-gray-700">' . $itemText . '</li>';
+                    $html .= '<li class="text-gray-700 leading-relaxed pl-2">' . $itemText . '</li>';
                 }
             }
             $html .= '</ol>';
             return $html;
         }, $html);
 
-        // Convert bullet lists (handle complete list blocks)
-        $html = preg_replace_callback('/(?:^[ ]*[-*•][ ]+.+(?:\n|$))+/m', function ($matches) {
-            $listBlock = $matches[0];
-            $lines = explode("\n", trim($listBlock));
+        // Also handle simple numbered lists that might be missed
+        $html = preg_replace_callback('/(?:^\d+[\.\):][ ]+.+$)/m', function ($matches) {
+            $line = trim($matches[0]);
+            if (preg_match('/^\d+[\.\):][ ]+(.+)$/', $line, $match)) {
+                $itemText = trim($match[1]);
+                return '<div class="ml-4 my-2 p-2 bg-blue-50 rounded border-l-2 border-blue-400">
+                    <span class="text-blue-600 font-medium">•</span>
+                    <span class="text-gray-700">' . $itemText . '</span>
+                </div>';
+            }
+            return $matches[0];
+        }, $html);
 
-            $html = '<ul class="list-disc ml-6 my-3 space-y-1">';
+        // Convert bullet lists with improved styling and more flexible patterns
+        $html = preg_replace_callback('/(?:^[ ]*[-*•][ ]+.+(?:\n|$))+/m', function ($matches) {
+            $listBlock = trim($matches[0]);
+            $lines = explode("\n", $listBlock);
+
+            $html = '<ul class="list-none ml-4 my-4 space-y-2 bg-gray-50 p-4 rounded-lg border-l-4 border-green-300">';
             foreach ($lines as $line) {
                 $line = trim($line);
                 if (preg_match('/^[-*•][ ]+(.+)$/', $line, $match)) {
                     $itemText = trim($match[1]);
-                    $html .= '<li class="text-gray-700">' . $itemText . '</li>';
+                    $html .= '<li class="text-gray-700 leading-relaxed pl-2">
+                        <span class="text-green-600 font-medium mr-2">•</span>' . $itemText . '
+                    </li>';
                 }
             }
             $html .= '</ul>';
             return $html;
+        }, $html);
+
+        // Also handle simple bullet lists that might be missed
+        $html = preg_replace_callback('/(?:^[-*•][ ]+.+$)/m', function ($matches) {
+            $line = trim($matches[0]);
+            if (preg_match('/^[-*•][ ]+(.+)$/', $line, $match)) {
+                $itemText = trim($match[1]);
+                return '<div class="ml-4 my-2 p-2 bg-green-50 rounded border-l-2 border-green-400">
+                    <span class="text-green-600 font-medium">•</span>
+                    <span class="text-gray-700">' . $itemText . '</span>
+                </div>';
+            }
+            return $matches[0];
         }, $html);
 
         // Split content into paragraphs and process
@@ -372,16 +434,16 @@ class RichContentProcessor
             if (empty($paragraph)) continue;
 
             // Skip if already HTML block elements
-            if (preg_match('/^<(h[1-6]|ol|ul|div)[\s>]/', $paragraph)) {
+            if (preg_match('/^<(h[1-6]|ol|ul|div|p)[\s>]/', $paragraph)) {
                 $processedParagraphs[] = $paragraph;
             } else {
                 // Convert single newlines to <br> and wrap in paragraph
-                $paragraph = preg_replace('/\n/', '<br>', $paragraph);
-                $processedParagraphs[] = '<p class="mb-3">' . $paragraph . '</p>';
+                $paragraph = preg_replace('/(?<!\>)\n(?!\<)/', '<br>', $paragraph);
+                $processedParagraphs[] = '<p class="mb-4 text-gray-700 leading-relaxed">' . $paragraph . '</p>';
             }
         }
 
-        $html = implode("\n", $processedParagraphs);
+        $html = implode("\n\n", $processedParagraphs);
 
         return $html;
     }

@@ -108,9 +108,6 @@ class EmbeddingService
      */
     private function cleanText(string $text): string
     {
-        // Remove HTML tags but preserve URLs in href attributes
-        $text = strip_tags($text);
-
         // Find and temporarily replace URLs to preserve special characters
         $urlPattern = '/(https?:\/\/[^\s]+)/i';
         $urls = [];
@@ -120,14 +117,35 @@ class EmbeddingService
             return $placeholder;
         }, $text);
 
-        // Preserve proper spacing - only normalize excessive whitespace but keep paragraph breaks
-        $text = preg_replace('/[ \t]+/', ' ', $text); // Multiple spaces/tabs to single space
-        $text = preg_replace('/\n{3,}/', "\n\n", $text); // Multiple newlines to double newline max
-        $text = preg_replace('/(\r\n|\r)/', "\n", $text); // Normalize line endings
+        // Remove HTML tags but preserve structure
+        $text = strip_tags($text);
 
-        // Remove unwanted special characters but preserve basic punctuation and URL characters
-        // Keep: letters, numbers, basic punctuation, spaces, newlines, and URL special chars
-        $text = preg_replace('/[^\p{L}\p{N}.,;:!?()\[\]{}"\'\/\\\s\-_@#$%&*+=|~`<>=\n]/u', '', $text);
+        // Convert HTML entities
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        // Normalize line endings
+        $text = preg_replace('/(\r\n|\r)/', "\n", $text);
+
+        // Fix spacing issues while preserving word boundaries
+        $text = preg_replace('/\s{2,}/', ' ', $text); // Multiple spaces to single space
+        $text = preg_replace('/\n{3,}/', "\n\n", $text); // Multiple newlines to max 2
+
+        // Fix missing spaces after punctuation
+        $text = preg_replace('/([.!?:;,])([A-Za-z])/', '$1 $2', $text);
+
+        // Fix missing spaces around parentheses
+        $text = preg_replace('/([A-Za-z])\(/', '$1 (', $text);
+        $text = preg_replace('/\)([A-Za-z])/', ') $1', $text);
+
+        // Fix missing spaces in common patterns
+        $text = preg_replace('/([a-z])([A-Z])/', '$1 $2', $text); // CamelCase
+        $text = preg_replace('/(\d)([A-Za-z])/', '$1 $2', $text); // Number + Letter
+        $text = preg_replace('/([A-Za-z])(\d)/', '$1 $2', $text); // Letter + Number
+
+        // Clean up extra spaces that might have been introduced
+        $text = preg_replace('/\s{2,}/', ' ', $text);
+        $text = preg_replace('/\n\s+/', "\n", $text); // Remove spaces at start of lines
+        $text = preg_replace('/\s+\n/', "\n", $text); // Remove spaces at end of lines
 
         // Restore URLs with their original special characters
         foreach ($urls as $placeholder => $originalUrl) {

@@ -107,6 +107,12 @@ class KnowledgeBaseController extends Controller
         ]);
 
         if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
             return back()
                 ->withErrors($validator)
                 ->withInput();
@@ -149,7 +155,14 @@ class KnowledgeBaseController extends Controller
                     $data['metadata'] = array_merge($data['metadata'] ?? [], $pdfData['metadata']);
                 } catch (\Exception $e) {
                     Log::error('PDF processing failed: ' . $e->getMessage());
-                    return back()->withErrors(['file' => 'Failed to process PDF file: ' . $e->getMessage()])->withInput();
+                    $errorMessage = 'Failed to process PDF file: ' . $e->getMessage();
+                    if ($request->expectsJson()) {
+                        return response()->json([
+                            'success' => false,
+                            'errors' => ['file' => [$errorMessage]],
+                        ], 422);
+                    }
+                    return back()->withErrors(['file' => $errorMessage])->withInput();
                 }
             }
 
@@ -169,7 +182,14 @@ class KnowledgeBaseController extends Controller
 
         // Validate that content exists after file processing for file uploads
         if ($request->source_type === 'file' && empty($data['content'])) {
-            return back()->withErrors(['content' => 'Could not extract content from the uploaded file. Please ensure the file contains readable text.'])->withInput();
+            $errorMessage = 'Could not extract content from the uploaded file. Please ensure the file contains readable text.';
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => ['content' => [$errorMessage]],
+                ], 422);
+            }
+            return back()->withErrors(['content' => $errorMessage])->withInput();
         }
 
         // Process embedded base64 images in HTML content (Quill) and move to storage
@@ -192,6 +212,15 @@ class KnowledgeBaseController extends Controller
         }
 
         $knowledgeBase = KnowledgeBase::create($data);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Knowledge base entry created successfully.',
+                'knowledge_base' => $knowledgeBase,
+                'redirect' => route('knowledge-base.show', $knowledgeBase)
+            ], 201);
+        }
 
         return redirect()
             ->route('knowledge-base.show', $knowledgeBase)
@@ -255,9 +284,17 @@ class KnowledgeBaseController extends Controller
             'is_active' => 'boolean',
             'status' => 'required|in:draft,published,archived',
             'published_at' => 'nullable|date',
+            // Add file validation for updates
+            'file' => 'nullable|file|mimes:pdf,doc,docx,txt,md|max:10240',
         ]);
 
         if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
             return back()
                 ->withErrors($validator)
                 ->withInput();
@@ -281,6 +318,51 @@ class KnowledgeBaseController extends Controller
             $data['published_at'] = now();
         }
 
+        // Handle file upload if present
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+
+            // Check if it's a PDF and extract text
+            if ($file->getMimeType() === 'application/pdf') {
+                try {
+                    $pdfParser = app(PDFParserService::class);
+                    $pdfData = $pdfParser->processPDFForKnowledgeBase($file);
+
+                    // Update data with PDF content
+                    $data['content'] = $pdfData['content'];
+                    $data['metadata'] = array_merge($data['metadata'] ?? [], $pdfData['metadata']);
+                } catch (\Exception $e) {
+                    Log::error('PDF processing failed: ' . $e->getMessage());
+                    $errorMessage = 'Failed to process PDF file: ' . $e->getMessage();
+                    if ($request->expectsJson()) {
+                        return response()->json([
+                            'success' => false,
+                            'errors' => ['file' => [$errorMessage]],
+                        ], 422);
+                    }
+                    return back()->withErrors(['file' => $errorMessage])->withInput();
+                }
+            }
+
+            // Delete old file if exists
+            if ($knowledgeBase->file_path && Storage::disk('public')->exists($knowledgeBase->file_path)) {
+                Storage::disk('public')->delete($knowledgeBase->file_path);
+            }
+
+            $fileName = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $file->getClientOriginalExtension();
+            $filePath = $file->storeAs('knowledge-base', $fileName, 'public');
+
+            $data['file_path'] = $filePath;
+            $data['file_name'] = $file->getClientOriginalName();
+            $data['file_size'] = $file->getSize();
+            $data['mime_type'] = $file->getMimeType();
+
+            // Extract content from text files
+            if (in_array($file->getMimeType(), ['text/plain', 'text/markdown'])) {
+                $data['content'] = file_get_contents($file->getRealPath());
+            }
+        }
+
         // Process embedded base64 images and replace in content
         if (!empty($data['content'])) {
             [$processedHtml, $images] = $this->extractAndStoreEmbeddedImages($data['content']);
@@ -291,6 +373,15 @@ class KnowledgeBaseController extends Controller
         }
 
         $knowledgeBase->update($data);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Knowledge base entry updated successfully.',
+                'knowledge_base' => $knowledgeBase->fresh(),
+                'redirect' => route('knowledge-base.show', $knowledgeBase)
+            ]);
+        }
 
         return redirect()
             ->route('knowledge-base.show', $knowledgeBase)

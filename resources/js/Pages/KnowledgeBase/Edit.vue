@@ -1,7 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useForm } from '@inertiajs/vue3';
+import {
+  ref, computed, onMounted, reactive,
+} from 'vue';
+import { router } from '@inertiajs/vue3';
 import { QuillEditor } from '@vueup/vue-quill';
+import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 
@@ -12,7 +15,7 @@ const props = defineProps({
   statuses: Object,
 });
 
-const form = useForm({
+const form = reactive({
   title: props.knowledgeBase.title,
   content: props.knowledgeBase.content,
   category: props.knowledgeBase.category,
@@ -25,6 +28,12 @@ const form = useForm({
     : '',
   file: null,
   is_active: props.knowledgeBase.is_active,
+});
+
+const formState = reactive({
+  processing: false,
+  errors: {},
+  success: false,
 });
 
 const showAdvanced = ref(false);
@@ -132,24 +141,84 @@ const parseTags = (value) => {
     .filter(Boolean);
 };
 
-const submit = () => {
-  const needsFormData = form.source_type === 'file' && !!form.file;
-  form
-    .transform((data) => ({
-      ...data,
-      tags: parseTags(data.tags),
-    }))
-    .put(route('knowledge-base.update', props.knowledgeBase.id), {
-      preserveScroll: true,
-      headers: {
-        'X-CSRF-TOKEN': document.head.querySelector('meta[name="csrf-token"]')
-          .content,
-      },
-      forceFormData: needsFormData,
-      onSuccess: () => {
-        // Form will redirect on success
-      },
+const submit = async () => {
+  formState.processing = true;
+  formState.errors = {};
+
+  try {
+    // Prepare form data
+    const formData = new FormData();
+
+    // Add all form fields
+    formData.append('title', form.title);
+    formData.append('content', form.content);
+    formData.append('category', form.category);
+    formData.append('type', form.type);
+    formData.append('status', form.status);
+    formData.append('source_type', form.source_type);
+    formData.append('priority', form.priority);
+    formData.append('is_active', form.is_active ? '1' : '0');
+    formData.append('_method', 'PUT'); // Laravel method spoofing
+
+    // Handle tags
+    const tags = parseTags(form.tags);
+    tags.forEach((tag, index) => {
+      formData.append(`tags[${index}]`, tag);
     });
+
+    // Add file if present
+    if (form.file) {
+      formData.append('file', form.file);
+    }
+
+    // Get CSRF token
+    const csrfToken = document.head.querySelector(
+      'meta[name="csrf-token"]',
+    )?.content;
+
+    const response = await axios.post(
+      `/knowledge-base/${props.knowledgeBase.id}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'X-CSRF-TOKEN': csrfToken,
+          Accept: 'application/json',
+        },
+      },
+    );
+
+    if (response.data.success) {
+      formState.success = true;
+      // Redirect to the updated entry or index
+      if (response.data.redirect) {
+        window.location.href = response.data.redirect;
+      } else {
+        router.visit(`/knowledge-base/${props.knowledgeBase.id}`);
+      }
+    }
+  } catch (error) {
+    console.error('Form submission error:', error);
+
+    if (error.response) {
+      if (error.response.status === 422) {
+        // Validation errors
+        formState.errors = error.response.data.errors || {};
+      } else if (error.response.status === 419) {
+        // CSRF token expired
+        console.log('CSRF token expired, refreshing page...');
+        window.location.reload();
+      } else {
+        formState.errors = {
+          general: ['An error occurred while updating the data.'],
+        };
+      }
+    } else {
+      formState.errors = { general: ['Network error occurred.'] };
+    }
+  } finally {
+    formState.processing = false;
+  }
 };
 
 const cancel = () => {
@@ -170,7 +239,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
     <div class="pa-0 relative">
       <Transition name="fade">
         <div
-          v-if="form.processing"
+          v-if="formState.processing"
           class="absolute inset-0 bg-white/60 backdrop-blur-sm z-20 flex items-center justify-center"
         >
           <div class="flex flex-col items-center gap-3">
@@ -243,7 +312,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   <VBtn
                     color="primary"
                     @click="submit"
-                    :loading="form.processing"
+                    :loading="formState.processing"
                     :disabled="
                       !form.title ||
                       (form.source_type === 'manual' && !form.content)
@@ -419,8 +488,12 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                       </div>
                     </VCardText>
                   </VCard>
-                  <VAlert v-if="form.errors.file" type="error" class="mt-3">
-                    {{ form.errors.file }}
+                  <VAlert
+                    v-if="formState.errors.file"
+                    type="error"
+                    class="mt-3"
+                  >
+                    {{ formState.errors.file }}
                   </VAlert>
                 </div>
 
@@ -429,7 +502,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   v-model="form.title"
                   label="Title *"
                   variant="outlined"
-                  :error-messages="form.errors.title"
+                  :error-messages="formState.errors.title"
                   class="mb-4"
                   prepend-inner-icon="mdi-format-title"
                 ></VTextField>
@@ -449,10 +522,10 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                     "
                   />
                   <div
-                    v-if="form.errors.content"
+                    v-if="formState.errors.content"
                     class="text-error text-caption mt-2"
                   >
-                    {{ form.errors.content }}
+                    {{ formState.errors.content }}
                   </div>
                 </div>
               </VCardText>
@@ -472,7 +545,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                       :items="priorityItems"
                       label="Priority"
                       variant="outlined"
-                      :error-messages="form.errors.priority"
+                      :error-messages="formState.errors.priority"
                     ></VSelect>
                   </VCol>
                   <VCol cols="12" md="6">
@@ -480,7 +553,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                       v-model="form.tags"
                       label="Tags"
                       variant="outlined"
-                      :error-messages="form.errors.tags"
+                      :error-messages="formState.errors.tags"
                       hint="Separate tags with commas"
                       persistent-hint
                       prepend-inner-icon="mdi-tag-multiple"
@@ -505,7 +578,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   :items="statusItems"
                   label="Status"
                   variant="outlined"
-                  :error-messages="form.errors.status"
+                  :error-messages="formState.errors.status"
                   class="mb-4"
                 ></VSelect>
 
@@ -513,7 +586,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   v-model="form.is_active"
                   label="Active"
                   color="success"
-                  :error-messages="form.errors.is_active"
+                  :error-messages="formState.errors.is_active"
                   hide-details
                 ></VSwitch>
               </VCardText>
@@ -531,7 +604,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   :items="categoryItems"
                   label="Category"
                   variant="outlined"
-                  :error-messages="form.errors.category"
+                  :error-messages="formState.errors.category"
                   class="mb-4"
                 ></VSelect>
 
@@ -540,7 +613,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   :items="typeItems"
                   label="Type"
                   variant="outlined"
-                  :error-messages="form.errors.type"
+                  :error-messages="formState.errors.type"
                 ></VSelect>
               </VCardText>
             </VCard>
@@ -568,7 +641,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                 <VBtn
                   color="primary"
                   @click="submit"
-                  :loading="form.processing"
+                  :loading="formState.processing"
                   :disabled="
                     !form.title ||
                     (form.source_type === 'manual' && !form.content)
