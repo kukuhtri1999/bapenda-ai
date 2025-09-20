@@ -36,9 +36,9 @@
         >
           Start Analysis
         </button>
-        <button @click="loadReports" class="px-4 py-2 bg-gray-200 rounded">
+        <!-- <button @click="loadReports" class="px-4 py-2 bg-gray-200 rounded">
           Refresh Reports
-        </button>
+        </button> -->
         <label class="ml-4 inline-flex items-center text-sm text-gray-600">
           <input type="checkbox" v-model="fastMode" class="mr-2" />
           Fast (sample)
@@ -51,6 +51,11 @@
         >
           {{ preCount.message_count }} messages Found
         </div>
+
+        <!-- Debug indicator -->
+        <!-- <div class="ml-6 text-xs bg-yellow-100 px-2 py-1 rounded">
+          Loading: {{ loading }} | ShowLoading: {{ showLoading }}
+        </div> -->
         <!-- <div class="mb-3 text-sm text-gray-700" v-if="preCount">
           Data in range: {{ preCount.chat_count }} chats,
           {{ preCount.message_count }} messages
@@ -66,7 +71,7 @@
         class="mt-6 bg-white p-4 rounded shadow"
       >
         <h3 class="font-medium mb-3">AI Insights</h3>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-1 gap-6">
           <div class="col-span-1 lg:col-span-1">
             <h4 class="font-medium mb-2">Chats per Category</h4>
             <div
@@ -88,7 +93,7 @@
             </div>
           </div>
 
-          <div>
+          <!-- <div>
             <h4 class="font-medium">Sentiments</h4>
             <div class="mt-2">
               <div
@@ -100,7 +105,7 @@
                 <div class="text-gray-600">{{ v }}</div>
               </div>
             </div>
-          </div>
+          </div> -->
         </div>
 
         <div class="mt-6">
@@ -1123,67 +1128,95 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+    <!-- BACKUP SIMPLE LOADING POPUP FOR DEBUGGING -->
 
-        <div
-          v-if="showLoading"
-          class="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+    <div
+      class="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999]"
+      style="z-index: 9999 !important"
+      v-if="showLoading"
+    >
+      <div
+        class="bg-white p-6 rounded-lg shadow-xl w-96 text-center relative z-[10000]"
+        style="z-index: 10000 !important"
+      >
+        <!-- Close Button -->
+        <button
+          @click="closeLoadingPopup"
+          class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+          title="Close (analysis continues in background)"
         >
-          <div class="bg-white p-6 rounded shadow w-96 text-center relative">
-            <!-- Close Button -->
-            <button
-              @click="closeLoadingPopup"
-              class="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-              title="Close (analysis continues in background)"
-            >
-              <svg
-                class="w-5 h-5 text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                ></path>
-              </svg>
-            </button>
+          <svg
+            class="w-5 h-5 text-gray-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
 
-            <div class="mb-4">
-              <svg
-                class="mx-auto animate-spin h-12 w-12 text-blue-600"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  stroke-width="4"
-                  stroke-opacity="0.25"
-                />
-                <path
-                  d="M22 12a10 10 0 00-10-10"
-                  stroke="currentColor"
-                  stroke-width="4"
-                  stroke-linecap="round"
-                />
-              </svg>
-            </div>
-            <div class="text-lg font-medium">
-              Analyzing taxpayer conversations… please wait.
-            </div>
-            <div class="text-sm text-gray-500 mt-2">
-              This may take a while. You can close this popup and continue
-              working.
-            </div>
-            <div class="text-xs text-gray-400 mt-2">
-              💡 You'll get a notification when analysis is complete
-            </div>
+        <!-- Loading Icon -->
+        <div class="mb-4">
+          <svg
+            class="mx-auto animate-spin h-12 w-12 text-blue-600"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+              stroke-opacity="0.25"
+            />
+            <path
+              d="M22 12a10 10 0 00-10-10"
+              stroke="currentColor"
+              stroke-width="4"
+              stroke-linecap="round"
+            />
+          </svg>
+        </div>
+
+        <!-- Main Title -->
+        <div class="text-lg font-medium mb-2">
+          🤖 Analyzing Taxpayer Conversations
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="mb-4">
+          <div class="flex justify-between text-sm text-gray-600 mb-2">
+            <span>{{ currentProgress.stage }}</span>
+            <span>{{ currentProgress.percentage }}%</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-3">
+            <div
+              class="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500 ease-out"
+              :style="{ width: currentProgress.percentage + '%' }"
+            ></div>
           </div>
         </div>
+
+        <!-- Current Step -->
+        <div class="text-sm text-gray-600 mb-4">
+          {{ currentProgress.description }}
+        </div>
+
+        <!-- Info Text -->
+        <div class="text-sm text-gray-500 mt-2">
+          This may take a while. You can close this popup and continue working.
+        </div>
+        <!-- <div class="text-xs text-gray-400 mt-2">
+          💡 You'll get a notification when analysis is complete
+        </div> -->
       </div>
     </div>
   </AppLayout>
@@ -1191,7 +1224,7 @@
 
 <script setup>
 import {
-  ref, onMounted, computed, watch,
+  ref, onMounted, onUnmounted, computed, watch,
 } from 'vue';
 import axios from 'axios';
 import VueApexCharts from 'vue3-apexcharts';
@@ -1234,9 +1267,103 @@ const reportPerPage = ref(5);
 const reportTotal = ref(0);
 const reportLastPage = ref(1);
 
+// Progress tracking for interactive loading
+const currentProgress = ref({
+  percentage: 0,
+  stage: 'Initializing...',
+  description: 'Preparing analysis system',
+});
+
+const progressStages = [
+  {
+    percentage: 10,
+    stage: 'Initializing...',
+    description: 'Preparing analysis system',
+  },
+  {
+    percentage: 25,
+    stage: 'Collecting Data',
+    description: 'Gathering taxpayer conversations',
+  },
+  {
+    percentage: 40,
+    stage: 'Processing Messages',
+    description: 'Analyzing chat patterns and topics',
+  },
+  {
+    percentage: 60,
+    stage: 'AI Analysis',
+    description: 'Generating strategic insights with AI',
+  },
+  {
+    percentage: 80,
+    stage: 'Generating Report',
+    description: 'Creating professional analytics report',
+  },
+  {
+    percentage: 95,
+    stage: 'Finalizing',
+    description: 'Preparing results for display',
+  },
+  {
+    percentage: 100,
+    stage: 'Complete!',
+    description: 'Analysis ready for review',
+  },
+];
+
+let progressInterval = null;
+
+// Progress simulation functions
+const startProgressSimulation = () => {
+  currentProgress.value = progressStages[0];
+  let currentStageIndex = 0;
+
+  // Clear any existing interval
+  if (progressInterval) {
+    clearInterval(progressInterval);
+  }
+
+  progressInterval = setInterval(() => {
+    if (currentStageIndex < progressStages.length - 1) {
+      currentStageIndex++;
+      currentProgress.value = progressStages[currentStageIndex];
+
+      // Slow down as we approach completion
+      if (currentStageIndex >= progressStages.length - 2) {
+        clearInterval(progressInterval);
+        // Keep at 95% until actual completion
+        currentProgress.value = progressStages[progressStages.length - 2];
+      }
+    }
+  }, 2000); // Change stage every 2 seconds
+};
+
+const completeProgress = () => {
+  if (progressInterval) {
+    clearInterval(progressInterval);
+  }
+  currentProgress.value = progressStages[progressStages.length - 1];
+
+  // Auto-hide after showing completion for 1 second
+  setTimeout(() => {
+    if (showLoading.value) {
+      showLoading.value = false;
+    }
+  }, 1000);
+};
+
+const resetProgress = () => {
+  if (progressInterval) {
+    clearInterval(progressInterval);
+  }
+  currentProgress.value = progressStages[0];
+};
+
 // Function to close loading popup
 const closeLoadingPopup = () => {
   showLoading.value = false;
+  resetProgress();
   toast.info(
     "📊 Analysis continues in background. You'll be notified when complete!",
     {
@@ -1329,17 +1456,33 @@ const confirmStart = async () => {
 
   if (!result.isConfirmed) return;
 
+  console.log('Starting analysis - setting loading states');
+  console.log(
+    'BEFORE: loading=',
+    loading.value,
+    'showLoading=',
+    showLoading.value,
+  );
+
   loading.value = true;
   showLoading.value = true;
+
+  console.log(
+    'AFTER: loading=',
+    loading.value,
+    'showLoading=',
+    showLoading.value,
+  );
+  console.log('DOM should now show loading popup');
+
+  // Start progress simulation
+  startProgressSimulation();
 
   // Show start notification
   toast.info('🚀 Starting analytics analysis...', {
     autoClose: 2000,
     position: 'top-right',
   });
-
-  // Ensure loading popup shows for at least 1 second for UX
-  const minDisplayTime = new Promise((resolve) => setTimeout(resolve, 1000));
 
   try {
     const res = await axios.post('/api/admin/analytics/start', {
@@ -1350,13 +1493,14 @@ const confirmStart = async () => {
     const j = res.data;
     reportSummary.value = j;
 
-    // Wait for minimum display time
-    await minDisplayTime;
+    console.log('Analysis response:', j);
 
     // If sync mode and summary is present, show it immediately
     if (j.processing_mode === 'sync') {
       if (j.summary_json) {
+        completeProgress();
         loading.value = false;
+        await new Promise((resolve) => setTimeout(resolve, 1500)); // Let user see completion
         showLoading.value = false;
         await loadReports();
         return;
@@ -1365,7 +1509,9 @@ const confirmStart = async () => {
         // fetch the saved report to ensure we have summary_json
         const r = await fetch(`/api/admin/analytics/reports/${j.report_id}`);
         reportSummary.value = await r.json();
+        completeProgress();
         loading.value = false;
+        await new Promise((resolve) => setTimeout(resolve, 1500)); // Let user see completion
         showLoading.value = false;
         await loadReports();
         return;
@@ -1375,8 +1521,8 @@ const confirmStart = async () => {
     pollToken.value++;
     pollReport(j.report_id, pollToken.value);
   } catch (e) {
-    // Wait for minimum display time even on error
-    await minDisplayTime;
+    console.error('Analysis failed:', e);
+    resetProgress();
     loading.value = false;
     showLoading.value = false;
     await Swal.fire({
@@ -1409,6 +1555,15 @@ const pollReport = async (id, token) => {
           /* ignore */
         }
       }
+
+      // Complete progress and show result
+      if (data.status === 'completed') {
+        completeProgress();
+        await new Promise((resolve) => setTimeout(resolve, 1500)); // Let user see completion
+      } else {
+        resetProgress();
+      }
+
       showLoading.value = false;
 
       // Show completion notification
@@ -1487,6 +1642,13 @@ onMounted(() => {
     }
   } catch (e) {
     console.warn('flatpickr init failed', e);
+  }
+});
+
+// Cleanup function to prevent memory leaks
+onUnmounted(() => {
+  if (progressInterval) {
+    clearInterval(progressInterval);
   }
 });
 
