@@ -139,6 +139,30 @@ class PineconeService
     }
 
     /**
+     * Delete ALL vectors from the index (clear entire database)
+     */
+    public function deleteAll(): bool
+    {
+        try {
+            // Get index host
+            $indexHost = $this->getIndexHost();
+            if (!$indexHost) {
+                return false;
+            }
+
+            $this->client->setIndexHost($indexHost);
+            $response = $this->client->data()->vectors()->delete(
+                deleteAll: true
+            );
+
+            return $response->successful();
+        } catch (Exception $e) {
+            Log::error("Failed to delete all vectors from Pinecone: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Get index host URL
      */
     private function getIndexHost(): ?string

@@ -104,14 +104,107 @@
         </div>
 
         <div class="mt-6">
-          <h4 class="font-medium">Dokumen Insight (AI)</h4>
+          <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-t-lg">
+            <h4 class="font-bold text-lg flex items-center">
+              <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+              </svg>
+              Professional AI Analysis & Strategic Intelligence
+            </h4>
+            <p class="text-blue-100 text-sm mt-1">Comprehensive analytical insights for organizational decision-making</p>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-b-lg p-6 shadow-lg">
+            <!-- Executive Summary Header -->
+            <div class="mb-6 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border-l-4 border-blue-500">
+              <h5 class="font-bold text-gray-800 mb-2 flex items-center">
+                📊 Executive Summary
+                <span class="ml-auto bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">AI-Generated</span>
+              </h5>
+              <p class="text-sm text-gray-600">Strategic insights derived from comprehensive data analysis and pattern recognition</p>
+            </div>
 
-          <div
-            class="mt-3 text-sm text-gray-900 bg-white border rounded p-3 leading-7 space-y-3"
-          >
-            <p v-for="(p, i) in paragraphize(combinedInsightText)" :key="i">
-              {{ p }}
-            </p>
+            <!-- Key Insights Content -->
+            <div class="space-y-4">
+              <div 
+                v-for="(paragraph, index) in paragraphize(combinedInsightText)" 
+                :key="index"
+                class="text-sm text-gray-800 leading-relaxed"
+              >
+                <!-- First paragraph gets special treatment as main insight -->
+                <div v-if="index === 0" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg mb-4">
+                  <div class="flex items-start">
+                    <div class="flex-shrink-0 mr-3">
+                      <div class="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path>
+                        </svg>
+                      </div>
+                    </div>
+                    <div>
+                      <h6 class="font-semibold text-yellow-800 mb-2">🎯 Primary Strategic Insight</h6>
+                      <p class="text-yellow-900">{{ paragraph }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Subsequent paragraphs as detailed analysis -->
+                <div v-else class="mb-4">
+                  <div class="flex items-start space-x-3">
+                    <div class="flex-shrink-0 mt-1">
+                      <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    </div>
+                    <p class="text-gray-700">{{ paragraph }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Analysis Metadata Footer -->
+            <div class="mt-6 pt-4 border-t border-gray-200">
+              <div class="flex items-center justify-between text-xs text-gray-500">
+                <div class="flex items-center space-x-4">
+                  <span class="flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Generated: {{ new Date(reportSummary.created_at).toLocaleDateString('id-ID', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    }) }}
+                  </span>
+                  <span class="flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    {{ reportSummary.chat_count }} conversations analyzed
+                  </span>
+                  <span v-if="reportSummary.summary_json?.categories?.length" class="flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                    </svg>
+                    {{ reportSummary.summary_json.categories.length }} topic categories
+                  </span>
+                </div>
+                <div class="flex items-center">
+                  <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                    ✓ Analysis Complete
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Professional Disclaimer -->
+            <div class="mt-4 p-3 bg-gray-50 rounded-lg border">
+              <p class="text-xs text-gray-600 flex items-start">
+                <svg class="w-4 h-4 mr-1 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span><strong>Professional Note:</strong> This analysis is generated using advanced AI algorithms and should be considered alongside domain expertise and organizational context. Recommendations require validation through proper implementation planning and stakeholder consultation.</span>
+              </p>
+            </div>
           </div>
         </div>
 
@@ -134,54 +227,67 @@
                 </p>
               </div>
               <div class="mt-3">
-                <div class="font-medium text-sm">Implementation Steps</div>
+                <div class="font-medium text-sm flex items-center justify-between">
+                  <span>Implementation Steps (Top 5 Key Actions)</span>
+                  <span class="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded">Strategic Priority</span>
+                </div>
                 <div
                   v-if="
                     Array.isArray(s.implementation_steps) &&
                     s.implementation_steps.length
                   "
-                  class="space-y-3 mt-2"
+                  class="space-y-4 mt-3"
                 >
                   <div
-                    v-for="(st, idx) in s.implementation_steps"
+                    v-for="(st, idx) in s.implementation_steps.slice(0, 5)"
                     :key="idx"
-                    class="text-sm border rounded p-3 bg-gray-50"
+                    class="text-sm border-l-4 border-blue-500 rounded bg-gradient-to-r from-blue-50 to-white p-4 shadow-sm"
                   >
                     <template v-if="typeof st === 'string'">
-                      <div class="font-medium">Step {{ idx + 1 }}</div>
-                      <div class="mt-1 whitespace-pre-line">{{ st }}</div>
+                      <div class="flex items-center mb-2">
+                        <div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold mr-3">
+                          {{ idx + 1 }}
+                        </div>
+                        <div class="font-semibold text-blue-900">Strategic Action {{ idx + 1 }}</div>
+                      </div>
+                      <div class="ml-11 whitespace-pre-line text-gray-700">{{ st }}</div>
                     </template>
                     <template v-else>
-                      <div class="flex items-start justify-between">
-                        <div class="font-medium">
-                          {{ st.title || `Step ${idx + 1}` }}
+                      <div class="flex items-start justify-between mb-2">
+                        <div class="flex items-center">
+                          <div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold mr-3">
+                            {{ idx + 1 }}
+                          </div>
+                          <div class="font-semibold text-blue-900">
+                            {{ st.title || `Strategic Action ${idx + 1}` }}
+                          </div>
                         </div>
                         <div
-                          class="text-xs text-gray-500"
+                          class="text-xs text-gray-600 bg-white px-2 py-1 rounded border"
                           v-if="st.estimated_time || st.effort"
                         >
-                          <span v-if="st.estimated_time">{{
-                            st.estimated_time
-                          }}</span>
+                          <span v-if="st.estimated_time" class="font-medium">{{ st.estimated_time }}</span>
                           <span v-if="st.estimated_time && st.effort"> • </span>
-                          <span v-if="st.effort">Effort: {{ st.effort }}</span>
+                          <span v-if="st.effort" class="text-orange-600 font-medium">{{ st.effort }} effort</span>
                         </div>
                       </div>
-                      <div class="mt-1 whitespace-pre-line">
+                      <div class="ml-11 whitespace-pre-line text-gray-700 leading-relaxed">
                         {{ st.description || '' }}
                       </div>
-                      <div v-if="st.example" class="mt-2 text-xs text-gray-600">
-                        <div class="uppercase tracking-wide">Example</div>
-                        <pre
-                          class="mt-1 whitespace-pre-wrap bg-white border rounded p-2"
-                          >{{ st.example }}</pre
-                        >
+                      <div v-if="st.example" class="ml-11 mt-3 text-xs text-gray-600">
+                        <div class="uppercase tracking-wide font-semibold text-green-700 mb-1">💡 Implementation Example</div>
+                        <pre class="whitespace-pre-wrap bg-green-50 border border-green-200 rounded p-3 text-green-800">{{ st.example }}</pre>
                       </div>
                     </template>
                   </div>
+                  <div v-if="s.implementation_steps.length > 5" class="text-center">
+                    <div class="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded-full inline-block">
+                      + {{ s.implementation_steps.length - 5 }} additional strategic actions available in full analysis
+                    </div>
+                  </div>
                 </div>
-                <div v-else class="text-sm text-gray-500 mt-1">
-                  No steps provided.
+                <div v-else class="text-sm text-gray-500 mt-1 bg-yellow-50 border border-yellow-200 rounded p-3">
+                  📋 Implementation roadmap pending AI analysis completion.
                 </div>
               </div>
             </div>
@@ -281,16 +387,107 @@
               </div>
             </div>
             <div class="mt-6">
-              <h4 class="font-medium">Overview AI Insight</h4>
-              <div
-                class="mt-2 text-sm text-gray-800 bg-gray-50 p-3 rounded space-y-3"
-              >
-                <p
-                  v-for="(p, i) in paragraphize(modalCombinedInsightText)"
-                  :key="i"
-                >
-                  {{ p }}
-                </p>
+              <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-t-lg">
+                <h4 class="font-bold text-lg flex items-center">
+                  <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                  </svg>
+                  Professional AI Analysis & Strategic Intelligence
+                </h4>
+                <p class="text-blue-100 text-sm mt-1">Comprehensive analytical insights for organizational decision-making</p>
+              </div>
+              <div class="bg-white border border-gray-200 rounded-b-lg p-6 shadow-lg">
+                <!-- Executive Summary Header -->
+                <div class="mb-6 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border-l-4 border-blue-500">
+                  <h5 class="font-bold text-gray-800 mb-2 flex items-center">
+                    📊 Executive Summary
+                    <span class="ml-auto bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">AI-Generated</span>
+                  </h5>
+                  <p class="text-sm text-gray-600">Strategic insights derived from comprehensive data analysis and pattern recognition</p>
+                </div>
+
+                <!-- Key Insights Content -->
+                <div class="space-y-4">
+                  <div 
+                    v-for="(paragraph, index) in paragraphize(modalCombinedInsightText)" 
+                    :key="index"
+                    class="text-sm text-gray-800 leading-relaxed"
+                  >
+                    <!-- First paragraph gets special treatment as main insight -->
+                    <div v-if="index === 0" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg mb-4">
+                      <div class="flex items-start">
+                        <div class="flex-shrink-0 mr-3">
+                          <div class="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path>
+                            </svg>
+                          </div>
+                        </div>
+                        <div>
+                          <h6 class="font-semibold text-yellow-800 mb-2">🎯 Primary Strategic Insight</h6>
+                          <p class="text-yellow-900">{{ paragraph }}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Subsequent paragraphs as detailed analysis -->
+                    <div v-else class="mb-4">
+                      <div class="flex items-start space-x-3">
+                        <div class="flex-shrink-0 mt-1">
+                          <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        </div>
+                        <p class="text-gray-700">{{ paragraph }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Analysis Metadata Footer -->
+                <div class="mt-6 pt-4 border-t border-gray-200">
+                  <div class="flex items-center justify-between text-xs text-gray-500">
+                    <div class="flex items-center space-x-4">
+                      <span class="flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Generated: {{ new Date(modalReport.created_at).toLocaleDateString('id-ID', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) }}
+                      </span>
+                      <span class="flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        {{ modalReport.chat_count }} conversations analyzed
+                      </span>
+                      <span v-if="modalReport.summary_json?.categories?.length" class="flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                        </svg>
+                        {{ modalReport.summary_json.categories.length }} topic categories
+                      </span>
+                    </div>
+                    <div class="flex items-center">
+                      <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                        ✓ Analysis Complete
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Professional Disclaimer -->
+                <div class="mt-4 p-3 bg-gray-50 rounded-lg border">
+                  <p class="text-xs text-gray-600 flex items-start">
+                    <svg class="w-4 h-4 mr-1 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span><strong>Professional Note:</strong> This analysis is generated using advanced AI algorithms and should be considered alongside domain expertise and organizational context. Recommendations require validation through proper implementation planning and stakeholder consultation.</span>
+                  </p>
+                </div>
               </div>
             </div>
             <div>
@@ -317,61 +514,67 @@
                     </p>
                   </div>
                   <div class="mt-3">
-                    <div class="font-medium text-sm">Implementation Steps</div>
+                    <div class="font-medium text-sm flex items-center justify-between">
+                      <span>Implementation Steps (Top 5 Key Actions)</span>
+                      <span class="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded">Strategic Priority</span>
+                    </div>
                     <div
                       v-if="
                         Array.isArray(s.implementation_steps) &&
                         s.implementation_steps.length
                       "
-                      class="space-y-3 mt-2"
+                      class="space-y-4 mt-3"
                     >
                       <div
-                        v-for="(st, idx) in s.implementation_steps"
+                        v-for="(st, idx) in s.implementation_steps.slice(0, 5)"
                         :key="idx"
-                        class="text-sm border rounded p-3 bg-gray-50"
+                        class="text-sm border-l-4 border-blue-500 rounded bg-gradient-to-r from-blue-50 to-white p-4 shadow-sm"
                       >
                         <template v-if="typeof st === 'string'">
-                          <div class="font-medium">Step {{ idx + 1 }}</div>
-                          <div class="mt-1 whitespace-pre-line">{{ st }}</div>
+                          <div class="flex items-center mb-2">
+                            <div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold mr-3">
+                              {{ idx + 1 }}
+                            </div>
+                            <div class="font-semibold text-blue-900">Strategic Action {{ idx + 1 }}</div>
+                          </div>
+                          <div class="ml-11 whitespace-pre-line text-gray-700">{{ st }}</div>
                         </template>
                         <template v-else>
-                          <div class="flex items-start justify-between">
-                            <div class="font-medium">
-                              {{ st.title || `Step ${idx + 1}` }}
+                          <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center">
+                              <div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold mr-3">
+                                {{ idx + 1 }}
+                              </div>
+                              <div class="font-semibold text-blue-900">
+                                {{ st.title || `Strategic Action ${idx + 1}` }}
+                              </div>
                             </div>
                             <div
-                              class="text-xs text-gray-500"
+                              class="text-xs text-gray-600 bg-white px-2 py-1 rounded border"
                               v-if="st.estimated_time || st.effort"
                             >
-                              <span v-if="st.estimated_time">{{
-                                st.estimated_time
-                              }}</span>
-                              <span v-if="st.estimated_time && st.effort">
-                                •
-                              </span>
-                              <span v-if="st.effort"
-                                >Effort: {{ st.effort }}</span
-                              >
+                              <span v-if="st.estimated_time" class="font-medium">{{ st.estimated_time }}</span>
+                              <span v-if="st.estimated_time && st.effort"> • </span>
+                              <span v-if="st.effort" class="text-orange-600 font-medium">{{ st.effort }} effort</span>
                             </div>
                           </div>
-                          <div class="mt-1 whitespace-pre-line">
+                          <div class="ml-11 whitespace-pre-line text-gray-700 leading-relaxed">
                             {{ st.description || '' }}
                           </div>
-                          <div
-                            v-if="st.example"
-                            class="mt-2 text-xs text-gray-600"
-                          >
-                            <div class="uppercase tracking-wide">Example</div>
-                            <pre
-                              class="mt-1 whitespace-pre-wrap bg-white border rounded p-2"
-                              >{{ st.example }}</pre
-                            >
+                          <div v-if="st.example" class="ml-11 mt-3 text-xs text-gray-600">
+                            <div class="uppercase tracking-wide font-semibold text-green-700 mb-1">💡 Implementation Example</div>
+                            <pre class="whitespace-pre-wrap bg-green-50 border border-green-200 rounded p-3 text-green-800">{{ st.example }}</pre>
                           </div>
                         </template>
                       </div>
+                      <div v-if="s.implementation_steps.length > 5" class="text-center">
+                        <div class="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded-full inline-block">
+                          + {{ s.implementation_steps.length - 5 }} additional strategic actions available in full analysis
+                        </div>
+                      </div>
                     </div>
-                    <div v-else class="text-sm text-gray-500 mt-1">
-                      No steps provided.
+                    <div v-else class="text-sm text-gray-500 mt-1 bg-yellow-50 border border-yellow-200 rounded p-3">
+                      📋 Implementation roadmap pending AI analysis completion.
                     </div>
                   </div>
                 </div>

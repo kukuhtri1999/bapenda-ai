@@ -674,26 +674,36 @@ class KnowledgeBaseController extends Controller
     }
 
     /**
-     * Sync Knowledge Base with Pinecone vector database
+     * Rebuild Pinecone vector database (clear and reindex all data)
      */
     public function syncPinecone(Request $request)
     {
         try {
             $dryRun = $request->boolean('dry_run', false);
+            $confirm = $request->boolean('confirm', false);
 
-            // Run the sync command programmatically
+            // For actual rebuild, require confirmation due to destructive nature
+            if (!$dryRun && !$confirm) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Confirmation required for vector database rebuild',
+                    'requires_confirmation' => true
+                ], 422);
+            }
+
+            // Run the rebuild command programmatically
             $exitCode = \Artisan::call('kb:sync-pinecone', [
                 '--dry-run' => $dryRun
             ]);
 
             $output = \Artisan::output();
 
-            // Parse the output to extract statistics
-            $stats = $this->parseSyncOutput($output);
+            // Parse the output to extract rebuild statistics
+            $stats = $this->parseRebuildOutput($output);
 
             return response()->json([
                 'success' => $exitCode === 0,
-                'message' => $exitCode === 0 ? 'Sync completed successfully' : 'Sync completed with errors',
+                'message' => $exitCode === 0 ? 'Vector database rebuilt successfully' : 'Rebuild completed with errors',
                 'stats' => $stats,
                 'output' => $output,
                 'dry_run' => $dryRun
@@ -710,17 +720,14 @@ class KnowledgeBaseController extends Controller
     }
 
     /**
-     * Parse sync command output to extract statistics
+     * Parse rebuild command output to extract statistics
      */
-    private function parseSyncOutput(string $output): array
+    private function parseRebuildOutput(string $output): array
     {
         $stats = [
             'db_entries' => 0,
-            'pinecone_vectors' => 0,
-            'orphaned' => 0,
-            'missing' => 0,
-            'removed' => 0,
-            'added' => 0,
+            'vectors_cleared' => 0,
+            'vectors_indexed' => 0,
             'errors' => 0
         ];
 
@@ -729,24 +736,16 @@ class KnowledgeBaseController extends Controller
             $stats['db_entries'] = (int)$matches[1];
         }
 
-        if (preg_match('/Found (\d+) vectors in Pinecone/', $output, $matches)) {
-            $stats['pinecone_vectors'] = (int)$matches[1];
+        if (preg_match('/Current vectors in Pinecone: (\d+)/', $output, $matches)) {
+            $stats['vectors_cleared'] = (int)$matches[1]; // For dry run, show what would be cleared
         }
 
-        if (preg_match('/Orphaned vectors.*?: (\d+)/', $output, $matches)) {
-            $stats['orphaned'] = (int)$matches[1];
+        if (preg_match('/Cleared (\d+) vectors/', $output, $matches)) {
+            $stats['vectors_cleared'] = (int)$matches[1];
         }
 
-        if (preg_match('/Missing vectors.*?: (\d+)/', $output, $matches)) {
-            $stats['missing'] = (int)$matches[1];
-        }
-
-        if (preg_match('/Removed: (\d+) orphaned/', $output, $matches)) {
-            $stats['removed'] = (int)$matches[1];
-        }
-
-        if (preg_match('/Added: (\d+) missing/', $output, $matches)) {
-            $stats['added'] = (int)$matches[1];
+        if (preg_match('/Successfully indexed: (\d+)/', $output, $matches)) {
+            $stats['vectors_indexed'] = (int)$matches[1];
         }
 
         if (preg_match('/Errors: (\d+)/', $output, $matches)) {
