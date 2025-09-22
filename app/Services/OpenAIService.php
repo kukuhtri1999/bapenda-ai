@@ -32,316 +32,9 @@ class OpenAIService
         $this->debug = (bool) (config('app.debug', false) || filter_var($ragDebug, FILTER_VALIDATE_BOOLEAN));
     }
 
-    /**
-     * Enhanced Javanese to Indonesian translation using OpenAI for better understanding
-     */
-    private function translateJavaneseQuery(string $query): array
-    {
-        $originalQuery = $query;
-        $lowerQuery = strtolower($query);
 
-        // Quick check for common Javanese indicators
-        $javaneseIndicators = [
-            'opo',
-            'piro',
-            'carone',
-            'carane',
-            'kepiye',
-            'kepriye',
-            'nek',
-            'nnek',
-            'arep',
-            'nang',
-            'ning',
-            'kene',
-            'kono',
-            'iki',
-            'iku',
-            'kae',
-            'kuwi',
-            'gawe',
-            'tuku',
-            'adol',
-            'lunga',
-            'mulih',
-            'nggon',
-            'omah',
-            'kene',
-            'ngendi',
-            'piye',
-            'ngono',
-            'ngene',
-            'tekan',
-            'wis',
-            'durung',
-            'lagi',
-            'mengko',
-            'saiki',
-            'wingi',
-            'sesuk',
-            'biyen',
-            'bengi',
-            'awan',
-            'esuk',
-            'sore',
-            'kanca',
-            'konco',
-            'bocah',
-            'wong',
-            'bapak',
-            'ibu',
-            'mbak',
-            'mas',
-            'dik',
-            'de',
-            'nduk',
-            'le',
-            'yo',
-            'ta',
-            'to',
-            'kan',
-            'lho',
-            'monggo',
-            'nggih',
-            'inggih',
-            'nuwun',
-            'maturnuwun',
-            'sugeng',
-            'sampun',
-            'sing',
-            'sek',
-            'iso',
-            'ora',
-            'gak',
-            'ilang',
-            'teles',
-            'anyar',
-            'lawas'
-        ];
 
-        $detectedJavanese = [];
-        foreach ($javaneseIndicators as $indicator) {
-            if (strpos($lowerQuery, $indicator) !== false) {
-                $detectedJavanese[] = $indicator;
-            }
-        }
 
-        // If no Javanese detected, return original
-        if (empty($detectedJavanese)) {
-            return [
-                'original' => $originalQuery,
-                'translated' => $originalQuery,
-                'detected_javanese' => [],
-                'is_javanese' => false,
-                'translation_method' => 'none'
-            ];
-        }
-
-        // Use OpenAI for translation if Javanese is detected
-        try {
-            $translatedQuery = $this->translateWithOpenAI($originalQuery);
-
-            return [
-                'original' => $originalQuery,
-                'translated' => $translatedQuery,
-                'detected_javanese' => $detectedJavanese,
-                'is_javanese' => true,
-                'translation_method' => 'openai'
-            ];
-        } catch (\Exception $e) {
-            // Fallback to static dictionary if OpenAI fails
-            Log::warning('OpenAI translation failed, using fallback', [
-                'error' => $e->getMessage(),
-                'query' => $originalQuery
-            ]);
-
-            $translatedQuery = $this->translateWithStaticDictionary($originalQuery, $detectedJavanese);
-
-            return [
-                'original' => $originalQuery,
-                'translated' => $translatedQuery,
-                'detected_javanese' => $detectedJavanese,
-                'is_javanese' => true,
-                'translation_method' => 'fallback'
-            ];
-        }
-    }
-
-    /**
-     * Translate Javanese to Indonesian using OpenAI
-     */
-    private function translateWithOpenAI(string $query): string
-    {
-        $messages = [
-            [
-                'role' => 'system',
-                'content' => 'Anda adalah translator ahli bahasa Jawa ke bahasa Indonesia. Tugas Anda adalah menerjemahkan pertanyaan dari bahasa Jawa (dialek Jawa Timur/Lamongan) ke bahasa Indonesia yang baku dan natural.
-
-ATURAN PENTING:
-- Terjemahkan HANYA jika ada kata/frasa bahasa Jawa yang terdeteksi
-- Jika sudah dalam bahasa Indonesia, kembalikan teks aslinya
-- Pertahankan konteks dan makna pertanyaan
-- Gunakan bahasa Indonesia yang formal dan jelas
-- Fokus pada konteks layanan pajak/samsat
-
-CONTOH:
-- "Opo iki pajak anyar?" → "Apa ini pajak baru?"
-- "Piro biaya perpanjang STNK?" → "Berapa biaya perpanjang STNK?"
-- "Carone ngurus pajak motor piye?" → "Bagaimana cara mengurus pajak motor?"
-- "Nek pengen lapor online gimana?" → "Kalau ingin lapor online bagaimana?"
-
-Berikan HANYA hasil terjemahan tanpa penjelasan tambahan.'
-            ],
-            [
-                'role' => 'user',
-                'content' => $query
-            ]
-        ];
-
-        $response = $this->client->chat()->create([
-            'model' => 'gpt-4o-mini', // Use fast model for translation
-            'messages' => $messages,
-            'max_tokens' => 150,
-            'temperature' => 0.1, // Low temperature for consistent translation
-        ]);
-
-        $translatedText = trim($response->choices[0]->message->content ?? '');
-
-        // If translation is empty or too similar to original, return original
-        if (empty($translatedText) || $translatedText === $query) {
-            return $query;
-        }
-
-        return $translatedText;
-    }
-
-    /**
-     * Fallback translation using static dictionary
-     */
-    private function translateWithStaticDictionary(string $query, array $detectedJavanese): string
-    {
-        // Static dictionary as fallback
-        $translations = [
-            // Questions words
-            'carone' => 'bagaimana caranya',
-            'carane' => 'bagaimana caranya',
-            'kepiye' => 'bagaimana',
-            'kepriye' => 'bagaimana',
-            'piro' => 'berapa',
-            'pinten' => 'berapa',
-            'opo' => 'apa',
-            'ngendi' => 'dimana',
-            'endi' => 'dimana',
-            'kapan' => 'kapan',
-            'nalika' => 'kapan',
-            'sopo' => 'siapa',
-
-            // Conditional and modal
-            'nek' => 'kalau',
-            'nnek' => 'kalau',
-            'yen' => 'kalau',
-            'menawa' => 'kalau',
-            'arep' => 'akan',
-            'pengen' => 'ingin',
-            'kudu' => 'harus',
-            'mesti' => 'harus',
-            'iso' => 'bisa',
-            'bisa' => 'bisa',
-
-            // Location and direction
-            'nang' => 'di',
-            'ning' => 'di',
-            'nggon' => 'tempat',
-            'omah' => 'rumah',
-            'kantor' => 'kantor',
-            'kene' => 'sini',
-            'kono' => 'sana',
-
-            // Actions
-            'gawe' => 'buat',
-            'nggawe' => 'membuat',
-            'tuku' => 'beli',
-            'adol' => 'jual',
-            'ngurus' => 'mengurus',
-            'lunga' => 'pergi',
-            'mulih' => 'pulang',
-            'golek' => 'cari',
-            'njaluk' => 'minta',
-            'njupuk' => 'mengambil',
-            'mbayar' => 'membayar',
-            'bayar' => 'membayar',
-            'tekan' => 'sampai',
-            'nggarti' => 'mengganti',
-            'ngganti' => 'mengganti',
-
-            // Time expressions
-            'saiki' => 'sekarang',
-            'mengko' => 'nanti',
-            'wingi' => 'kemarin',
-            'sesuk' => 'besok',
-            'biyen' => 'dulu',
-            'bengi' => 'malam',
-            'awan' => 'siang',
-            'esuk' => 'pagi',
-            'sore' => 'sore',
-
-            // Status and condition
-            'wis' => 'sudah',
-            'durung' => 'belum',
-            'lagi' => 'sedang',
-            'isih' => 'masih',
-            'anyar' => 'baru',
-            'lawas' => 'lama',
-            'apik' => 'bagus',
-            'rusak' => 'rusak',
-            'ilang' => 'hilang',
-            'teles' => 'rusak',
-            'robek' => 'sobek',
-
-            // Money and cost
-            'duwit' => 'uang',
-            'arto' => 'uang',
-            'regane' => 'harganya',
-            'ragane' => 'harganya',
-            'larang' => 'mahal',
-            'murah' => 'murah',
-
-            // Demonstratives
-            'iki' => 'ini',
-            'iku' => 'itu',
-            'kae' => 'itu',
-            'kuwi' => 'itu',
-            'sing' => 'yang',
-            'sek' => 'yang',
-
-            // Negation
-            'ora' => 'tidak',
-            'gak' => 'tidak',
-
-            // Politeness markers
-            'monggo' => 'silakan',
-            'nggih' => 'ya',
-            'inggih' => 'ya',
-            'nuwun' => 'terima kasih',
-            'maturnuwun' => 'terima kasih',
-
-            // Vehicle terms
-            'montor' => 'motor',
-            'kendharaan' => 'kendaraan',
-
-            // Document terms
-            'surat' => 'surat',
-            'kertas' => 'dokumen'
-        ];
-
-        $translatedQuery = $query;
-        foreach ($translations as $javanese => $indonesian) {
-            $translatedQuery = preg_replace('/\b' . preg_quote($javanese, '/') . '\b/i', $indonesian, $translatedQuery);
-        }
-
-        // Clean up extra spaces
-        return preg_replace('/\s+/', ' ', trim($translatedQuery));
-    }
 
     /**
      * Normalize OpenAI usage object/array to a common array shape.
@@ -1067,187 +760,155 @@ REQUIREMENTS:
     }
 
     /**
-     * Generate AI response for customer service chat with RAG
+     * Generate AI response for customer service chat with RAG (Simplified)
      */
     public function generateCustomerServiceResponse(array $messages, ?string $context = null): array
     {
-        $startTime = microtime(true);
-
         try {
-            // OPTIMIZATION 1: Get latest user message faster
-            $userMessage = $this->getLatestUserMessage($messages);
-            if (!$userMessage) {
+            if ($this->debug) Log::info('OpenAI chat start', ['model' => $this->model]);
+
+            // Get latest user message
+            $latestUser = null;
+            for ($i = count($messages) - 1; $i >= 0; $i--) {
+                $m = $messages[$i] ?? null;
+                if (is_array($m) && (($m['role'] ?? '') === 'user')) {
+                    $latestUser = $m;
+                    break;
+                }
+            }
+
+            if (!$latestUser) {
                 return [
                     'success' => false,
-                    'message' => 'Tidak ada pesan dari pengguna yang ditemukan.',
-                    'usage' => null,
-                    'knowledge_used' => 0
+                    'message' => 'Tidak ada pertanyaan yang ditemukan.',
+                    'error' => 'No user message found'
                 ];
             }
 
-            // ENHANCEMENT: Translate Javanese to Indonesian for better understanding
-            $translation = $this->translateJavaneseQuery($userMessage);
-            $searchQuery = $translation['translated'];
-            $isJavanese = $translation['is_javanese'];
+            $userQuery = (string)($latestUser['content'] ?? '');
 
-            if ($this->debug && $isJavanese) {
-                Log::info('Javanese query detected', [
-                    'original' => $translation['original'],
-                    'translated' => $translation['translated'],
-                    'detected' => $translation['detected_javanese']
-                ]);
+            // Get relevant knowledge from Pinecone vector search
+            $relevantKnowledge = $this->getVectorKnowledge($userQuery);
+            if ($this->debug) {
+                Log::info('Vector search results', ['count' => count($relevantKnowledge)]);
             }
 
-            // OPTIMIZATION 2: Try fast keyword search FIRST (using translated query)
-            $fastKbResult = $this->tryFastKnowledgeRetrieval($searchQuery, $isJavanese);
-            if ($fastKbResult) {
-                $processingTime = (microtime(true) - $startTime) * 1000;
-                if ($this->debug) Log::info('Fast KB path used', ['time_ms' => $processingTime]);
-                return $fastKbResult;
-            }
+            // Build simplified messages for OpenAI
+            $apiMessages = [
+                [
+                    'role' => 'system',
+                    'content' => 'Anda adalah SALMA AI — Asisten Samsat Lamongan. Jawab dalam Bahasa Indonesia dengan ringkas dan jelas. Prioritaskan informasi dari Knowledge Base jika tersedia.'
+                ]
+            ];
 
-            // OPTIMIZATION 3: Use optimized vector search with shorter embeddings
-            $kbContext = '';
-            $knowledgeUsed = 0;
-
-            try {
-                // Try vector search with timeout and simpler processing (use translated query)
-                $embeddingService = app(EmbeddingService::class);
-                $pineconeService = app(PineconeService::class);
-
-                $queryEmbedding = $embeddingService->embed($searchQuery);
-                if ($queryEmbedding) {
-                    $similarKnowledge = $pineconeService->query(
-                        vector: $queryEmbedding,
-                        topK: 3, // Reduced from 5 to 3 for speed
-                        filter: [
-                            'is_active' => true,
-                            'status' => 'published'
-                        ]
-                    );
-
-                    $kbContext = $this->buildOptimizedKnowledgeContext($similarKnowledge);
-                    $knowledgeUsed = count($similarKnowledge);
+            // Add KB context if found
+            if (!empty($relevantKnowledge)) {
+                $contextBlocks = [];
+                foreach (array_slice($relevantKnowledge, 0, 2) as $i => $kb) {
+                    $title = $kb['title'] ?? '';
+                    $content = $kb['content'] ?? $kb['answer'] ?? '';
+                    $snippet = mb_substr(strip_tags($content), 0, 400);
+                    if ($snippet) {
+                        $contextBlocks[] = "[KB" . ($i + 1) . "] {$title}\n{$snippet}";
+                    }
                 }
-            } catch (\Throwable $e) {
-                // Fall through to keyword search on vector failure
-                if ($this->debug) Log::info('Vector search failed, using keyword fallback', ['error' => $e->getMessage()]);
+
+                if (!empty($contextBlocks)) {
+                    $apiMessages[] = [
+                        'role' => 'system',
+                        'content' => "KNOWLEDGE BASE:\n" . implode("\n\n", $contextBlocks)
+                    ];
+                }
             }
 
-            // OPTIMIZATION 4: Fallback to faster keyword search (use translated query)
-            if (empty($kbContext)) {
-                $kbContext = $this->buildTraditionalKnowledgeContext($searchQuery);
-                if ($this->debug) Log::info('Using keyword search fallback');
-            }
+            $apiMessages[] = [
+                'role' => 'user',
+                'content' => $userQuery
+            ];
 
-            // OPTIMIZATION 5: Generate response with optimized parameters (include Javanese context)
-            $response = $this->generateOptimizedResponse($userMessage, $searchQuery, $kbContext, $context, $isJavanese);
+            // Call OpenAI with optimized parameters
+            $response = $this->client->chat()->create([
+                'model' => $this->model,
+                'messages' => $apiMessages,
+                'max_completion_tokens' => 250, // Reduced for speed
+                'temperature' => 0.1, // Lower for more direct responses
+            ]);
 
-            $processingTime = (microtime(true) - $startTime) * 1000;
-            if ($this->debug) Log::info('AI chat completed', ['time_ms' => $processingTime, 'kb_used' => $knowledgeUsed]);
+            $answerText = trim($response->choices[0]->message->content);
+            $normUsage = $this->normalizeUsage($response->usage ?? null);
+
+            if ($this->debug) Log::info('Response generated', ['usage' => $normUsage]);
 
             return [
                 'success' => true,
-                'message' => $response['message'],
-                'usage' => $response['usage'],
-                'knowledge_used' => $knowledgeUsed
+                'message' => $answerText,
+                'usage' => $normUsage,
+                'knowledge_used' => count($relevantKnowledge)
             ];
         } catch (Exception $e) {
-            Log::error('AI Customer Service Error: ' . $e->getMessage());
-            return $this->generateFallbackResponse($userMessage ?? 'pertanyaan umum');
+            Log::error('OpenAI API Error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Maaf, terjadi kesalahan sistem. Silakan coba lagi atau hubungi petugas kami.',
+                'error' => $e->getMessage()
+            ];
         }
     }
-
     /**
-     * Try fast knowledge retrieval for common queries without vector search (IMPROVED WITH JAVANESE)
+     * Get relevant knowledge using Pinecone vector search
      */
-    private function tryFastKnowledgeRetrieval(string $userMessage, bool $isJavanese = false): ?array
+    private function getVectorKnowledge(string $userQuery): array
     {
-        // OPTIMIZATION: Check cache first
-        $cacheKey = md5(strtolower(trim($userMessage)));
-        if (isset(self::$queryCache[$cacheKey])) {
-            if ($this->debug) Log::info('Cache hit for query', ['key' => $cacheKey]);
-            return self::$queryCache[$cacheKey];
-        }
+        try {
+            $embeddingService = app(EmbeddingService::class);
+            $pineconeService = app(PineconeService::class);
 
-        // IMPROVEMENT: More comprehensive pattern matching with Indonesian and Javanese terms
-        $fastPatterns = [
-            'jadwal' => ['jadwal', 'jam', 'buka', 'tutup', 'waktu', 'schedule', 'kapan', 'pukul', 'nalika'],
-            'lokasi' => ['lokasi', 'alamat', 'dimana', 'tempat', 'kantor', 'nang', 'ing', 'endi'],
-            'biaya' => ['biaya', 'tarif', 'bayar', 'harga', 'cost', 'piro', 'regane', 'pinten', 'duwit', 'arto'],
-            'keliling' => ['keliling', 'samsat keliling', 'jadwal keliling', 'malam', 'ndalem', 'bengi'],
-            'stnk' => ['stnk', 'perpanjang stnk', 'renewal', 'extend', 'daftar ulang', 'nggarti'],
-            'bpkb' => ['bpkb', 'balik nama', 'mutasi', 'ganti nama', 'tukar nama', 'ngganti'],
-            'pajak' => ['pajak', 'rusak', 'hilang', 'ilang', 'teles', 'robek', 'anyar', 'lawas']
-        ];
+            // Generate embedding for user query
+            $queryEmbedding = $embeddingService->embed($userQuery);
+            if (!$queryEmbedding) {
+                if ($this->debug) Log::warning('Failed to generate embedding for query');
+                return [];
+            }
 
-        $lowerMessage = strtolower($userMessage);
-        $matchedCategory = null;
-        $maxMatches = 0;
+            // Search Pinecone for similar knowledge (without filters for better performance)
+            $matches = $pineconeService->query(
+                vector: $queryEmbedding,
+                topK: 3
+            );
 
-        foreach ($fastPatterns as $category => $keywords) {
-            $matches = 0;
-            foreach ($keywords as $keyword) {
-                if (strpos($lowerMessage, $keyword) !== false) {
-                    $matches++;
+            $results = [];
+            foreach ($matches as $match) {
+                $score = $match['score'] ?? 0;
+
+                // Filter by minimum score threshold (0.2 as requested)
+                if ($score >= 0.2) {
+                    $metadata = $match['metadata'] ?? [];
+                    $results[] = [
+                        'id' => $metadata['id'] ?? null,
+                        'title' => $metadata['title'] ?? '',
+                        'content' => $metadata['chunk_text'] ?? $metadata['content'] ?? '',
+                        'answer' => $metadata['answer'] ?? '',
+                        'category' => $metadata['category'] ?? '',
+                        'score' => $score
+                    ];
                 }
             }
-            if ($matches > $maxMatches) {
-                $maxMatches = $matches;
-                $matchedCategory = $category;
+
+            if ($this->debug) {
+                Log::info('Vector search completed', [
+                    'query_length' => mb_strlen($userQuery),
+                    'matches_found' => count($matches),
+                    'filtered_results' => count($results)
+                ]);
             }
+
+            return $results;
+        } catch (Exception $e) {
+            Log::error('Vector search failed: ' . $e->getMessage());
+            return [];
         }
-
-        // IMPROVEMENT: Lower threshold for better coverage but require at least 1 match
-        if ($maxMatches >= 1 && $matchedCategory) {
-            // IMPROVEMENT: Better search with multiple criteria
-            $knowledge = \App\Models\KnowledgeBase::active()
-                ->published()
-                ->where(function ($query) use ($matchedCategory, $lowerMessage) {
-                    $query->where('title', 'LIKE', "%{$matchedCategory}%")
-                        ->orWhere('category', 'LIKE', "%{$matchedCategory}%")
-                        ->orWhere('tags', 'LIKE', "%{$matchedCategory}%")
-                        ->orWhere('search_content', 'LIKE', "%{$matchedCategory}%");
-                })
-                ->orderByDesc('priority')
-                ->orderByDesc('view_count')
-                ->limit(3) // Get top 3 instead of 1 for better matching
-                ->get(['id', 'title', 'content', 'answer', 'category', 'search_content'])
-                ->toArray();
-
-            if (!empty($knowledge)) {
-                // IMPROVEMENT: Use the first result but check if it has meaningful content
-                $bestMatch = null;
-                foreach ($knowledge as $kb) {
-                    $content = $kb['content'] ?: $kb['answer'] ?: $kb['search_content'];
-                    if (!empty($content) && strlen(strip_tags($content)) > 50) {
-                        $bestMatch = $kb;
-                        break;
-                    }
-                }
-
-                if ($bestMatch) {
-                    // Build comprehensive response with Javanese context
-                    $response = $this->buildComprehensiveResponse($bestMatch, $userMessage, $isJavanese);
-                    if ($response) {
-                        $result = [
-                            'success' => true,
-                            'message' => $response,
-                            'usage' => null,
-                            'knowledge_used' => 1
-                        ];
-
-                        // Cache the result
-                        $this->cacheResult($cacheKey, $result);
-
-                        return $result;
-                    }
-                }
-            }
-        }
-
-        return null;
     }
+
     /**
      * Cache result with size limit
      */
@@ -1350,146 +1011,7 @@ REQUIREMENTS:
 
         return $this->buildComprehensiveResponse($kbArray, $userMessage);
     }
-    /**
-     * Build optimized knowledge context (reduced processing)
-     */
-    private function buildOptimizedKnowledgeContext(array $similarKnowledge): string
-    {
-        if (empty($similarKnowledge)) {
-            return '';
-        }
 
-        $contextParts = [];
-        $richContentProcessor = app(RichContentProcessor::class);
-
-        foreach ($similarKnowledge as $index => $match) {
-            $metadata = $match['metadata'] ?? [];
-            $score = $match['score'] ?? 0;
-
-            // Higher threshold for speed - only very relevant matches
-            if ($score < 0.4) {
-                continue;
-            }
-
-            $chunkText = $metadata['chunk_text'] ?? '';
-
-            // Simplified rich content processing
-            $richContent = $richContentProcessor->extractRichContent($chunkText);
-            $formattedContent = $richContentProcessor->formatForAIResponse($richContent);
-
-            // Truncate for speed
-            $formattedContent = mb_substr($formattedContent, 0, 400);
-
-            $contextParts[] = "Ref " . ($index + 1) . ":\n" .
-                "Judul: " . ($metadata['title'] ?? 'N/A') . "\n" .
-                "Konten: " . $formattedContent;
-
-            // Limit to 2 references for speed
-            if (count($contextParts) >= 2) break;
-        }
-
-        if (empty($contextParts)) {
-            return '';
-        }
-
-        return "REFERENSI:\n\n" . implode("\n---\n\n", $contextParts);
-    }
-
-    /**
-     * Generate optimized response with balanced speed and accuracy (ENHANCED FOR JAVANESE)
-     */
-    private function generateOptimizedResponse(string $userMessage, string $searchQuery, string $kbContext, ?string $additionalContext = null, bool $isJavanese = false): array
-    {
-        $systemPrompt = $this->buildOptimizedSystemPrompt($kbContext, $additionalContext, $isJavanese);
-
-        $messages = [
-            ['role' => 'system', 'content' => $systemPrompt],
-            ['role' => 'user', 'content' => $userMessage]
-        ];
-
-        // Add translation context if Javanese was detected
-        if ($isJavanese && $searchQuery !== $userMessage) {
-            $messages[] = [
-                'role' => 'system',
-                'content' => "Catatan: Pengguna bertanya dalam bahasa Jawa. Query diterjemahkan menjadi: \"$searchQuery\". Berikan respons dalam bahasa Indonesia yang ramah dan mudah dipahami."
-            ];
-        }
-
-        // BALANCE: Allow longer responses when we have KB context for accuracy
-        $maxTokens = !empty($kbContext) ? min($this->maxTokens, 800) : min($this->maxTokens, 500);
-
-        $response = $this->client->chat()->create([
-            'model' => $this->model,
-            'messages' => $messages,
-            'max_tokens' => $maxTokens,
-            'temperature' => 0.2, // Slightly higher for better response quality
-        ]);
-
-        $content = trim($response->choices[0]->message->content ?? '');
-        $usage = $this->normalizeUsage($response->usage ?? null);
-
-        return [
-            'message' => $content,
-            'usage' => $usage
-        ];
-    }
-
-    /**
-     * Build optimized system prompt (ENHANCED FOR JAVANESE SUPPORT)
-     */
-    private function buildOptimizedSystemPrompt(string $kbContext, ?string $additionalContext = null, bool $isJavanese = false): string
-    {
-        $basePrompt = "Anda adalah SALMA AI - Asisten Customer Service profesional Samsat Lamongan.
-
-IDENTITAS: SALMA AI (Sistem Asisten Layanan Masyarakat AI) - Bapenda Samsat Lamongan, Jawa Timur
-
-GAYA KOMUNIKASI:
-- Bahasa Indonesia baku, ramah, dan profesional
-- Berikan informasi lengkap dan terstruktur
-- Jawaban 300-600 kata dengan format yang jelas
-- Gunakan **bold** untuk poin penting";
-
-        // Add Javanese understanding note if detected
-        if ($isJavanese) {
-            $basePrompt .= "\n- PENTING: Pengguna menggunakan bahasa Jawa. Respon dengan bahasa Indonesia yang ramah dan mudah dipahami untuk penutur Jawa";
-        }
-
-        $basePrompt .= "\n\nTUGAS UTAMA:
-- Bantu dengan info pajak kendaraan, STNK, BPKB, jadwal, lokasi, biaya
-- Berikan prosedur lengkap dengan syarat-syarat
-- Jelaskan tarif dan komponen biaya yang berlaku
-- Informasi jadwal dan lokasi samsat keliling";
-
-        if ($isJavanese) {
-            $basePrompt .= "\n- Pahami istilah Jawa seperti: opo (apa), piro (berapa), nek (kalau), carone (caranya), dll";
-        }
-
-        $basePrompt .= "\n\nFORMAT RESPONS:
-- Mulai dengan informasi utama yang diminta
-- Sertakan langkah-langkah atau prosedur jika relevan
-- Daftar syarat-syarat atau dokumen yang diperlukan
-- Informasi biaya (jika ada di knowledge base)
-- Tips atau catatan penting
-- Penutup dengan kontak untuk info lebih lanjut
-
-WAJIB:
-- **PRIORITASKAN** informasi dari Knowledge Base yang tersedia
-- Jika KB tidak lengkap, jelaskan yang tersedia dan arahkan ke Samsat
-- Selalu berikan informasi yang berguna, jangan jawaban generik
-- Sertakan gambar: ![desc](url) dan link: [text](url) jika ada dalam referensi";
-
-        if (!empty($kbContext)) {
-            $basePrompt .= "\n\n" . $kbContext . "\n\nGunakan informasi di atas sebagai referensi utama. Berikan jawaban yang komprehensif berdasarkan knowledge base.";
-        } else {
-            $basePrompt .= "\n\nTidak ada informasi spesifik dari Knowledge Base. Berikan informasi umum yang akurat tentang layanan Samsat atau arahkan untuk menghubungi Samsat Lamongan langsung dengan informasi kontak yang tepat.";
-        }
-
-        if ($additionalContext) {
-            $basePrompt .= "\n\nKONTEKS TAMBAHAN: " . $additionalContext;
-        }
-
-        return $basePrompt;
-    }
     private function getLatestUserMessage(array $messages): ?string
     {
         for ($i = count($messages) - 1; $i >= 0; $i--) {
@@ -1635,14 +1157,7 @@ WAJIB:
         return array_unique(array_slice($terms, 0, 5)); // Reduced from 10
     }
 
-    /**
-     * Generate contextual response using OpenAI (OPTIMIZED - kept for compatibility)
-     */
-    private function generateContextualResponse(string $userMessage, string $kbContext, ?string $additionalContext = null): array
-    {
-        // Delegate to optimized version with default parameters for compatibility
-        return $this->generateOptimizedResponse($userMessage, $userMessage, $kbContext, $additionalContext, false);
-    }
+
 
     /**
      * Build system prompt for customer service AI
