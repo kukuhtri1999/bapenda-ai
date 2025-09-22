@@ -250,17 +250,28 @@
                           elevation="0"
                         >
                           <!-- Feedback Form Component -->
-                          <div v-if="message.type === 'feedback'" class="feedback-form">
+                          <div
+                            v-if="message.type === 'feedback'"
+                            class="feedback-form"
+                          >
                             <div class="text-center mb-4">
-                              <div style="font-size: 32px; margin-bottom: 8px;">❤️</div>
+                              <div style="font-size: 32px; margin-bottom: 8px">
+                                ❤️
+                              </div>
                               <h3 class="text-primary mb-2">Terima Kasih!</h3>
                               <p class="text-grey-600 text-body-2">
-                                Mohon berikan penilaian Anda terhadap layanan SALMA AI untuk membantu kami memberikan pelayanan yang lebih baik.
+                                Mohon berikan penilaian Anda terhadap layanan
+                                SALMA AI untuk membantu kami memberikan
+                                pelayanan yang lebih baik.
                               </p>
                             </div>
 
                             <div class="text-center mb-4">
-                              <p class="text-subtitle-2 font-weight-medium mb-3">Berikan Rating Layanan:</p>
+                              <p
+                                class="text-subtitle-2 font-weight-medium mb-3"
+                              >
+                                Berikan Rating Layanan:
+                              </p>
                               <VRating
                                 v-model="feedbackRating"
                                 :size="32"
@@ -290,7 +301,9 @@
                             <div class="text-center">
                               <VBtn
                                 @click="submitFeedback"
-                                :disabled="feedbackRating === 0 || isSubmittingFeedback"
+                                :disabled="
+                                  feedbackRating === 0 || isSubmittingFeedback
+                                "
                                 :loading="isSubmittingFeedback"
                                 color="primary"
                                 variant="flat"
@@ -304,19 +317,33 @@
                           </div>
 
                           <!-- Final Thank You Message -->
-                          <div v-else-if="message.type === 'final'" class="final-message text-center">
-                            <div style="font-size: 40px; color: #4caf50; margin-bottom: 12px;">✅</div>
+                          <div
+                            v-else-if="message.type === 'final'"
+                            class="final-message text-center"
+                          >
+                            <div
+                              style="
+                                font-size: 40px;
+                                color: #4caf50;
+                                margin-bottom: 12px;
+                              "
+                            >
+                              ✅
+                            </div>
                             <h3 class="text-success mb-2">Terima Kasih!</h3>
                             <p class="text-grey-600 text-body-2 mb-3">
-                              Feedback Anda telah tersimpan. Masukan Anda sangat berharga untuk meningkatkan kualitas layanan kami.
+                              Feedback Anda telah tersimpan. Masukan Anda sangat
+                              berharga untuk meningkatkan kualitas layanan kami.
                             </p>
                             <p class="text-grey-600 text-body-2">
-                              Anda akan dialihkan ke halaman utama dalam 5 detik...
+                              Anda akan dialihkan ke halaman utama dalam 5
+                              detik...
                             </p>
                           </div>
 
                           <!-- Regular Assistant Message -->
-                          <div v-else
+                          <div
+                            v-else
                             class="assistant-content text-grey-800 text-body-2"
                             style="line-height: 1.5"
                             v-html="getFormattedContent(message)"
@@ -747,7 +774,7 @@ const getRatingLabel = (rating) => {
   if (rating === 0) return 'Pilih rating (1-5 bintang)';
   const labels = {
     1: '1 dari 5 bintang - Sangat Buruk',
-    2: '2 dari 5 bintang - Buruk', 
+    2: '2 dari 5 bintang - Buruk',
     3: '3 dari 5 bintang - Cukup',
     4: '4 dari 5 bintang - Baik',
     5: '5 dari 5 bintang - Sangat Baik',

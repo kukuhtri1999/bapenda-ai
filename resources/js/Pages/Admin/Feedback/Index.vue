@@ -28,7 +28,13 @@
 
     <!-- Statistics Cards -->
     <VRow class="mb-6">
-      <VCol v-for="(stat, index) in statisticsCards" :key="index" cols="12" sm="6" lg="3">
+      <VCol
+        v-for="(stat, index) in statisticsCards"
+        :key="index"
+        cols="12"
+        sm="6"
+        lg="3"
+      >
         <VCard class="pa-4 h-100" :color="stat.color" variant="flat">
           <div class="d-flex align-center">
             <VIcon :color="stat.iconColor" size="40" class="me-3">
@@ -92,9 +98,13 @@
           </VCardTitle>
           <VCardText>
             <div class="text-center py-4">
-              <VIcon size="48" color="primary" class="mb-2">mdi-chart-timeline-variant</VIcon>
+              <VIcon size="48" color="primary" class="mb-2"
+                >mdi-chart-timeline-variant</VIcon
+              >
               <div class="text-h6 mb-1">{{ stats.recent_feedbacks }}</div>
-              <div class="text-caption text-grey-600">Feedback in last 7 days</div>
+              <div class="text-caption text-grey-600">
+                Feedback in last 7 days
+              </div>
             </div>
           </VCardText>
         </VCard>
@@ -208,9 +218,10 @@
         <!-- Feedback Text Column -->
         <template v-slot:item.feedback_text="{ item }">
           <div v-if="item.feedback_text" class="feedback-text">
-            {{ item.feedback_text.length > 100 
-                ? item.feedback_text.substring(0, 100) + '...' 
-                : item.feedback_text 
+            {{
+              item.feedback_text.length > 100
+                ? item.feedback_text.substring(0, 100) + '...'
+                : item.feedback_text
             }}
           </div>
           <VChip v-else color="grey" variant="outlined" size="small">
@@ -244,7 +255,8 @@
       <div class="pa-4">
         <div class="d-flex justify-space-between align-center">
           <div class="text-caption text-grey-600">
-            Showing {{ feedbacks.from || 0 }} to {{ feedbacks.to || 0 }} of {{ feedbacks.total }} entries
+            Showing {{ feedbacks.from || 0 }} to {{ feedbacks.to || 0 }} of
+            {{ feedbacks.total }} entries
           </div>
           <VPagination
             v-if="feedbacks.last_page > 1"
@@ -266,11 +278,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import { router } from '@inertiajs/vue3';
-import AppLayout from '@/Layouts/AppLayout.vue';
+import {
+  ref, computed, onMounted, watch,
+} from 'vue';
+import { Head, router } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
+import AppLayout from '@/Layouts/AppLayout.vue';
 
 // Props
 const props = defineProps({
@@ -324,7 +337,7 @@ const statisticsCards = computed(() => [
   },
   {
     title: 'Average Rating',
-    value: props.stats.average_rating + '/5',
+    value: `${props.stats.average_rating}/5`,
     icon: 'mdi-star',
     color: 'amber-lighten-5',
     iconColor: 'amber',
@@ -342,7 +355,7 @@ const statisticsCards = computed(() => [
   },
   {
     title: 'Satisfaction Rate',
-    value: getSatisfactionRate() + '%',
+    value: `${getSatisfactionRate()}%`,
     icon: 'mdi-emoticon-happy',
     color: 'purple-lighten-5',
     iconColor: 'purple',
@@ -373,19 +386,18 @@ const getRatingColor = (rating) => {
 const getSatisfactionRate = () => {
   const total = props.stats.total_feedbacks;
   if (total === 0) return 0;
-  const satisfied = (props.stats.rating_distribution[4] || 0) + (props.stats.rating_distribution[5] || 0);
+  const satisfied = (props.stats.rating_distribution[4] || 0)
+    + (props.stats.rating_distribution[5] || 0);
   return Math.round((satisfied / total) * 100);
 };
 
-const formatDate = (dateString) => {
-  return new Date(dateString).toLocaleDateString('id-ID', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
+const formatDate = (dateString) => new Date(dateString).toLocaleDateString('id-ID', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
 const applyFilters = () => {
   loading.value = true;
@@ -415,9 +427,13 @@ const debouncedSearch = debounce(() => {
 
 const changePage = (page) => {
   currentPage.value = page;
-  router.get('/admin/feedback', { ...filters.value, page }, {
-    preserveState: true,
-  });
+  router.get(
+    '/admin/feedback',
+    { ...filters.value, page },
+    {
+      preserveState: true,
+    },
+  );
 };
 
 const viewDetail = (feedbackId) => {
@@ -427,7 +443,9 @@ const viewDetail = (feedbackId) => {
 const exportFeedback = async () => {
   isExporting.value = true;
   try {
-    window.open(`/admin/feedback/export/csv?${new URLSearchParams(filters.value).toString()}`);
+    window.open(
+      `/admin/feedback/export/csv?${new URLSearchParams(filters.value).toString()}`,
+    );
   } catch (error) {
     console.error('Export failed:', error);
   } finally {
@@ -455,7 +473,7 @@ onMounted(() => {
   color: #ffc107;
 }
 
-.rating-display .star:nth-child(n+6) {
+.rating-display .star:nth-child(n + 6) {
   color: #e0e0e0;
 }
 
