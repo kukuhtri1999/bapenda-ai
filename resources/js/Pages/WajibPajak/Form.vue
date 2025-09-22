@@ -271,7 +271,7 @@ const proceedToChat = () => {
                       :disabled="!isFormValid"
                       class="px-8"
                     >
-                      <v-icon left>mdi-wchat</v-icon>
+                      <VIcon left>mdi-wchat</VIcon>
                       Mulai Chat AI
                     </VBtn>
                   </VCol>
@@ -288,9 +288,9 @@ const proceedToChat = () => {
                 <p class="text-sm text-grey-600">
                   Data yang Anda masukkan akan digunakan untuk memberikan
                   layanan yang lebih personal.<br />
-                  <strong>Data akan disimpan secara permanen</strong>
+                  <!-- <strong>Data akan disimpan secara permanen</strong>
                   dalam database kami untuk keperluan bank data dan peningkatan
-                  layanan.<br />
+                  layanan.<br /> -->
                   Data juga disimpan dalam session untuk akses chat AI.
                 </p>
               </div>

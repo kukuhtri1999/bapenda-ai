@@ -435,4 +435,111 @@ class ChatController extends Controller
             'html' => $htmlContent
         ]);
     }
+
+    /**
+     * End chat session and clear user session data
+     */
+    public function endChatSession(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'session_id' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 400);
+        }
+
+        try {
+            // Find and close the chat
+            $chat = Chat::where('session_id', $request->session_id)->first();
+
+            if ($chat) {
+                $chat->update([
+                    'status' => 'ended',
+                    'ended_at' => now(),
+                    'last_activity_at' => now()
+                ]);
+            }
+
+            // Clear wajib pajak session data
+            session()->forget(['wajib_pajak_data', 'chat_session_started']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Chat session ended successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengakhiri sesi chat'
+            ], 500);
+        }
+    }
+
+    /**
+     * Submit chat feedback
+     */
+    public function submitFeedback(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'session_id' => 'required|string',
+            'rating' => 'required|integer|min:1|max:5',
+            'feedback_text' => 'nullable|string|max:1000',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 400);
+        }
+
+        try {
+            // Get wajib pajak data from session
+            $wajibPajakData = session('wajib_pajak_data', []);
+
+            // Get chat summary
+            $chat = Chat::where('session_id', $request->session_id)->first();
+            $chatSummary = null;
+
+            if ($chat) {
+                $messageCount = ChatMessage::where('chat_id', $chat->id)->count();
+                $lastMessage = ChatMessage::where('chat_id', $chat->id)
+                    ->orderBy('sent_at', 'desc')
+                    ->first();
+
+                $chatSummary = [
+                    'total_messages' => $messageCount,
+                    'chat_duration' => $chat->created_at->diffInMinutes($chat->updated_at ?? now()),
+                    'last_message_at' => $lastMessage?->sent_at,
+                    'chat_title' => $chat->title
+                ];
+            }
+
+            // Store feedback
+            \App\Models\ChatFeedback::create([
+                'session_id' => $request->session_id,
+                'nama' => $wajibPajakData['nama'] ?? null,
+                'nopol' => $wajibPajakData['nopol'] ?? null,
+                'nomer_wa' => $wajibPajakData['nomer_wa'] ?? null,
+                'rating' => $request->rating,
+                'feedback_text' => $request->feedback_text,
+                'chat_summary' => $chatSummary,
+                'chat_ended_at' => now()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Terima kasih atas feedback Anda! Masukan Anda sangat berharga untuk meningkatkan layanan kami.'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan feedback. Silakan coba lagi.'
+            ], 500);
+        }
+    }
 }

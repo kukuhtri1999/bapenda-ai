@@ -830,7 +830,7 @@ REQUIREMENTS:
             $response = $this->client->chat()->create([
                 'model' => $this->model,
                 'messages' => $apiMessages,
-                'max_completion_tokens' => 250, // Reduced for speed
+                'max_completion_tokens' => 350, // Reduced for speed
                 'temperature' => 0.1, // Lower for more direct responses
             ]);
 

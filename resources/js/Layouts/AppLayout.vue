@@ -43,6 +43,12 @@ const navLinks = ref([
     href: route('admin.chat-history.index'),
   },
   {
+    icon: 'mdi-star-box',
+    title: 'Feedback Management',
+    value: 'admin.feedback.index',
+    href: route('admin.feedback.index'),
+  },
+  {
     icon: 'mdi-account-multiple',
     title: 'Wajib Pajak',
     value: 'admin.wajib-pajak.index',

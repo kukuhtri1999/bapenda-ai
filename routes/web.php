@@ -10,6 +10,7 @@ use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\AppSettingController;
 use App\Http\Controllers\Admin\ChatImportController;
+use App\Http\Controllers\Admin\FeedbackController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -62,6 +63,11 @@ Route::middleware([
 
     // AI Chat History page
     Route::get('/admin/chat-history', [App\Http\Controllers\Admin\ChatHistoryController::class, 'indexPage'])->name('admin.chat-history.index');
+
+    // Admin Feedback Management
+    Route::get('/admin/feedback', [FeedbackController::class, 'index'])->name('admin.feedback.index');
+    Route::get('/admin/feedback/{feedback}', [FeedbackController::class, 'show'])->name('admin.feedback.show');
+    Route::get('/admin/feedback/export/csv', [FeedbackController::class, 'export'])->name('admin.feedback.export');
 
     // Admin Chat Import (XLSX) routes
     Route::get('/admin/chat-import', function () {

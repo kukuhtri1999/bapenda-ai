@@ -249,11 +249,79 @@
                           }"
                           elevation="0"
                         >
-                          <div
+                          <!-- Feedback Form Component -->
+                          <div v-if="message.type === 'feedback'" class="feedback-form">
+                            <div class="text-center mb-4">
+                              <div style="font-size: 32px; margin-bottom: 8px;">❤️</div>
+                              <h3 class="text-primary mb-2">Terima Kasih!</h3>
+                              <p class="text-grey-600 text-body-2">
+                                Mohon berikan penilaian Anda terhadap layanan SALMA AI untuk membantu kami memberikan pelayanan yang lebih baik.
+                              </p>
+                            </div>
+
+                            <div class="text-center mb-4">
+                              <p class="text-subtitle-2 font-weight-medium mb-3">Berikan Rating Layanan:</p>
+                              <VRating
+                                v-model="feedbackRating"
+                                :size="32"
+                                color="amber"
+                                active-color="amber"
+                                hover
+                                half-increments
+                                clearable
+                                @update:model-value="onRatingChange"
+                              />
+                              <p class="text-caption text-grey-600 mt-2">
+                                {{ getRatingLabel(feedbackRating) }}
+                              </p>
+                            </div>
+
+                            <div class="mb-4">
+                              <VTextarea
+                                v-model="feedbackText"
+                                placeholder="Bagikan pengalaman Anda menggunakan layanan SALMA AI..."
+                                rows="3"
+                                variant="outlined"
+                                density="compact"
+                                no-resize
+                              />
+                            </div>
+
+                            <div class="text-center">
+                              <VBtn
+                                @click="submitFeedback"
+                                :disabled="feedbackRating === 0 || isSubmittingFeedback"
+                                :loading="isSubmittingFeedback"
+                                color="primary"
+                                variant="flat"
+                                size="large"
+                                prepend-icon="mdi-send"
+                                class="px-6"
+                              >
+                                Kirim Feedback
+                              </VBtn>
+                            </div>
+                          </div>
+
+                          <!-- Final Thank You Message -->
+                          <div v-else-if="message.type === 'final'" class="final-message text-center">
+                            <div style="font-size: 40px; color: #4caf50; margin-bottom: 12px;">✅</div>
+                            <h3 class="text-success mb-2">Terima Kasih!</h3>
+                            <p class="text-grey-600 text-body-2 mb-3">
+                              Feedback Anda telah tersimpan. Masukan Anda sangat berharga untuk meningkatkan kualitas layanan kami.
+                            </p>
+                            <p class="text-grey-600 text-body-2">
+                              Anda akan dialihkan ke halaman utama dalam 5 detik...
+                            </p>
+                          </div>
+
+                          <!-- Regular Assistant Message -->
+                          <div v-else
                             class="assistant-content text-grey-800 text-body-2"
                             style="line-height: 1.5"
                             v-html="getFormattedContent(message)"
                           ></div>
+
                           <div class="text-left mt-1">
                             <small
                               class="text-grey-500"
@@ -418,6 +486,15 @@ const lightboxImages = ref([]);
 const lightboxIndex = ref(0);
 const formattedMessages = ref(new Map()); // Store formatted content by message ID
 
+// Chat ending and feedback
+const showFollowUp = ref(false);
+const showFeedbackForm = ref(false);
+const showFinalMessage = ref(false);
+const feedbackRating = ref(0);
+const feedbackText = ref('');
+const isSubmittingFeedback = ref(false);
+const feedbackSubmitted = ref(false);
+
 // Quick suggestions
 const quickSuggestions = ref([
   'Bagaimana cara bayar pajak kendaraan?',
@@ -451,6 +528,15 @@ const getSessionId = (forceNew = false) => {
 // Initialize chat
 const initializeChat = async () => {
   try {
+    // Reset all feedback states
+    showFollowUp.value = false;
+    showFeedbackForm.value = false;
+    showFinalMessage.value = false;
+    feedbackRating.value = 0;
+    feedbackText.value = '';
+    isSubmittingFeedback.value = false;
+    feedbackSubmitted.value = false;
+
     const response = await axios.post('/api/chat/start', {
       session_id: getSessionId(),
     });
@@ -472,6 +558,15 @@ const startNewChat = async () => {
     messages.value = [];
     chatSession.value = null;
 
+    // Reset all feedback states
+    showFollowUp.value = false;
+    showFeedbackForm.value = false;
+    showFinalMessage.value = false;
+    feedbackRating.value = 0;
+    feedbackText.value = '';
+    isSubmittingFeedback.value = false;
+    feedbackSubmitted.value = false;
+
     const sessionId = getSessionId(true); // Force new session
 
     const response = await axios.post('/api/chat/start', {
@@ -491,8 +586,17 @@ const startNewChat = async () => {
 
 // Send message
 const sendMessage = async (messageText = null, isContext = false) => {
+  console.log('=== sendMessage CALLED ===');
+  console.log('messageText:', messageText);
+  console.log('isContext:', isContext);
+
   const text = messageText || currentMessage.value.trim();
-  if (!text || isLoading.value) return;
+  console.log('text to send:', text);
+
+  if (!text || isLoading.value) {
+    console.log('=== EARLY RETURN - no text or loading ===');
+    return;
+  }
 
   if (!messageText) {
     currentMessage.value = '';
@@ -530,6 +634,7 @@ const sendMessage = async (messageText = null, isContext = false) => {
     if (response.data.success) {
       // Only show AI response if it's not a context message
       if (!isContext) {
+        console.log('=== AI RESPONSE SUCCESS - NOT CONTEXT ===');
         const assistantMessage = {
           ...response.data.assistant_message,
           id: `assistant_${Date.now()}_${Math.random()
@@ -538,6 +643,24 @@ const sendMessage = async (messageText = null, isContext = false) => {
         };
         messages.value.push(assistantMessage);
         await scrollToBottom();
+
+        // Show follow-up message after AI response
+        console.log('=== ABOUT TO CALL showFollowUpMessage ===');
+        console.log('isContext:', isContext);
+
+        // Try immediate call first
+        console.log('=== CALLING showFollowUpMessage IMMEDIATELY ===');
+        showFollowUpMessage();
+
+        // Also try with timeout
+        setTimeout(() => {
+          console.log(
+            '=== TIMEOUT EXECUTING - CALLING showFollowUpMessage AGAIN ===',
+          );
+          showFollowUpMessage();
+        }, 1000);
+      } else {
+        console.log('=== SKIPPING FOLLOW-UP - IS CONTEXT MESSAGE ===');
       }
     } else {
       showErrorMessage(response.data.message || 'Gagal mengirim pesan');
@@ -570,6 +693,173 @@ const goToHome = () => {
   router.visit('/');
 };
 
+// Follow-up and feedback functions
+const lastFollowUpAt = ref(0);
+const showFollowUpMessage = async () => {
+  try {
+    const now = Date.now();
+    const lastMsg = messages.value[messages.value.length - 1];
+    if (!lastMsg || lastMsg.role !== 'assistant') return;
+    // Avoid duplicating follow-ups within 2 seconds window
+    if (now - lastFollowUpAt.value < 2000) return;
+
+    const followUpMessage = {
+      id: `followup_${now}`,
+      role: 'assistant',
+      content:
+        'Ada lagi yang bisa SALMA bantu? <button data-action="end-chat" style="margin-left:8px;padding:6px 10px;border-radius:10px;border:1px solid #e0e0e0;background:#f7f7f7;cursor:pointer;">Akhiri Chat</button>',
+      sent_at: new Date().toISOString(),
+      type: 'follow_up',
+    };
+    messages.value.push(followUpMessage);
+    lastFollowUpAt.value = now;
+    await scrollToBottom();
+  } catch (error) {
+    console.error('Error in showFollowUpMessage:', error);
+  }
+};
+
+// Make endChatFromMessage available globally
+window.endChatFromMessage = () => {
+  endChat();
+};
+
+const endChat = () => {
+  // Add feedback form as a message
+  showFeedbackMessage();
+};
+
+const showFeedbackMessage = async () => {
+  const feedbackMessage = {
+    id: `feedback_${Date.now()}`,
+    role: 'assistant',
+    content: 'Feedback form will be displayed here',
+    sent_at: new Date().toISOString(),
+    type: 'feedback',
+  };
+
+  messages.value.push(feedbackMessage);
+  await scrollToBottom();
+};
+
+// Rating helper function
+const getRatingLabel = (rating) => {
+  if (rating === 0) return 'Pilih rating (1-5 bintang)';
+  const labels = {
+    1: '1 dari 5 bintang - Sangat Buruk',
+    2: '2 dari 5 bintang - Buruk', 
+    3: '3 dari 5 bintang - Cukup',
+    4: '4 dari 5 bintang - Baik',
+    5: '5 dari 5 bintang - Sangat Baik',
+  };
+  return labels[rating] || `${rating} dari 5 bintang`;
+};
+
+// Handle rating change
+const onRatingChange = (rating) => {
+  feedbackRating.value = rating;
+};
+
+const submitFeedback = async () => {
+  if (feedbackRating.value === 0) {
+    showErrorMessage('Mohon berikan rating untuk layanan kami');
+    return;
+  }
+
+  try {
+    isSubmittingFeedback.value = true;
+
+    const response = await axios.post('/api/chat/feedback', {
+      session_id: getSessionId(),
+      rating: feedbackRating.value,
+      feedback_text: feedbackText.value.trim() || null,
+    });
+
+    if (response.data.success) {
+      feedbackSubmitted.value = true;
+
+      // Add final thank you message
+      const finalMessage = {
+        id: `final_${Date.now()}`,
+        role: 'assistant',
+        content: 'Thank you message will be displayed here',
+        sent_at: new Date().toISOString(),
+        type: 'final',
+      };
+
+      messages.value.push(finalMessage);
+      await scrollToBottom();
+
+      // End session
+      await endChatSession();
+
+      // Redirect to home after 5 seconds
+      setTimeout(() => {
+        router.visit('/');
+      }, 5000);
+    } else {
+      showErrorMessage(response.data.message || 'Gagal menyimpan feedback');
+    }
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+    showErrorMessage('Gagal menyimpan feedback. Silakan coba lagi.');
+  } finally {
+    isSubmittingFeedback.value = false;
+  }
+};
+
+window.hoverStar = (hoveredStar) => {
+  // Only show hover effect if no rating is selected yet
+  if (feedbackRating.value === 0) {
+    document.querySelectorAll('[data-star]').forEach((star) => {
+      const starNum = parseInt(star.getAttribute('data-star'));
+      star.style.color = starNum <= hoveredStar ? '#ffc107' : '#ddd';
+    });
+  }
+};
+
+window.resetStarHover = () => {
+  // Reset to current rating or gray if no rating
+  if (feedbackRating.value > 0) {
+    updateStarDisplay(feedbackRating.value);
+  } else {
+    document.querySelectorAll('[data-star]').forEach((star) => {
+      star.style.color = '#ddd';
+    });
+  }
+};
+
+window.updateStarColors = (hoveredStar) => {
+  if (feedbackRating.value > 0) {
+    updateStarDisplay(feedbackRating.value);
+  } else {
+    // Reset to gray if no rating selected
+    document.querySelectorAll('[data-star]').forEach((star) => {
+      star.style.color = '#ddd';
+    });
+  }
+};
+
+const updateStarDisplay = (rating) => {
+  document.querySelectorAll('[data-star]').forEach((star) => {
+    const starNum = parseInt(star.getAttribute('data-star'));
+    star.style.color = starNum <= rating ? '#ffc107' : '#ddd';
+  });
+};
+
+const endChatSession = async () => {
+  try {
+    await axios.post('/api/chat/end-session', {
+      session_id: getSessionId(),
+    });
+
+    // Clear local storage
+    localStorage.removeItem('chat_session_id');
+  } catch (error) {
+    console.error('Error ending chat session:', error);
+  }
+};
+
 // Utility functions
 const formatTime = (timestamp) => {
   if (!timestamp) return '';
@@ -583,46 +873,27 @@ const formatTime = (timestamp) => {
 const formatMessage = async (content) => {
   if (!content) return '';
 
-  // If already looks like HTML, return as-is
+  // If already looks like HTML, return as-is (for our follow-up/feedback messages)
   const looksHtml = /<\w+[\s\S]*>/m.test(content);
   if (looksHtml) return content;
 
-  // Check if content has markdown patterns (headers, lists, links)
-  const hasMarkdown = /^#{1,6}\s|^\d+\.\s|\[.*?\]\(.*?\)|!\[.*?\]\(.*?\)|\*\*(.*?)\*\*/m.test(
-    content,
-  );
-
-  if (hasMarkdown) {
-    try {
-      // Convert markdown to rich HTML using our API
-      const response = await fetch('/api/chat/convert-markdown', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN':
-            document
-              .querySelector('meta[name="csrf-token"]')
-              ?.getAttribute('content') || '',
-        },
-        body: JSON.stringify({
-          content,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return data.html;
-      }
-    } catch (error) {
-      console.warn('Failed to convert markdown:', error);
-    }
-  }
-
-  // Fallback to simple formatting
-  return content
+  // Simple formatting that works reliably
+  const formatted = content
+    // Convert URLs to clickable links
+    .replace(
+      /(https?:\/\/[^\s]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;">$1</a>',
+    )
+    // Convert bold text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Convert line breaks
     .replace(/\n/g, '<br>')
-    .replace(/^(\d+\.\s)/gm, '<br>$1');
+    // Format numbered lists with proper line breaks
+    .replace(/^(\d+\.\s)/gm, '<br>$1')
+    // Format bullet points
+    .replace(/^[-*]\s/gm, '<br>• ');
+
+  return formatted;
 };
 
 const getFormattedContent = (message) => {
@@ -640,10 +911,17 @@ const getFormattedContent = (message) => {
 
   // Return simple formatted content as fallback while processing
   const content = message.content || '';
+
+  // Same simple formatting as formatMessage for consistency
   return content
+    .replace(
+      /(https?:\/\/[^\s]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;">$1</a>',
+    )
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
-    .replace(/^(\d+\.\s)/gm, '<br>$1');
+    .replace(/^(\d+\.\s)/gm, '<br>$1')
+    .replace(/^[-*]\s/gm, '<br>• ');
 };
 
 const getSuggestionColor = (index) => {
@@ -677,6 +955,13 @@ const showErrorMessage = (message) => {
 const handleContentClick = (event) => {
   const { target } = event;
   if (!target || typeof target.closest !== 'function') return;
+  // End chat buttons
+  const endBtn = target.closest('[data-action="end-chat"]');
+  if (endBtn) {
+    event.preventDefault();
+    endChat();
+    return;
+  }
   // If clicking an anchor-wrapped image
   const anchor = target.closest('a.kb-lightbox');
   if (anchor) {
@@ -712,6 +997,10 @@ const listenerAttached = ref(false);
 
 // Initialize on mount
 onMounted(() => {
+  console.log(
+    '[Chat Index] mounted - build active at',
+    new Date().toISOString(),
+  );
   initializeChat();
 
   if (messagesContainer.value) {
@@ -763,6 +1052,13 @@ watch(
     nextTick(() => {
       scrollToBottom();
     });
+    // If last message is by assistant and not a follow-up/final/feedback, inject follow-up
+    const last = messages.value[messages.value.length - 1];
+    if (!last) return;
+    const excludedTypes = new Set(['follow_up', 'feedback', 'final', 'test']);
+    if (last.role === 'assistant' && !excludedTypes.has(last.type)) {
+      showFollowUpMessage();
+    }
   },
   { deep: true },
 );
@@ -979,5 +1275,46 @@ watch(
   .suggestion-card {
     min-height: 70px !important;
   }
+
+  .max-width-90 {
+    max-width: 95%;
+  }
+}
+
+/* Feedback and follow-up components */
+.feedback-card {
+  transition: all 0.3s ease;
+}
+
+.feedback-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12) !important;
+}
+
+.star-btn {
+  transition: all 0.2s ease;
+}
+
+.star-btn:hover {
+  transform: scale(1.1);
+}
+
+.final-message {
+  animation: slideInUp 0.5s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.max-width-90 {
+  max-width: 90%;
 }
 </style>
