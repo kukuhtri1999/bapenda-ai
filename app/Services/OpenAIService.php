@@ -859,54 +859,100 @@ REQUIREMENTS:
      */
     private function getVectorKnowledge(string $userQuery): array
     {
+        // Try Pinecone vector search first
         try {
-            $embeddingService = app(EmbeddingService::class);
-            $pineconeService = app(PineconeService::class);
+            if (class_exists(\App\Services\EmbeddingService::class) && class_exists(\App\Services\PineconeService::class)) {
+                $embeddingService = app(EmbeddingService::class);
+                $pineconeService = app(PineconeService::class);
 
-            // Generate embedding for user query
-            $queryEmbedding = $embeddingService->embed($userQuery);
-            if (!$queryEmbedding) {
-                if ($this->debug) Log::warning('Failed to generate embedding for query');
-                return [];
-            }
+                $queryEmbedding = $embeddingService->embed($userQuery);
+                if ($queryEmbedding) {
+                    $matches = $pineconeService->query(
+                        vector: $queryEmbedding,
+                        topK: 3
+                    );
 
-            // Search Pinecone for similar knowledge (without filters for better performance)
-            $matches = $pineconeService->query(
-                vector: $queryEmbedding,
-                topK: 3
-            );
+                    $results = [];
+                    foreach ($matches as $match) {
+                        $score = $match['score'] ?? 0;
+                        if ($score >= 0.2) {
+                            $metadata = $match['metadata'] ?? [];
+                            $results[] = [
+                                'id' => $metadata['id'] ?? null,
+                                'title' => $metadata['title'] ?? '',
+                                'content' => $metadata['chunk_text'] ?? $metadata['content'] ?? '',
+                                'answer' => $metadata['answer'] ?? '',
+                                'category' => $metadata['category'] ?? '',
+                                'score' => $score
+                            ];
+                        }
+                    }
 
-            $results = [];
-            foreach ($matches as $match) {
-                $score = $match['score'] ?? 0;
-
-                // Filter by minimum score threshold (0.2 as requested)
-                if ($score >= 0.2) {
-                    $metadata = $match['metadata'] ?? [];
-                    $results[] = [
-                        'id' => $metadata['id'] ?? null,
-                        'title' => $metadata['title'] ?? '',
-                        'content' => $metadata['chunk_text'] ?? $metadata['content'] ?? '',
-                        'answer' => $metadata['answer'] ?? '',
-                        'category' => $metadata['category'] ?? '',
-                        'score' => $score
-                    ];
+                    if (!empty($results)) {
+                        if ($this->debug) Log::info('Vector search success', ['results' => count($results)]);
+                        return $results;
+                    }
                 }
             }
-
-            if ($this->debug) {
-                Log::info('Vector search completed', [
-                    'query_length' => mb_strlen($userQuery),
-                    'matches_found' => count($matches),
-                    'filtered_results' => count($results)
-                ]);
-            }
-
-            return $results;
         } catch (Exception $e) {
-            Log::error('Vector search failed: ' . $e->getMessage());
-            return [];
+            if ($this->debug) Log::warning('Vector search failed, falling back to DB: ' . $e->getMessage());
         }
+
+        // Fallback to simple database search
+        return $this->getDatabaseKnowledge($userQuery);
+    }
+
+    private function getDatabaseKnowledge(string $userQuery): array
+    {
+        // Simple database search with basic scoring
+        $query = strtolower($userQuery);
+        $keywords = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
+        $keywords = array_slice($keywords, 0, 5); // Limit keywords for speed
+
+        $knowledge = KnowledgeBase::active()
+            ->published()
+            ->where(function ($q) use ($keywords, $query) {
+                // Full-text search first
+                $q->whereRaw('MATCH(title, search_content) AGAINST(? IN NATURAL LANGUAGE MODE)', [$query]);
+
+                // Add keyword matching for fallback
+                foreach ($keywords as $keyword) {
+                    $q->orWhere('title', 'LIKE', "%{$keyword}%")
+                        ->orWhere('search_content', 'LIKE', "%{$keyword}%");
+                }
+            })
+            ->orderByDesc('priority')
+            ->orderByDesc('view_count')
+            ->limit(3)
+            ->get(['id', 'title', 'content', 'answer', 'category', 'search_content'])
+            ->map(function ($kb) use ($keywords) {
+                // Simple relevance scoring
+                $title = strtolower($kb->title ?? '');
+                $content = strtolower($kb->search_content ?? '');
+                $score = 0.1; // Base score
+
+                foreach ($keywords as $keyword) {
+                    if (strpos($title, $keyword) !== false) $score += 0.3;
+                    if (strpos($content, $keyword) !== false) $score += 0.1;
+                }
+
+                return [
+                    'id' => $kb->id,
+                    'title' => $kb->title,
+                    'content' => $kb->content,
+                    'answer' => $kb->answer,
+                    'category' => $kb->category,
+                    'score' => min($score, 1.0) // Cap at 1.0
+                ];
+            })
+            ->filter(function ($kb) {
+                return $kb['score'] >= 0.2; // Apply score threshold
+            })
+            ->values()
+            ->toArray();
+
+        if ($this->debug) Log::info('DB search completed', ['results' => count($knowledge)]);
+        return $knowledge;
     }
 
     /**

@@ -643,10 +643,28 @@ const formatMessage = (content) => {
   if (!content) return '';
   const looksHtml = /<\w+[\s\S]*>/m.test(content);
   if (looksHtml) return content;
-  return content
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n/g, '<br>')
-    .replace(/^(\d+\.\s)/gm, '<br>$1');
+
+  return (
+    content
+      // Handle Markdown-style links [text](url) first
+      .replace(
+        /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline; font-weight: 500;">$1</a>',
+      )
+      // Handle plain URLs (but not those already in HTML tags)
+      .replace(
+        /(?<!href="|">)(https?:\/\/[^\s<]+)(?![^<]*<\/a>)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;">$1</a>',
+      )
+      // Handle bold text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      // Handle line breaks
+      .replace(/\n/g, '<br>')
+      // Handle numbered lists
+      .replace(/^(\d+\.\s)/gm, '<br>$1')
+      // Handle bullet points
+      .replace(/^[-*]\s/gm, '<br>• ')
+  );
 };
 
 // Lightbox handlers
