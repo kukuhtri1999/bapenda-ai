@@ -389,8 +389,7 @@ function handleImageError() {
                 Pertanyaan Populer
               </h2>
               <p class="text-h6 text-grey-700">
-                <!-- Klik untuk langsung mendapatkan jawaban dari AI Assistant
-              </p> -->
+                Klik untuk langsung mendapatkan jawaban dari AI Assistant
               </p></VCol
             >
           </VRow>
@@ -407,13 +406,8 @@ function handleImageError() {
                 class="question-card h-100"
                 :color="getCardColor(index)"
                 variant="flat"
-              >
-                <!-- <VCard
-                class="question-card h-100"
-                :color="getCardColor(index)"
-                variant="flat"
                 @click="askQuestion(question.text)"
-              > -->
+              >
                 <VCardText class="pa-6">
                   <div class="d-flex align-center mb-4">
                     <VAvatar
@@ -536,10 +530,10 @@ function handleImageError() {
                     </VAvatar>
                   </template>
                   <VListItemTitle class="text-white font-weight-medium">
-                    Senin - Jumat: 08.00 - 15.00 WIB
+                    Senin - Kamis , Sabtu: 08.00 - 12.00 WIB
                   </VListItemTitle>
                   <VListItemSubtitle class="text-white-70">
-                    Sabtu: 08.00 - 12.00 WIB
+                    Sabtu: 08.00 - 11.00 WIB
                   </VListItemSubtitle>
                 </VListItem>
 
