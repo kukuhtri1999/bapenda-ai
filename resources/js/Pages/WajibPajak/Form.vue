@@ -188,7 +188,7 @@ const proceedToChat = () => {
                 </ul>
 
                 <VBtn
-                  color="success"
+                  color="success w-full"
                   size="large"
                   class="mr-3"
                   @click="proceedToChat"
@@ -197,7 +197,7 @@ const proceedToChat = () => {
                   Lanjut ke Chat AI
                 </VBtn>
 
-                <VBtn
+                <!-- <VBtn
                   color="primary"
                   variant="outlined"
                   size="large"
@@ -211,7 +211,7 @@ const proceedToChat = () => {
                 >
                   <VIcon left>mdi-pencil</VIcon>
                   Ubah Data
-                </VBtn>
+                </VBtn> -->
               </VAlert>
 
               <!-- Form input -->

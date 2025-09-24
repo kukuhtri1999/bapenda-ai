@@ -389,9 +389,10 @@ function handleImageError() {
                 Pertanyaan Populer
               </h2>
               <p class="text-h6 text-grey-700">
-                Klik untuk langsung mendapatkan jawaban dari AI Assistant
-              </p>
-            </VCol>
+                <!-- Klik untuk langsung mendapatkan jawaban dari AI Assistant
+              </p> -->
+              </p></VCol
+            >
           </VRow>
 
           <VRow>
@@ -406,8 +407,13 @@ function handleImageError() {
                 class="question-card h-100"
                 :color="getCardColor(index)"
                 variant="flat"
-                @click="askQuestion(question.text)"
               >
+                <!-- <VCard
+                class="question-card h-100"
+                :color="getCardColor(index)"
+                variant="flat"
+                @click="askQuestion(question.text)"
+              > -->
                 <VCardText class="pa-6">
                   <div class="d-flex align-center mb-4">
                     <VAvatar
