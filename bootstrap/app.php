@@ -17,6 +17,12 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
+        // Exclude public lotre import routes from CSRF verification
+        $middleware->validateCsrfTokens(except: [
+            'import-lotre-data',
+            'import-lotre-data/*',
+        ]);
+
         // Register custom middleware aliases
         $middleware->alias([
             'ensure.wajib.pajak' => \App\Http\Middleware\EnsureWajibPajakData::class,

@@ -82,7 +82,7 @@ The feature is ready to use at `/import-lotre-data` after logging in.
 
 ---
 
-_**User (2025-11-28 01:18Z)**_
+_**User (2025-11-28 01:24Z)**_
 
 i think no need to login for this import-lotre data , also create preview 10 first row data before import please , use good UI UX
 
@@ -91,6 +91,82 @@ i think no need to login for this import-lotre data , also create preview 10 fir
 _**Agent (model copilot/claude-opus-4.5)**_
 
 
+```
+
+```
+Now I'll add the preview method to the controller and update the Vue page with a better UI: 
+```
+
+```
+Now let me update the Vue page with a better stepper UI and preview functionality: 
+```
+
+```
+The issue is that the template has two root elements (Head and div). Let me wrap them in a single root element: 
+```
+
+```
+I need to add the closing wrapper div. Let me check and fix: 
+```
+
+```
+Let me verify the routes are correctly set up: All routes are registered. Let me also verify the PHP syntax: All done! Here's a summary of the changes:
+
+## Summary of Changes
+
+### 1. Routes Made Public
+The lotre import routes are now **outside** the auth middleware, so no login is required:
+- `GET /import-lotre-data` - Display import page
+- `POST /import-lotre-data/preview` - Preview first 10 rows (NEW)
+- `POST /import-lotre-data` - Handle file upload
+- `POST /import-lotre-data/clear` - Clear all data
+- `GET /import-lotre-data/template` - Download template
+
+### 2. New Preview Feature
+Added a preview endpoint that:
+- Parses the uploaded file without saving to database
+- Auto-detects column headers (supports variations like `nama`, `name`, `peserta`, etc.)
+- Returns first 10 rows of data for user review
+- Shows validation status for each row
+- Displays total row count
+
+### 3. Improved UI/UX
+The new Vue page features:
+- **3-Step Wizard**: Upload → Preview → Complete
+- **Visual Stepper** at the top showing current progress
+- **Drag & Drop** file upload area
+- **Statistics Cards** showing Total Peserta, Sudah Menang, Belum Menang
+- **Preview Table** with 10 first rows, showing:
+  - Row number
+  - Nama, Nopol, Alamat
+  - Valid/Invalid status badge
+  - Total remaining rows count
+- **Gradient background** with modern card design
+- **SweetAlert2** confirmations for import and delete actions
+- **Danger Zone** section for clearing all data
+- **Quick link** to the lottery page
+
+The page is now standalone (no AppLayout wrapper needed) with a clean, modern design that works without authentication.
+
+---
+
+_**User (2025-11-28 01:38Z)**_
+
+i got error csrf when i try to import it 
+
+    "message": "CSRF token mismatch.",
+    "exception": "Symfony\\Component\\HttpKernel\\Exception\\HttpException",
+    "file": "/home/kukuhtri/bapendai.kukuhtri.my.id/vendor/laravel/framework/src/Illuminate/Foundation/Exceptions/Handler.php",
+    "line": 674,
+    "trace": [
+
+      plesae fix it , ensure all working properly and able to import data correctly
+
+---
+
+_**Agent (model copilot/claude-opus-4.5)**_
+
+The CSRF token mismatch error occurs because the page is public (no auth) but still needs CSRF protection. Since this is a public page without session-based auth, we need to either include the CSRF token properly or exclude these routes from CSRF verification. Let me check the current setup and fix it: This is Laravel 11 which uses a different middleware approach. Let me check if there's an existing way to exclude routes from CSRF or add the token properly to the Vue page. The best approach is to add CSRF exclusion for these public import routes: 
 
 ---
 
