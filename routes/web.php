@@ -11,6 +11,7 @@ use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\AppSettingController;
 use App\Http\Controllers\Admin\ChatImportController;
 use App\Http\Controllers\Admin\FeedbackController;
+use App\Http\Controllers\Admin\LotreImportController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -75,6 +76,13 @@ Route::middleware([
     })->name('admin.chat-import');
     Route::post('/admin/chat-import', [ChatImportController::class, 'upload'])->name('admin.chat-import.upload');
 });
+
+// Public Lotre Import (XLSX) routes - No auth required
+Route::get('/import-lotre-data', [LotreImportController::class, 'index'])->name('admin.lotre-import');
+Route::post('/import-lotre-data/preview', [LotreImportController::class, 'preview'])->name('admin.lotre-import.preview');
+Route::post('/import-lotre-data', [LotreImportController::class, 'upload'])->name('admin.lotre-import.upload');
+Route::post('/import-lotre-data/clear', [LotreImportController::class, 'clearAll'])->name('admin.lotre-import.clear');
+Route::get('/import-lotre-data/template', [LotreImportController::class, 'downloadTemplate'])->name('admin.lotre-import.template');
 
 // Public Wajib Pajak routes (entry point for chat)
 Route::get('/wajib-pajak', [WajibPajakController::class, 'showForm'])->name('wajib-pajak.form');
