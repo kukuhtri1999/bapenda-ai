@@ -7,9 +7,11 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\PesertaLotreImport;
 use App\Models\PesertaLotre;
+use App\Models\LotreSetting;
 use Inertia\Inertia;
 use Inertia\Response;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -25,12 +27,158 @@ class LotreImportController extends Controller
     $totalParticipants = PesertaLotre::count();
     $totalWinners = PesertaLotre::where('apakah_menang', true)->count();
 
-    return Inertia::render('Admin/ImportLotreData/Index', [
+    return Inertia::render('Admin/LotreManagement/Import', [
       'stats' => [
         'total_participants' => $totalParticipants,
         'total_winners' => $totalWinners,
       ],
     ]);
+  }
+
+  /**
+   * Display the settings page
+   */
+  public function settings(): Response
+  {
+    $totalParticipants = PesertaLotre::count();
+    $totalWinners = PesertaLotre::where('apakah_menang', true)->count();
+    $predeterminedWinners = PesertaLotre::predeterminedWinners()->get();
+
+    return Inertia::render('Admin/LotreManagement/Settings', [
+      'stats' => [
+        'total_participants' => $totalParticipants,
+        'total_winners' => $totalWinners,
+      ],
+      'settings' => [
+        'lotre_mode' => LotreSetting::getLotreMode(),
+        'spin_duration_ms' => LotreSetting::getSpinDuration(),
+      ],
+      'predeterminedWinners' => $predeterminedWinners,
+    ]);
+  }
+
+  /**
+   * Update lotre settings
+   */
+  public function updateSettings(Request $request): JsonResponse
+  {
+    $validator = Validator::make($request->all(), [
+      'lotre_mode' => 'required|in:random,custom',
+      'spin_duration_ms' => 'required|integer|min:1000|max:15000',
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'errors' => $validator->errors(),
+      ], 422);
+    }
+
+    try {
+      LotreSetting::setValue('lotre_mode', $request->lotre_mode, 'string', 'Mode lotre: random atau custom');
+      LotreSetting::setValue('spin_duration_ms', $request->spin_duration_ms, 'integer', 'Durasi animasi spin dalam milidetik');
+
+      return response()->json([
+        'success' => true,
+        'message' => 'Pengaturan berhasil disimpan.',
+      ]);
+    } catch (\Throwable $e) {
+      Log::error('Update lotre settings failed: ' . $e->getMessage());
+      return response()->json([
+        'success' => false,
+        'message' => 'Gagal menyimpan pengaturan.',
+      ], 500);
+    }
+  }
+
+  /**
+   * Search participants for winner picker
+   */
+  public function searchParticipants(Request $request): JsonResponse
+  {
+    $query = $request->get('q', '');
+
+    if (strlen($query) < 2) {
+      return response()->json([]);
+    }
+
+    $participants = PesertaLotre::where(function ($q) use ($query) {
+      $q->where('nama', 'like', "%{$query}%")
+        ->orWhere('nopol', 'like', "%{$query}%");
+    })
+      ->limit(20)
+      ->get(['id', 'nama', 'nopol', 'alamat', 'predetermined_winner_order']);
+
+    return response()->json($participants);
+  }
+
+  /**
+   * Set predetermined winners
+   */
+  public function setPredeterminedWinners(Request $request): JsonResponse
+  {
+    $validator = Validator::make($request->all(), [
+      'winners' => 'required|array',
+      'winners.*.id' => 'required|exists:peserta_lotre,id',
+      'winners.*.order' => 'required|integer|min:1',
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'errors' => $validator->errors(),
+      ], 422);
+    }
+
+    try {
+      DB::transaction(function () use ($request) {
+        // Clear all existing predetermined orders
+        PesertaLotre::whereNotNull('predetermined_winner_order')
+          ->update(['predetermined_winner_order' => null]);
+
+        // Set new predetermined orders
+        foreach ($request->winners as $winner) {
+          PesertaLotre::where('id', $winner['id'])
+            ->update(['predetermined_winner_order' => $winner['order']]);
+        }
+      });
+
+      $predeterminedWinners = PesertaLotre::predeterminedWinners()->get();
+
+      return response()->json([
+        'success' => true,
+        'message' => 'Pemenang berhasil ditentukan.',
+        'predeterminedWinners' => $predeterminedWinners,
+      ]);
+    } catch (\Throwable $e) {
+      Log::error('Set predetermined winners failed: ' . $e->getMessage());
+      return response()->json([
+        'success' => false,
+        'message' => 'Gagal menyimpan pemenang.',
+      ], 500);
+    }
+  }
+
+  /**
+   * Clear all predetermined winners
+   */
+  public function clearPredeterminedWinners(): JsonResponse
+  {
+    try {
+      PesertaLotre::whereNotNull('predetermined_winner_order')
+        ->update(['predetermined_winner_order' => null]);
+
+      return response()->json([
+        'success' => true,
+        'message' => 'Semua pemenang yang ditentukan telah dihapus.',
+      ]);
+    } catch (\Throwable $e) {
+      Log::error('Clear predetermined winners failed: ' . $e->getMessage());
+      return response()->json([
+        'success' => false,
+        'message' => 'Gagal menghapus pemenang.',
+      ], 500);
+    }
   }
 
   /**

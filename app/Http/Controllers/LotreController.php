@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PesertaLotre;
+use App\Models\LotreSetting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -13,8 +14,10 @@ class LotreController extends Controller
     // Public page
     public function index()
     {
-        // We'll load minimal props and let the page call the API
-        return Inertia::render('Lotre/Index');
+        // Pass settings to the frontend
+        return Inertia::render('Lotre/Index', [
+            'spinDuration' => LotreSetting::getSpinDuration(),
+        ]);
     }
 
     // Public API: list participants (paginated)
@@ -39,20 +42,53 @@ class LotreController extends Controller
     // Public API: pick a random non-winning participant and mark as next winner
     public function pick(Request $request)
     {
-        // Use a transaction and FOR UPDATE lock to avoid races when multiple clients pick
-        $picked = DB::transaction(function () {
-            // select a random eligible participant and lock the row
-            $candidate = PesertaLotre::where('apakah_menang', false)->lockForUpdate()->inRandomOrder()->first();
+        $lotreMode = LotreSetting::getLotreMode();
+
+        $picked = DB::transaction(function () use ($lotreMode) {
+            // Determine next urutan_menang (start at 1)
+            $maxUrutan = PesertaLotre::whereNotNull('urutan_menang')->max('urutan_menang');
+            $nextUrutan = $maxUrutan ? $maxUrutan + 1 : 1;
+
+            $candidate = null;
+
+            if ($lotreMode === 'custom') {
+                // Custom mode: check if there's a predetermined winner for this position
+                $candidate = PesertaLotre::where('apakah_menang', false)
+                    ->where('predetermined_winner_order', $nextUrutan)
+                    ->lockForUpdate()
+                    ->first();
+
+                // If no predetermined winner for this position, or they already won,
+                // check if there are any predetermined winners left that haven't won
+                if (!$candidate) {
+                    $candidate = PesertaLotre::where('apakah_menang', false)
+                        ->whereNotNull('predetermined_winner_order')
+                        ->orderBy('predetermined_winner_order', 'asc')
+                        ->lockForUpdate()
+                        ->first();
+                }
+
+                // If still no predetermined winner available, fall back to random
+                if (!$candidate) {
+                    $candidate = PesertaLotre::where('apakah_menang', false)
+                        ->lockForUpdate()
+                        ->inRandomOrder()
+                        ->first();
+                }
+            } else {
+                // Random mode: select a random eligible participant
+                $candidate = PesertaLotre::where('apakah_menang', false)
+                    ->lockForUpdate()
+                    ->inRandomOrder()
+                    ->first();
+            }
+
             if (!$candidate) {
                 return null;
             }
 
-            // next urutan_menang (start at 1)
-            $max = PesertaLotre::whereNotNull('urutan_menang')->max('urutan_menang');
-            $next = $max ? $max + 1 : 1;
-
             $candidate->apakah_menang = true;
-            $candidate->urutan_menang = $next;
+            $candidate->urutan_menang = $nextUrutan;
             $candidate->save();
 
             return $candidate;

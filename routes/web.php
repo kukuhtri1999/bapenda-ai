@@ -75,14 +75,24 @@ Route::middleware([
         return Inertia::render('Admin/ChatImport/Index');
     })->name('admin.chat-import');
     Route::post('/admin/chat-import', [ChatImportController::class, 'upload'])->name('admin.chat-import.upload');
-});
 
-// Public Lotre Import (XLSX) routes - No auth required
-Route::get('/import-lotre-data', [LotreImportController::class, 'index'])->name('admin.lotre-import');
-Route::post('/import-lotre-data/preview', [LotreImportController::class, 'preview'])->name('admin.lotre-import.preview');
-Route::post('/import-lotre-data', [LotreImportController::class, 'upload'])->name('admin.lotre-import.upload');
-Route::post('/import-lotre-data/clear', [LotreImportController::class, 'clearAll'])->name('admin.lotre-import.clear');
-Route::get('/import-lotre-data/template', [LotreImportController::class, 'downloadTemplate'])->name('admin.lotre-import.template');
+    // Admin Lotre Management routes (requires auth)
+    Route::prefix('admin/lotre')->group(function () {
+        // Import routes
+        Route::get('/import', [LotreImportController::class, 'index'])->name('admin.lotre.import');
+        Route::post('/import/preview', [LotreImportController::class, 'preview'])->name('admin.lotre.preview');
+        Route::post('/import', [LotreImportController::class, 'upload'])->name('admin.lotre.upload');
+        Route::post('/import/clear', [LotreImportController::class, 'clearAll'])->name('admin.lotre.clear');
+        Route::get('/import/template', [LotreImportController::class, 'downloadTemplate'])->name('admin.lotre.template');
+
+        // Settings routes
+        Route::get('/settings', [LotreImportController::class, 'settings'])->name('admin.lotre.settings');
+        Route::post('/settings', [LotreImportController::class, 'updateSettings'])->name('admin.lotre.update-settings');
+        Route::get('/search-participants', [LotreImportController::class, 'searchParticipants'])->name('admin.lotre.search-participants');
+        Route::post('/set-predetermined-winners', [LotreImportController::class, 'setPredeterminedWinners'])->name('admin.lotre.set-predetermined-winners');
+        Route::post('/clear-predetermined-winners', [LotreImportController::class, 'clearPredeterminedWinners'])->name('admin.lotre.clear-predetermined-winners');
+    });
+});
 
 // Public Wajib Pajak routes (entry point for chat)
 Route::get('/wajib-pajak', [WajibPajakController::class, 'showForm'])->name('wajib-pajak.form');
