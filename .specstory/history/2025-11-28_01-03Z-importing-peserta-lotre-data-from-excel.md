@@ -334,7 +334,7 @@ Now let me run the database migration: Migration successful. Now let me check if
 
 ---
 
-_**User (2025-12-01 08:06Z)**_
+_**User (2025-12-01 08:08Z)**_
 
 ehh where is the import data lotre page ? i need this also in admin dashboard , please add it and ensure all working properly
 
@@ -343,6 +343,88 @@ ehh where is the import data lotre page ? i need this also in admin dashboard , 
 _**Agent (model copilot/claude-opus-4.5)**_
 
 Let me check the current state of the files and verify the routes and navigation are properly set up: Routes look good. Let me check the AppLayout navigation: The navigation has children for Lotre Undian but the current AppLayout doesn't handle nested children. Let me check if the Import.vue file exists and is correct: Good, the files exist. Let me update the AppLayout to handle the navigation better - instead of nested children, let's use separate menu items for Import and Settings: 
+```
+
+```
+The lint errors are pre-existing from the original code. Now let me check the `Import.vue` page to make sure it's correct: Good, the `Import.vue` exists and has AppLayout. Let me also verify the controller returns the correct Inertia view: The controller renders the correct view. Let me clear the application cache and check if there are any issues: All routes are registered correctly. Let me also verify all imports and ensure the files are syntactically correct by running a quick syntax check: All PHP files have no syntax errors. Now let me verify the Vue files and build the assets to make sure everything compiles: Build successful! All assets compiled correctly including `Import-DwiMGKvS.js` and `Settings-CvQUZPmv.js`.
+
+The lotre import data page is now properly set up in the admin dashboard. Here's a summary of what's available:
+
+## Lotre Admin Pages in Dashboard
+
+Both pages are now accessible from the sidebar navigation:
+
+1. **Lotre - Pengaturan** (`/admin/lotre/settings`)
+   - Mode toggle (Random vs Custom winner)
+   - Spin duration slider
+   - Predetermined winner picker (for custom mode)
+
+2. **Lotre - Import Data** (`/admin/lotre/import`)
+   - File upload with drag & drop
+   - Preview first 10 rows before import
+   - Import progress and results
+   - Clear all data option
+   - Download template
+
+The navigation menu now shows both as separate items:
+- 🎁 **Lotre - Pengaturan** 
+- 📤 **Lotre - Import Data**
+
+---
+
+_**User (2025-12-02 08:30Z)**_
+
+good but #file:Index.vue , can we make the UI UX more compact so regular FHD laptop can see all screen without need to scroll down , coz currently still need to scrolldown , probably decrease some size of padding, text , margin , etc. also can we have faster animations so that it looks like its spinning so much data per second
+
+also in #file:Index.vue , i need your help to add new field for peserta lotre 'kecamatan' to store their address by kecamatan. so in import file we will add new column 'kecamatan' in the format and we will able to store kecamatan in it 
+
+also we need to add new mode 'satu orang per kecamatan'. so in this mode we will pick only one person per kecamatan , so if first winner is kecamatan A , theres no way next winner will be kecamatan A , if second winner is kecamatan B , theres no way kecamatan B will win again . and so on .
+
+please develop all of these  front end , backend, database carefully without broke anything , ensure all working properly without any issue , use your best practice. 
+
+
+
+---
+
+_**Agent (model copilot/claude-opus-4.5)**_
+
+I'll develop all these features systematically. Let me start by understanding the current state and then implement the changes. Now let me check the existing migrations for peserta_lotre: Now I have a complete picture. Let me create all the necessary changes: 
+```
+
+```
+
+```
+
+```
+
+```
+
+```
+
+```
+
+```
+
+```
+
+```
+Now I'll update the preview and template to include kecamatan: 
+```
+
+```
+[object Object]
+
+---
+
+_**User (2025-12-02 08:30Z)**_
+
+@agent Continue: "Continue to iterate?"
+
+---
+
+_**Agent (model copilot/claude-opus-4.5)**_
+
+
 ```
 
 ```

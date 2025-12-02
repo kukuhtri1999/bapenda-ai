@@ -66,7 +66,7 @@ class LotreSetting extends Model
   }
 
   /**
-   * Get the lotre mode (random or custom)
+   * Get the lotre mode (random, custom, or one_per_kecamatan)
    */
   public static function getLotreMode(): string
   {
@@ -79,6 +79,22 @@ class LotreSetting extends Model
   public static function isCustomMode(): bool
   {
     return self::getLotreMode() === 'custom';
+  }
+
+  /**
+   * Check if lotre is in one per kecamatan mode
+   */
+  public static function isOnePerKecamatanMode(): bool
+  {
+    return self::getLotreMode() === 'one_per_kecamatan';
+  }
+
+  /**
+   * Check if lotre is in random mode
+   */
+  public static function isRandomMode(): bool
+  {
+    return self::getLotreMode() === 'random';
   }
 
   /**

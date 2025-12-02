@@ -33,6 +33,9 @@ const selectedWinners = ref(
 const savingWinners = ref(false);
 
 const isCustomMode = computed(() => lotreMode.value === 'custom');
+const isOnePerKecamatanMode = computed(
+  () => lotreMode.value === 'one_per_kecamatan',
+);
 
 // Search participants
 const searchParticipants = async () => {
@@ -255,14 +258,23 @@ const clearAllWinners = async () => {
                   value="custom"
                   color="primary"
                 />
+                <VRadio
+                  label="Satu Per Kecamatan"
+                  value="one_per_kecamatan"
+                  color="primary"
+                />
               </VRadioGroup>
               <p class="text-sm text-gray-500 mt-1">
                 <template v-if="lotreMode === 'random'">
                   Pemenang akan dipilih secara acak dari database peserta.
                 </template>
-                <template v-else>
+                <template v-else-if="lotreMode === 'custom'">
                   Pemenang akan mengikuti urutan yang sudah ditentukan, tetapi
                   akan terlihat acak di tampilan publik.
+                </template>
+                <template v-else>
+                  Pemenang akan dipilih secara acak, tetapi setiap kecamatan
+                  hanya boleh menang sekali.
                 </template>
               </p>
             </div>

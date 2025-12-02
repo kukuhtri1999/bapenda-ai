@@ -29,6 +29,7 @@ class PesertaLotreImport implements ToCollection, WithHeadingRow, WithChunkReadi
         $nama = $this->extractNama($row);
         $nopol = $this->extractNopol($row);
         $alamat = $this->extractAlamat($row);
+        $kecamatan = $this->extractKecamatan($row);
 
         // Validate required fields
         if (empty($nama) && empty($nopol)) {
@@ -53,6 +54,7 @@ class PesertaLotreImport implements ToCollection, WithHeadingRow, WithChunkReadi
           'nama' => $nama,
           'nopol' => $nopol,
           'alamat' => $alamat,
+          'kecamatan' => $kecamatan,
           'apakah_menang' => false,
           'urutan_menang' => null,
         ]);
@@ -108,6 +110,22 @@ class PesertaLotreImport implements ToCollection, WithHeadingRow, WithChunkReadi
   private function extractAlamat($row): ?string
   {
     $possibleKeys = ['alamat', 'address', 'alamat_peserta'];
+
+    foreach ($possibleKeys as $key) {
+      if (isset($row[$key]) && !empty(trim((string)$row[$key]))) {
+        return trim((string)$row[$key]);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract kecamatan from row - check multiple possible column names
+   */
+  private function extractKecamatan($row): ?string
+  {
+    $possibleKeys = ['kecamatan', 'kec', 'district', 'wilayah'];
 
     foreach ($possibleKeys as $key) {
       if (isset($row[$key]) && !empty(trim((string)$row[$key]))) {

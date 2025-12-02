@@ -3,7 +3,7 @@
     <Head title="Lotre Undian - Bapenda" />
 
     <div
-      class="lotre-page min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 relative overflow-hidden"
+      class="lotre-page h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 relative overflow-hidden"
     >
       <!-- Background Particles -->
       <div class="particles-container absolute inset-0 pointer-events-none">
@@ -15,96 +15,81 @@
         ></div>
       </div>
 
-      <!-- Main Content -->
+      <!-- Main Content - Compact Layout -->
       <div
-        class="relative z-10 container mx-auto px-4 py-8 min-h-screen flex flex-col"
+        class="relative z-10 container mx-auto px-3 py-3 h-full flex flex-col"
       >
-        <!-- Header -->
-        <header class="text-center mb-8">
-          <!-- <div
-            class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg mb-4 animate-pulse-slow"
+        <!-- Header - Compact -->
+        <header class="text-center mb-3">
+          <div
+            class="flex items-center auto w-[300px] justify-center gap-3 mb-2 place-self-center"
           >
-            <span class="text-4xl">🎰</span>
-          </div> -->
-          <VCol cols="auto" class="place-self-center">
-            <div class="d-flex align-center">
-              <!-- <VIcon color="white" size="40" class="me-3">mdi-robot</VIcon> -->
-              <VImg :src="logoUrl" alt="Logo" contain width="60" class="me-3" />
-              <VImg
-                src="/images/logo-jatim.png"
-                alt="Logo Jatim"
-                contain
-                :height="60"
-                width="60"
-                aspect-ratio="1"
-                class="me-2"
-              />
-              <VImg
-                src="/images/logo-polri.png"
-                alt="Logo Polri"
-                contain
-                height="60"
-                width="60   "
-                aspect-ratio="1"
-                class="me-2"
-              />
-              <VImg
-                src="/images/jasa-raharja.png"
-                alt="Jasa Raharja"
-                contain
-                height="60"
-                width="60"
-                aspect-ratio="1"
-                class="me-3"
-              />
-            </div>
-          </VCol>
+            <VImg :src="logoUrl" alt="Logo" contain :width="60" />
+            <VImg
+              src="/images/logo-jatim.png"
+              alt="Logo Jatim"
+              contain
+              :height="60"
+              :width="60"
+            />
+            <VImg
+              src="/images/logo-polri.png"
+              alt="Logo Polri"
+              contain
+              :height="60"
+              :width="60"
+            />
+            <VImg
+              src="/images/jasa-raharja.png"
+              alt="Jasa Raharja"
+              contain
+              :height="60"
+              :width="60"
+            />
+          </div>
           <h1
-            class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-pink-200 to-cyan-200 mb-2"
+            class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-pink-200 to-cyan-200"
           >
             LOTRE UNDIAN BAPENDA JATIM
           </h1>
-          <!-- <p class="text-white/70 text-lg">
-            Selamat datang! Putar untuk menentukan pemenang beruntung
-          </p> -->
-
-          <!-- Stats Bar -->
         </header>
 
-        <!-- Main Grid -->
-        <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <!-- Main Grid - Compact -->
+        <div class="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-3 min-h-0">
           <!-- Slot Machine Card -->
-          <div class="lg:col-span-2">
+          <div class="lg:col-span-2 flex flex-col min-h-0">
             <div
-              class="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden"
+              class="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-2xl overflow-hidden flex flex-col flex-1"
             >
               <!-- Machine Header -->
               <div
-                class="bg-gradient-to-r from-yellow-500 to-orange-500 p-4 text-center"
+                class="bg-gradient-to-r from-yellow-500 to-orange-500 p-2 text-center flex-shrink-0"
               >
-                <h2 class="text-xl font-bold text-white drop-shadow-md">
+                <h2 class="text-lg font-bold text-white drop-shadow-md">
                   🎲 MESIN UNDIAN 🎲
                 </h2>
               </div>
 
               <!-- Slot Display -->
-              <div class="p-6">
-                <div class="slot-machine-container relative mx-auto max-w-lg">
+              <div class="p-3 flex-1 flex flex-col min-h-0">
+                <div
+                  class="slot-machine-container relative mx-auto max-w-lg w-full"
+                >
                   <!-- Slot Frame -->
                   <div
-                    class="slot-frame bg-gradient-to-b from-gray-900 to-gray-800 rounded-2xl p-4 shadow-inner border-4 border-yellow-500/50"
+                    class="slot-frame bg-gradient-to-b from-gray-900 to-gray-800 rounded-xl p-3 shadow-inner border-4 border-yellow-500/50"
                   >
                     <!-- Slot Window -->
                     <div
-                      class="slot-window bg-black/50 rounded-xl overflow-hidden relative"
+                      class="slot-window bg-black/50 rounded-lg overflow-hidden relative"
                       :style="{ height: `${VISIBLE_COUNT * ITEM_H}px` }"
                     >
                       <!-- Gradient Overlays -->
                       <div
-                        class="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/80 to-transparent z-10 pointer-events-none"
+                        class="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/80 to-transparent z-10 pointer-events-none"
                       ></div>
                       <div
-                        class="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent z-10 pointer-events-none"
+                        class="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/80 to-transparent z-10 pointer-events-none"
                       ></div>
 
                       <!-- Center Highlight -->
@@ -133,18 +118,20 @@
                           :style="{ height: `${ITEM_H}px` }"
                           :class="{ 'is-winner': isRevealed(p) }"
                         >
-                          <div class="text-center px-4">
-                            <div class="text-lg font-bold text-white truncate">
+                          <div class="text-center px-3">
+                            <div
+                              class="text-base font-bold text-white truncate"
+                            >
                               {{ getParticipantName(p) }}
                             </div>
-                            <div class="text-sm text-gray-400 truncate">
+                            <div class="text-xs text-gray-400 truncate">
                               {{ getParticipantNopol(p) }}
                               <span
-                                v-if="p && p.alamat"
-                                class="hidden md:inline"
+                                v-if="p && p.kecamatan"
+                                class="text-cyan-400"
                               >
-                                — {{ p.alamat }}</span
-                              >
+                                • {{ p.kecamatan }}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -153,13 +140,13 @@
                   </div>
 
                   <!-- Decorative Lights -->
-                  <div class="flex justify-around mt-4">
+                  <div class="flex justify-around mt-2">
                     <div
                       v-for="i in 7"
                       :key="i"
                       class="light-bulb"
                       :class="{ 'is-active': spinning }"
-                      :style="{ animationDelay: `${i * 0.1}s` }"
+                      :style="{ animationDelay: `${i * 0.05}s` }"
                     ></div>
                   </div>
                 </div>
@@ -168,23 +155,32 @@
                 <Transition name="winner-pop">
                   <div
                     v-if="latestWinner && !spinning"
-                    class="mt-6 text-center"
+                    class="mt-3 text-center"
                   >
                     <div
-                      class="inline-block bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl px-8 py-4 shadow-2xl animate-bounce-subtle"
+                      class="inline-block bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl px-6 py-2 shadow-2xl animate-bounce-subtle"
                     >
-                      <div class="text-sm text-yellow-900 font-medium mb-1">
+                      <div class="text-xs text-yellow-900 font-medium">
                         🎉 PEMENANG TERBARU 🎉
                       </div>
                       <div
-                        class="text-4xl font-extrabold text-black drop-shadow"
+                        class="text-2xl font-extrabold text-black drop-shadow"
                       >
                         {{ latestWinner.nama }}
                       </div>
-                      <div class="text-xl text-black">
+                      <div class="text-base text-black">
                         {{ latestWinner.nopol }}
+                        <span
+                          v-if="latestWinner.kecamatan"
+                          class="font-semibold"
+                        >
+                          • {{ latestWinner.kecamatan }}
+                        </span>
                       </div>
-                      <div class="text-xl text-black">
+                      <div
+                        v-if="latestWinner.alamat"
+                        class="text-sm text-black/80"
+                      >
                         {{ latestWinner.alamat }}
                       </div>
                     </div>
@@ -192,11 +188,11 @@
                 </Transition>
 
                 <!-- Action Buttons -->
-                <div class="flex justify-center gap-4 mt-8">
+                <div class="flex justify-center gap-3 mt-3 flex-shrink-0">
                   <button
                     @click="spin"
                     :disabled="spinning || resetting"
-                    class="spin-button group relative px-10 py-4 rounded-full font-bold text-xl text-white overflow-hidden transition-all duration-300"
+                    class="spin-button group relative px-8 py-3 rounded-full font-bold text-lg text-white overflow-hidden transition-all duration-300"
                     :class="
                       spinning
                         ? 'bg-gray-600'
@@ -206,7 +202,7 @@
                     <span class="relative z-10 flex items-center gap-2">
                       <svg
                         v-if="spinning"
-                        class="animate-spin h-6 w-6"
+                        class="animate-spin h-5 w-5"
                         viewBox="0 0 24 24"
                       >
                         <circle
@@ -232,7 +228,7 @@
                   <button
                     @click="confirmReset"
                     :disabled="spinning || resetting || winners.length === 0"
-                    class="px-6 py-4 rounded-full font-bold text-white bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-400 hover:to-pink-500 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    class="px-5 py-3 rounded-full font-bold text-white bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-400 hover:to-pink-500 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   >
                     <span class="flex items-center gap-2">
                       <span>🔄</span>
@@ -244,29 +240,31 @@
             </div>
           </div>
 
-          <!-- Winners Panel -->
-          <div class="lg:col-span-1">
+          <!-- Winners Panel - Compact -->
+          <div class="lg:col-span-1 flex flex-col min-h-0">
             <div
-              class="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 shadow-2xl overflow-hidden sticky top-4"
+              class="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-2xl overflow-hidden flex flex-col flex-1"
             >
-              <div class="bg-gradient-to-r from-purple-500 to-pink-500 p-4">
-                <h3 class="text-xl font-bold text-white text-center">
-                  🏆 DAFTAR PEMENANG
+              <div
+                class="bg-gradient-to-r from-purple-500 to-pink-500 p-2 flex-shrink-0"
+              >
+                <h3 class="text-base font-bold text-white text-center">
+                  🏆 DAFTAR PEMENANG ({{ winners.length }})
                 </h3>
               </div>
 
-              <div class="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                <TransitionGroup name="winner-list" tag="ol" class="space-y-3">
+              <div class="p-2 flex-1 overflow-y-auto custom-scrollbar min-h-0">
+                <TransitionGroup name="winner-list" tag="ol" class="space-y-2">
                   <li
                     v-for="(w, idx) in winners"
                     :key="w.id"
-                    class="winner-card rounded-xl p-4 transition-all duration-300"
+                    class="winner-card rounded-lg p-2 transition-all duration-300"
                     :class="getWinnerCardClass(idx)"
                   >
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2">
                       <!-- Rank Badge -->
                       <div
-                        class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg"
+                        class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
                         :class="getRankBadgeClass(idx)"
                       >
                         <span v-if="idx === 0">🥇</span>
@@ -277,30 +275,27 @@
 
                       <!-- Winner Info -->
                       <div class="flex-1 min-w-0">
-                        <div class="font-semibold text-white truncate">
+                        <div class="font-semibold text-white text-sm truncate">
                           {{ revealed.has(w.id) ? w.nama || 'Anon' : 'TBD' }}
                         </div>
                         <div
                           v-if="revealed.has(w.id)"
-                          class="text-lg text-white/60 truncate"
+                          class="text-xs text-white/60"
                         >
                           {{ w.nopol }}
-                        </div>
-                        <div
-                          v-if="revealed.has(w.id)"
-                          class="text-lg text-white/60"
-                        >
-                          {{ w.alamat }}
+                          <span v-if="w.kecamatan" class="text-cyan-400">
+                            • {{ w.kecamatan }} - {{ w.alamat }}
+                          </span>
                         </div>
                       </div>
                     </div>
                   </li>
                 </TransitionGroup>
 
-                <div v-if="winners.length === 0" class="text-center py-10">
-                  <div class="text-5xl mb-3">🎲</div>
-                  <p class="text-white/60">Belum ada pemenang</p>
-                  <p class="text-sm text-white/40">
+                <div v-if="winners.length === 0" class="text-center py-6">
+                  <div class="text-3xl mb-2">🎲</div>
+                  <p class="text-white/60 text-sm">Belum ada pemenang</p>
+                  <p class="text-xs text-white/40">
                     Klik tombol PUTAR untuk memulai!
                   </p>
                 </div>
@@ -333,15 +328,16 @@ const logoUrl = import.meta.env.VITE_APP_LOGO;
 const props = defineProps({
   spinDuration: {
     type: Number,
-    default: 4000, // Faster default: 4 seconds
+    default: 2000, // Faster default: 2 seconds
   },
 });
 
-// Settings
-const VISIBLE_COUNT = 7;
-const ITEM_H = 60; // px - slightly taller for better visibility
+// Settings - Compact and Fast
+const VISIBLE_COUNT = 5; // Fewer visible items for compact view
+const ITEM_H = 48; // Smaller items for compact view
 const CENTER_ROW_INDEX = Math.floor(VISIBLE_COUNT / 2);
-const SPIN_MS = props.spinDuration; // Use server-provided duration
+const SPIN_MS = Math.min(props.spinDuration, 3000); // Cap at 3 seconds for fast feel
+const CYCLE_INTERVAL = 30; // Fast cycling animation interval (ms)
 
 // State
 const participants = ref([]);
@@ -363,7 +359,7 @@ const eligibleCount = computed(
 const animationStyle = computed(() => ({
   transform: `translateY(${translateY.value}px)`,
   transition: spinning.value
-    ? `transform ${SPIN_MS}ms cubic-bezier(.15,.85,.35,1)` // Smoother easing
+    ? `transform ${SPIN_MS}ms cubic-bezier(.2,.9,.3,1)` // Faster easing with quick start
     : 'none',
 }));
 
@@ -452,9 +448,9 @@ const buildPoolForWinner = (target) => {
     : winners.value.filter((p) => p.id !== target.id);
   let pool = [];
   if (source.length === 0) return { pool: [target], pos: 0 };
-  // Build a smaller pool for faster spin
-  while (pool.length < 150) pool = pool.concat(shuffle(source));
-  const pos = Math.max(5, Math.floor(pool.length * 0.6)); // Shorter distance
+  // Build a larger pool for faster, more dramatic spin effect
+  while (pool.length < 200) pool = pool.concat(shuffle(source));
+  const pos = Math.max(10, Math.floor(pool.length * 0.7)); // More distance for faster feel
   pool.splice(pos, 0, target);
   return { pool, pos };
 };
@@ -471,7 +467,7 @@ const spin = async () => {
       await Swal.fire({
         icon: 'info',
         title: 'Tidak Ada Peserta',
-        text: 'Semua peserta sudah menjadi pemenang!',
+        text: 'Semua kecamatan sudah ada pemenangnya!',
         background: '#1e1b4b',
         color: '#fff',
       });
@@ -506,7 +502,7 @@ const spin = async () => {
   spinning.value = true;
   spinTimer = setTimeout(() => {
     translateY.value = final;
-  }, 40);
+  }, 20); // Faster start
 
   // Reveal after spin
   finishTimer = setTimeout(async () => {
@@ -521,7 +517,7 @@ const spin = async () => {
     playWinnerSound();
 
     await fetchWinners();
-  }, SPIN_MS + 150);
+  }, SPIN_MS + 100); // Shorter delay after spin
 };
 
 const resetAll = async () => {
@@ -685,7 +681,7 @@ onMounted(async () => {
 }
 
 .light-bulb.is-active {
-  animation: bulb-blink 0.3s ease-in-out infinite alternate;
+  animation: bulb-blink 0.15s ease-in-out infinite alternate;
 }
 
 @keyframes bulb-blink {

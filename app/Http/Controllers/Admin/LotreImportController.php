@@ -63,7 +63,7 @@ class LotreImportController extends Controller
   public function updateSettings(Request $request): JsonResponse
   {
     $validator = Validator::make($request->all(), [
-      'lotre_mode' => 'required|in:random,custom',
+      'lotre_mode' => 'required|in:random,custom,one_per_kecamatan',
       'spin_duration_ms' => 'required|integer|min:1000|max:15000',
     ]);
 
@@ -224,6 +224,7 @@ class LotreImportController extends Controller
       $namaIdx = $this->findColumnIndex($headers, ['nama', 'name', 'nama_peserta', 'peserta']);
       $nopolIdx = $this->findColumnIndex($headers, ['nopol', 'no_pol', 'nomor_polisi', 'plat', 'plat_nomor']);
       $alamatIdx = $this->findColumnIndex($headers, ['alamat', 'address', 'alamat_peserta']);
+      $kecamatanIdx = $this->findColumnIndex($headers, ['kecamatan', 'kec', 'district', 'wilayah']);
 
       // Check if we can identify at least one required column
       if ($namaIdx === null && $nopolIdx === null) {
@@ -244,9 +245,10 @@ class LotreImportController extends Controller
         $nama = $namaIdx !== null ? trim((string) ($row[$namaIdx] ?? '')) : '';
         $nopol = $nopolIdx !== null ? strtoupper(trim((string) ($row[$nopolIdx] ?? ''))) : '';
         $alamat = $alamatIdx !== null ? trim((string) ($row[$alamatIdx] ?? '')) : '';
+        $kecamatan = $kecamatanIdx !== null ? trim((string) ($row[$kecamatanIdx] ?? '')) : '';
 
         // Skip completely empty rows
-        if (empty($nama) && empty($nopol) && empty($alamat)) {
+        if (empty($nama) && empty($nopol) && empty($alamat) && empty($kecamatan)) {
           continue;
         }
 
@@ -255,6 +257,7 @@ class LotreImportController extends Controller
           'nama' => $nama,
           'nopol' => $nopol,
           'alamat' => $alamat,
+          'kecamatan' => $kecamatan,
           'valid' => !empty($nama) || !empty($nopol),
         ];
       }
@@ -267,6 +270,7 @@ class LotreImportController extends Controller
           'nama' => $namaIdx !== null ? $headers[$namaIdx] : null,
           'nopol' => $nopolIdx !== null ? $headers[$nopolIdx] : null,
           'alamat' => $alamatIdx !== null ? $headers[$alamatIdx] : null,
+          'kecamatan' => $kecamatanIdx !== null ? $headers[$kecamatanIdx] : null,
         ],
         'preview' => $previewData,
       ]);
@@ -391,12 +395,7 @@ class LotreImportController extends Controller
       mkdir($directory, 0755, true);
     }
 
-    // Create a simple CSV template (will work for both xlsx and csv imports)
-    $header = "nama,nopol,alamat\n";
-    $sample1 = "John Doe,AB 1234 CD,Jl. Contoh No. 1\n";
-    $sample2 = "Jane Smith,EF 5678 GH,Jl. Sample No. 2\n";
-
-    // For xlsx, we'll use PhpSpreadsheet through Laravel Excel
+    // For xlsx, we'll use PhpSpreadsheet
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
 
@@ -404,21 +403,24 @@ class LotreImportController extends Controller
     $sheet->setCellValue('A1', 'nama');
     $sheet->setCellValue('B1', 'nopol');
     $sheet->setCellValue('C1', 'alamat');
+    $sheet->setCellValue('D1', 'kecamatan');
 
     // Set sample data
     $sheet->setCellValue('A2', 'John Doe');
     $sheet->setCellValue('B2', 'AB 1234 CD');
     $sheet->setCellValue('C2', 'Jl. Contoh No. 1');
+    $sheet->setCellValue('D2', 'Kediri');
 
     $sheet->setCellValue('A3', 'Jane Smith');
     $sheet->setCellValue('B3', 'EF 5678 GH');
     $sheet->setCellValue('C3', 'Jl. Sample No. 2');
+    $sheet->setCellValue('D3', 'Pare');
 
     // Style headers
-    $sheet->getStyle('A1:C1')->getFont()->setBold(true);
+    $sheet->getStyle('A1:D1')->getFont()->setBold(true);
 
     // Auto-size columns
-    foreach (range('A', 'C') as $col) {
+    foreach (range('A', 'D') as $col) {
       $sheet->getColumnDimension($col)->setAutoSize(true);
     }
 

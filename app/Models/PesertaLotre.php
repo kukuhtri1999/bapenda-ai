@@ -15,6 +15,7 @@ class PesertaLotre extends Model
     'nama',
     'nopol',
     'alamat',
+    'kecamatan',
     'apakah_menang',
     'urutan_menang',
     'predetermined_winner_order',
@@ -25,6 +26,7 @@ class PesertaLotre extends Model
     'urutan_menang' => 'integer',
     'predetermined_winner_order' => 'integer',
     'alamat' => 'string',
+    'kecamatan' => 'string',
   ];
 
   /**

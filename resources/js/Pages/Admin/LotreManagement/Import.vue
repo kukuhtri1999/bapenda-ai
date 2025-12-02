@@ -374,6 +374,10 @@ const goToLotreUndian = () => {
                 <li><strong>nama</strong> - Nama peserta</li>
                 <li><strong>nopol</strong> - Nomor polisi kendaraan</li>
                 <li><strong>alamat</strong> - Alamat peserta (opsional)</li>
+                <li>
+                  <strong>kecamatan</strong> - Kecamatan peserta (opsional,
+                  untuk mode 1 per kecamatan)
+                </li>
               </ul>
             </div>
             <VBtn
@@ -497,6 +501,7 @@ const goToLotreUndian = () => {
                 <th class="text-left">Nama</th>
                 <th class="text-left">Nopol</th>
                 <th class="text-left">Alamat</th>
+                <th class="text-left">Kecamatan</th>
                 <th class="text-center">Status</th>
               </tr>
             </thead>
@@ -510,6 +515,7 @@ const goToLotreUndian = () => {
                 <td class="font-medium">{{ row.nama || '-' }}</td>
                 <td class="font-mono">{{ row.nopol || '-' }}</td>
                 <td class="max-w-xs truncate">{{ row.alamat || '-' }}</td>
+                <td>{{ row.kecamatan || '-' }}</td>
                 <td class="text-center">
                   <VChip v-if="row.valid" color="success" size="small"
                     >Valid</VChip

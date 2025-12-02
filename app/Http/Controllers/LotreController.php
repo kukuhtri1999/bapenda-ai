@@ -75,6 +75,38 @@ class LotreController extends Controller
                         ->inRandomOrder()
                         ->first();
                 }
+            } elseif ($lotreMode === 'one_per_kecamatan') {
+                // One Per Kecamatan mode: exclude kecamatans that already have a winner
+                $wonKecamatans = PesertaLotre::where('apakah_menang', true)
+                    ->whereNotNull('kecamatan')
+                    ->where('kecamatan', '!=', '')
+                    ->pluck('kecamatan')
+                    ->unique()
+                    ->toArray();
+
+                $query = PesertaLotre::where('apakah_menang', false)
+                    ->whereNotNull('kecamatan')
+                    ->where('kecamatan', '!=', '');
+
+                if (!empty($wonKecamatans)) {
+                    $query->whereNotIn('kecamatan', $wonKecamatans);
+                }
+
+                $candidate = $query->lockForUpdate()
+                    ->inRandomOrder()
+                    ->first();
+
+                // If no more eligible kecamatans, check if there are participants without kecamatan
+                if (!$candidate) {
+                    $candidate = PesertaLotre::where('apakah_menang', false)
+                        ->where(function ($q) {
+                            $q->whereNull('kecamatan')
+                                ->orWhere('kecamatan', '');
+                        })
+                        ->lockForUpdate()
+                        ->inRandomOrder()
+                        ->first();
+                }
             } else {
                 // Random mode: select a random eligible participant
                 $candidate = PesertaLotre::where('apakah_menang', false)
