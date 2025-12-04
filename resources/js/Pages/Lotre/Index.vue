@@ -22,7 +22,7 @@
         <!-- Header - Compact -->
         <header class="text-center mb-3">
           <div
-            class="flex items-center auto w-[300px] justify-center gap-3 mb-2 place-self-center"
+            class="flex items-center auto w-[200px] justify-center gap-3 mb-2 place-self-center"
           >
             <VImg :src="logoUrl" alt="Logo" contain :width="60" />
             <VImg
