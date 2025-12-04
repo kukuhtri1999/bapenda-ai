@@ -32,6 +32,7 @@
               :height="60"
               :width="60"
             />
+            <!--
             <VImg
               src="/images/logo-polri.png"
               alt="Logo Polri"
@@ -45,7 +46,7 @@
               contain
               :height="60"
               :width="60"
-            />
+            /> -->
           </div>
           <h1
             class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-pink-200 to-cyan-200"
