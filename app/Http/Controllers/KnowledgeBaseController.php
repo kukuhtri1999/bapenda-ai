@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use App\Services\PDFParserService;
+use App\Services\DocxParserService;
 use App\Services\DocumentChunkingService;
 use Illuminate\Support\Facades\Log;
 
@@ -77,6 +78,13 @@ class KnowledgeBaseController extends Controller
      */
     public function store(Request $request)
     {
+        // Raise PHP limits at runtime for large file uploads (100+ page PDFs).
+        // These are belt-and-suspenders on top of .htaccess / php.ini settings.
+        @ini_set('max_execution_time', 300);
+        @ini_set('max_input_time', 300);
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(300);
+
         // Debugging help: log session and CSRF presence (temporary)
         try {
             \Illuminate\Support\Facades\Log::info('KB.store debug', [
@@ -103,7 +111,7 @@ class KnowledgeBaseController extends Controller
             'published_at' => 'nullable|date',
 
             // File upload validation
-            'file' => $request->source_type === 'file' ? 'required|file|mimes:pdf,doc,docx,txt,md|max:10240' : 'nullable|file|mimes:pdf,doc,docx,txt,md|max:10240',
+            'file' => $request->source_type === 'file' ? 'required|file|mimes:pdf,doc,docx,txt,md|max:51200' : 'nullable|file|mimes:pdf,doc,docx,txt,md|max:51200',
         ]);
 
         if ($validator->fails()) {
@@ -119,11 +127,8 @@ class KnowledgeBaseController extends Controller
         }
 
         $data = $validator->validated();
-        // Ensure DB columns from older migration are filled: question/answer
-        // some migrations use question/answer, newer ones use title/content.
-        $data['question'] = $data['title'] ?? ($data['question'] ?? null);
-        $data['answer'] = $data['content'] ?? ($data['answer'] ?? null);
         // Normalize tags to JSON array for DB JSON column
+        // NOTE: question/answer are filled AFTER file extraction below
         if (isset($data['tags'])) {
             if (is_string($data['tags'])) {
                 $arr = array_values(array_filter(array_map('trim', explode(',', $data['tags']))));
@@ -140,7 +145,7 @@ class KnowledgeBaseController extends Controller
             $file = $request->file('file');
 
             // Check if it's a PDF and extract text
-            if ($file->getMimeType() === 'application/pdf') {
+            if ($file->getMimeType() === 'application/pdf' || strtolower($file->getClientOriginalExtension()) === 'pdf') {
                 try {
                     $pdfParser = app(PDFParserService::class);
                     $pdfData = $pdfParser->processPDFForKnowledgeBase($file);
@@ -166,6 +171,38 @@ class KnowledgeBaseController extends Controller
                 }
             }
 
+            // Check if it's a DOCX or DOC and extract text
+            $docExtension = strtolower($file->getClientOriginalExtension());
+            if (in_array($docExtension, ['docx', 'doc'])) {
+                try {
+                    $docxParser = app(DocxParserService::class);
+                    $extractedText = $docxParser->extractText($file);
+
+                    if ($extractedText) {
+                        if (empty($data['content'])) {
+                            $data['content'] = $extractedText;
+                        }
+                        $docMeta = $docxParser->extractMetadata($file);
+                        if (!empty($docMeta['title']) && (empty($data['title']) || $data['title'] === $file->getClientOriginalName())) {
+                            $data['title'] = $docMeta['title'];
+                        }
+                        $data['metadata'] = array_merge($data['metadata'] ?? [], array_filter($docMeta));
+                    } else {
+                        Log::warning('DocxParserService returned empty text for: ' . $file->getClientOriginalName());
+                    }
+                } catch (\Exception $e) {
+                    Log::error('DOCX processing failed: ' . $e->getMessage());
+                    $errorMessage = 'Failed to process Word document: ' . $e->getMessage();
+                    if ($request->expectsJson()) {
+                        return response()->json([
+                            'success' => false,
+                            'errors' => ['file' => [$errorMessage]],
+                        ], 422);
+                    }
+                    return back()->withErrors(['file' => $errorMessage])->withInput();
+                }
+            }
+
             $fileName = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $file->getClientOriginalExtension();
             $filePath = $file->storeAs('knowledge-base', $fileName, 'public');
 
@@ -175,22 +212,33 @@ class KnowledgeBaseController extends Controller
             $data['mime_type'] = $file->getMimeType();
 
             // Extract content from text files if content is empty
-            if (empty($data['content']) && in_array($file->getMimeType(), ['text/plain', 'text/markdown'])) {
+            $isTextFile = in_array($file->getMimeType(), ['text/plain', 'text/markdown', 'text/x-markdown'])
+                || in_array(strtolower($file->getClientOriginalExtension()), ['txt', 'md']);
+            if (empty($data['content']) && $isTextFile) {
                 $data['content'] = file_get_contents($file->getRealPath());
             }
         }
 
-        // Validate that content exists after file processing for file uploads
-        if ($request->source_type === 'file' && empty($data['content'])) {
-            $errorMessage = 'Could not extract content from the uploaded file. Please ensure the file contains readable text.';
+        // Validate that content exists after file processing for file uploads.
+        // Treat both null and empty-string as failure (empty string crashes DB NOT NULL).
+        $contentIsEmpty = empty($data['content']) || trim((string) $data['content']) === '';
+        if ($request->source_type === 'file' && $contentIsEmpty) {
+            $errorMessage = 'Could not extract readable text from the uploaded file. '
+                . 'If this is a scanned or image-based PDF, please convert it to a text-selectable PDF '
+                . 'or paste the content manually using the Manual Entry option.';
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => false,
-                    'errors' => ['content' => [$errorMessage]],
+                    'errors' => ['file' => [$errorMessage]],
                 ], 422);
             }
-            return back()->withErrors(['content' => $errorMessage])->withInput();
+            return back()->withErrors(['file' => $errorMessage])->withInput();
         }
+
+        // NOW set question/answer after content has been fully resolved from file
+        // (These are legacy NOT NULL columns — we make them mirror title/content)
+        $data['question'] = $data['title'] ?? null;
+        $data['answer']   = $data['content'] ?? null;
 
         // Process embedded base64 images in HTML content (Quill) and move to storage
         if (!empty($data['content'])) {
@@ -203,7 +251,7 @@ class KnowledgeBaseController extends Controller
 
         // Check if document is large and needs chunking
         if (!empty($data['content']) && strlen($data['content']) > 1500) {
-            return $this->handleLargeDocument($data);
+            return $this->handleLargeDocument($data, $request);
         }
 
         // Set published_at if status is published and no date specified
@@ -611,12 +659,15 @@ class KnowledgeBaseController extends Controller
     /**
      * Handle large documents by chunking them into smaller pieces
      */
-    private function handleLargeDocument(array $data)
+    private function handleLargeDocument(array $data, ?\Illuminate\Http\Request $request = null)
     {
         $chunkingService = app(DocumentChunkingService::class);
 
         // Chunk the document content
         $chunks = $chunkingService->chunkDocument($data['content'], $data['title']);
+
+        // Build a base search_content from title + original content if not already set
+        $baseSearchContent = $data['search_content'] ?? ($data['title'] . ' ' . strip_tags($data['content']));
 
         $createdEntries = [];
         $isMainEntry = true;
@@ -626,35 +677,46 @@ class KnowledgeBaseController extends Controller
             $chunkData = $data;
             $chunkData['content'] = $chunk['content'];
 
+            // chunk_summary may be absent on single-chunk path — guard with fallback
+            $chunkSummary = $chunk['chunk_summary'] ?? Str::limit(strip_tags($chunk['content']), 150);
+
+            // Always keep question/answer in sync with title/content for this chunk
+            $chunkData['question'] = $chunkData['title'] ?? $data['title'];
+
             // Update title and metadata for chunks
             if ($chunk['total_chunks'] > 1) {
                 if ($isMainEntry) {
                     // First chunk keeps the original title
-                    $chunkData['title'] = $data['title'];
-                    $chunkData['answer'] = $chunk['chunk_summary'];
+                    $chunkData['title']    = $data['title'];
+                    $chunkData['question'] = $data['title'];
+                    $chunkData['answer']   = $chunk['content']; // full chunk content, not just summary
                 } else {
                     // Subsequent chunks get numbered titles
-                    $chunkData['title'] = $data['title'] . " - Part " . ($chunk['chunk_index'] + 1);
-                    $chunkData['answer'] = $chunk['chunk_summary'];
+                    $chunkData['title']    = $data['title'] . ' - Part ' . ($chunk['chunk_index'] + 1);
+                    $chunkData['question'] = $chunkData['title'];
+                    $chunkData['answer']   = $chunk['content'];
                 }
+            } else {
+                // Single chunk — mirror full content
+                $chunkData['answer'] = $chunk['content'];
             }
 
             // Add chunk metadata
             $chunkData['metadata'] = array_merge($data['metadata'] ?? [], [
-                'is_chunked' => true,
+                'is_chunked' => $chunk['total_chunks'] > 1,
                 'chunk_index' => $chunk['chunk_index'],
                 'total_chunks' => $chunk['total_chunks'],
                 'char_count' => $chunk['char_count'],
                 'word_count' => $chunk['word_count'],
                 'original_title' => $data['title'],
-                'chunk_summary' => $chunk['chunk_summary']
+                'chunk_summary' => $chunkSummary,
             ]);
 
-            // Update search content with chunk-specific content
-            $chunkData['search_content'] = $data['search_content'] . ' ' . $chunk['content'];
+            // Build search content for this chunk
+            $chunkData['search_content'] = trim($baseSearchContent . ' ' . $chunk['content']);
 
             // Set published_at if status is published and no date specified
-            if ($chunkData['status'] === 'published' && (empty($chunkData['published_at']))) {
+            if ($chunkData['status'] === 'published' && empty($chunkData['published_at'])) {
                 $chunkData['published_at'] = now();
             }
 
@@ -667,10 +729,24 @@ class KnowledgeBaseController extends Controller
 
         $totalChunks = count($createdEntries);
         $firstEntry = $createdEntries[0];
+        $message = $totalChunks > 1
+            ? "Large document successfully processed and split into {$totalChunks} chunks for optimal search performance."
+            : 'Knowledge base entry created successfully.';
+
+        // Return JSON for axios/API requests (e.g. from the Vue frontend)
+        if ($request && $request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'knowledge_base' => $firstEntry,
+                'total_chunks' => $totalChunks,
+                'redirect' => route('knowledge-base.index'),
+            ], 201);
+        }
 
         return redirect()
             ->route('knowledge-base.show', $firstEntry)
-            ->with('success', "Large document successfully processed and split into {$totalChunks} manageable chunks for optimal search performance.");
+            ->with('success', $message);
     }
 
     /**

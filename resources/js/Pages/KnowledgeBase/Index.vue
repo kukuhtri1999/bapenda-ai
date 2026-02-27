@@ -335,10 +335,24 @@ const syncPinecone = async () => {
   try {
     syncProgress.value = true;
 
-    const response = await axios.post(route('knowledge-base.sync-pinecone'), {
-      dry_run: syncDryRun.value,
-      confirm: !syncDryRun.value, // Require confirmation for actual rebuild
-    });
+    // Read CSRF token fresh from the meta tag (same pattern as Create.vue)
+    const csrfToken = document.head.querySelector(
+      'meta[name="csrf-token"]',
+    )?.content;
+
+    const response = await axios.post(
+      route('knowledge-base.sync-pinecone'),
+      {
+        dry_run: syncDryRun.value,
+        confirm: !syncDryRun.value, // Require confirmation for actual rebuild
+      },
+      {
+        headers: {
+          'X-CSRF-TOKEN': csrfToken,
+          Accept: 'application/json',
+        },
+      },
+    );
 
     syncResults.value = response.data;
 

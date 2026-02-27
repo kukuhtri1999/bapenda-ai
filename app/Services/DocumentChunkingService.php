@@ -42,7 +42,8 @@ class DocumentChunkingService
           'total_chunks' => 1,
           'title' => $title,
           'char_count' => strlen($content),
-          'word_count' => str_word_count($content)
+          'word_count' => str_word_count($content),
+          'chunk_summary' => $this->generateChunkSummary($content, 100),
         ]
       ];
     }
@@ -57,21 +58,27 @@ class DocumentChunkingService
   }
 
   /**
-   * Clean the content by removing excessive whitespace and formatting
+   * Clean the content while preserving paragraph structure (newlines).
+   * Only collapses horizontal whitespace — newlines are kept so
+   * splitIntoParagraphs() can actually find paragraph boundaries.
    */
   private function cleanContent(string $content): string
   {
-    // Remove excessive whitespace
-    $content = preg_replace('/\s+/', ' ', $content);
-
     // Remove HTML tags if present
     $content = strip_tags($content);
 
-    // Normalize line breaks
+    // Normalize line endings
     $content = str_replace(["\r\n", "\r"], "\n", $content);
 
-    // Remove excessive blank lines
-    $content = preg_replace('/\n\s*\n\s*\n/', "\n\n", $content);
+    // Collapse ONLY horizontal whitespace within each line (NOT newlines)
+    $content = preg_replace('/[^\S\n]+/', ' ', $content);
+
+    // Remove leading/trailing spaces on every line
+    $content = preg_replace('/^ +/m', '', $content);
+    $content = preg_replace('/ +$/m', '', $content);
+
+    // Collapse 3+ consecutive blank lines into a single paragraph break
+    $content = preg_replace('/\n{3,}/', "\n\n", $content);
 
     return trim($content);
   }

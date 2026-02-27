@@ -437,16 +437,16 @@ class KnowledgeBase extends Model
     }
 
     /**
-     * Get content for embedding (combines title, content, answer, etc.)
+     * Get content for embedding.
+     * Only uses UNIQUE fields — does NOT include 'answer' (mirror of content)
+     * or 'question' (mirror of title) to avoid tripling content in vector space.
      */
     private function getContentForEmbedding(): string
     {
         $parts = array_filter([
             $this->title,
-            $this->content,
-            $this->answer,
-            $this->excerpt,
-            $this->question,
+            $this->category ? '[Category: ' . $this->category . ']' : null,
+            strip_tags((string) ($this->content ?: $this->answer)),
         ]);
 
         return implode("\n\n", $parts);

@@ -19,6 +19,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\TestNewRagSystem::class,
         \App\Console\Commands\InspectKb::class,
         \App\Console\Commands\TestChatPerformance::class,
+        \App\Console\Commands\ReextractPdfContent::class,
     ];
 
     protected function schedule(Schedule $schedule)

@@ -109,12 +109,12 @@ class PDFParserService
   }
 
   /**
-   * Clean extracted text
+   * Clean extracted text — preserves newlines so paragraph structure survives chunking.
    */
   private function cleanExtractedText(string $text): string
   {
-    // Remove excessive whitespace and line breaks
-    $text = preg_replace('/\s+/', ' ', $text);
+    // Normalize line endings first
+    $text = preg_replace('/(\r\n|\r)/', "\n", $text);
 
     // Remove common PDF artifacts
     $text = preg_replace('/\x00/', '', $text); // Remove null bytes
@@ -123,15 +123,109 @@ class PDFParserService
     // Fix encoding issues
     $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
 
+    // Collapse ONLY horizontal whitespace (spaces/tabs) within each line — DO NOT touch newlines
+    $text = preg_replace('/[^\S\n]+/', ' ', $text);
+
+    // Remove leading/trailing spaces on every line
+    $text = preg_replace('/^ +/m', '', $text);
+    $text = preg_replace('/ +$/m', '', $text);
+
+    // Collapse 3+ consecutive blank lines to a single paragraph break
+    $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
     // Remove excessive punctuation
     $text = preg_replace('/\.{3,}/', '...', $text);
     $text = preg_replace('/\-{3,}/', '---', $text);
 
-    // Clean up spacing around punctuation
-    $text = preg_replace('/\s+([,.!?;:])/', '$1', $text);
-    $text = preg_replace('/([.!?])\s*([A-Z])/', '$1 $2', $text);
-
     return trim($text);
+  }
+
+  /**
+   * Clean text from a single PDF page — preserves paragraph breaks.
+   */
+  private function cleanPageText(string $text): string
+  {
+    $text = preg_replace('/\x00/', '', $text);
+    $text = preg_replace('/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
+    $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+    $text = preg_replace('/(\r\n|\r)/', "\n", $text);
+    $text = preg_replace('/[^\S\n]+/', ' ', $text); // only collapse horizontal spaces
+    $text = preg_replace('/^ +/m', '', $text);
+    $text = preg_replace('/ +$/m', '', $text);
+    $text = preg_replace('/\n{3,}/', "\n\n", $text);
+    return trim($text);
+  }
+
+  /**
+   * Extract text page-by-page to preserve paragraph/section structure.
+   * Falls back to flat extraction if page parsing fails.
+   */
+  public function extractTextPreservingStructure(UploadedFile $file): ?string
+  {
+    try {
+      $pdf = $this->parser->parseFile($file->getRealPath());
+      $pages = $pdf->getPages();
+
+      if (empty($pages)) {
+        return $this->extractText($file);
+      }
+
+      $pageTexts = [];
+      foreach ($pages as $page) {
+        $pageText = $page->getText();
+        if (trim($pageText) !== '') {
+          $cleaned = $this->cleanPageText($pageText);
+          if (trim($cleaned) !== '') {
+            $pageTexts[] = $cleaned;
+          }
+        }
+      }
+
+      if (empty($pageTexts)) {
+        return null;
+      }
+
+      // Join pages with a clear page-break marker (double newline = paragraph break)
+      return implode("\n\n", $pageTexts);
+    } catch (Exception $e) {
+      Log::warning('Page-by-page PDF extraction failed, trying flat: ' . $e->getMessage());
+      return $this->extractText($file);
+    }
+  }
+
+  /**
+   * Extract text from PDF path, page-by-page for better structure preservation.
+   */
+  public function extractTextPreservingStructureFromPath(string $filePath): ?string
+  {
+    try {
+      $pdf = $this->parser->parseFile($filePath);
+      $pages = $pdf->getPages();
+
+      if (empty($pages)) {
+        return $this->extractTextFromPath($filePath);
+      }
+
+      $pageTexts = [];
+      foreach ($pages as $page) {
+        $pageText = $page->getText();
+        if (trim($pageText) !== '') {
+          $cleaned = $this->cleanPageText($pageText);
+          if (trim($cleaned) !== '') {
+            $pageTexts[] = $cleaned;
+          }
+        }
+      }
+
+      if (empty($pageTexts)) {
+        return null;
+      }
+
+      return implode("\n\n", $pageTexts);
+    } catch (Exception $e) {
+      Log::warning('Page-by-page PDF path extraction failed, trying flat: ' . $e->getMessage());
+      return $this->extractTextFromPath($filePath);
+    }
   }
 
   /**
@@ -139,18 +233,24 @@ class PDFParserService
    */
   public function processPDFForKnowledgeBase(UploadedFile $file): array
   {
-    $text = $this->extractText($file);
+    // Extract metadata first (independent of text extraction)
     $metadata = $this->extractMetadata($file);
 
-    if (!$text) {
-      throw new Exception('Could not extract text from PDF');
+    // Use page-by-page extraction to preserve paragraph/section structure
+    $text = $this->extractTextPreservingStructure($file);
+
+    if (!$text || trim($text) === '') {
+      throw new Exception('Could not extract text from PDF. The file may be scanned/image-based.');
     }
 
     // Generate title from metadata or filename
-    $title = $metadata['title'] ?? pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+    $title = !empty($metadata['title'])
+      ? trim($metadata['title'])
+      : pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
 
-    // Create excerpt from first 200 characters
-    $excerpt = strlen($text) > 200 ? substr($text, 0, 197) . '...' : $text;
+    // Create excerpt from first 300 characters of plain text
+    $plainText = strip_tags($text);
+    $excerpt = mb_strlen($plainText) > 300 ? mb_substr($plainText, 0, 297) . '...' : $plainText;
 
     return [
       'title' => $title,
