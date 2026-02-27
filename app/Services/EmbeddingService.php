@@ -59,10 +59,11 @@ class EmbeddingService
     }
 
     /**
-     * Chunk text into smaller segments for embedding
-     * For knowledge base entries, we want to preserve full content when possible
+     * Chunk text into smaller, semantically focused segments for embedding.
+     * Smaller chunks (≈1000 chars) produce more focused, higher-quality embeddings
+     * which significantly improves vector search relevance.
      */
-    public function chunkText(string $text, int $maxChunkSize = 8000, int $overlap = 200): array
+    public function chunkText(string $text, int $maxChunkSize = 1000, int $overlap = 150): array
     {
         // Clean and normalize text
         $text = $this->cleanText($text);
@@ -104,7 +105,8 @@ class EmbeddingService
     }
 
     /**
-     * Clean text for processing while preserving URLs and proper spacing
+     * Clean text for processing — preserves single newlines (paragraph structure)
+     * while collapsing only horizontal whitespace.
      */
     private function cleanText(string $text): string
     {
@@ -126,11 +128,17 @@ class EmbeddingService
         // Normalize line endings
         $text = preg_replace('/(\r\n|\r)/', "\n", $text);
 
-        // Fix spacing issues while preserving word boundaries
-        $text = preg_replace('/\s{2,}/', ' ', $text); // Multiple spaces to single space
-        $text = preg_replace('/\n{3,}/', "\n\n", $text); // Multiple newlines to max 2
+        // Collapse ONLY horizontal whitespace (NOT newlines) — preserves paragraph structure
+        $text = preg_replace('/[^\S\n]+/', ' ', $text);
 
-        // Fix missing spaces after punctuation
+        // Remove spaces at start/end of lines
+        $text = preg_replace('/^ +/m', '', $text);
+        $text = preg_replace('/ +$/m', '', $text);
+
+        // Collapse 3+ newlines to a paragraph break (double newline)
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        // Fix missing spaces after punctuation (but treat \n as implicit space)
         $text = preg_replace('/([.!?:;,])([A-Za-z])/', '$1 $2', $text);
 
         // Fix missing spaces around parentheses
@@ -142,12 +150,10 @@ class EmbeddingService
         $text = preg_replace('/(\d)([A-Za-z])/', '$1 $2', $text); // Number + Letter
         $text = preg_replace('/([A-Za-z])(\d)/', '$1 $2', $text); // Letter + Number
 
-        // Clean up extra spaces that might have been introduced
-        $text = preg_replace('/\s{2,}/', ' ', $text);
-        $text = preg_replace('/\n\s+/', "\n", $text); // Remove spaces at start of lines
-        $text = preg_replace('/\s+\n/', "\n", $text); // Remove spaces at end of lines
+        // Final horizontal-only collapse to catch any new double-spaces introduced above
+        $text = preg_replace('/[^\S\n]+/', ' ', $text);
 
-        // Restore URLs with their original special characters
+        // Restore URLs
         foreach ($urls as $placeholder => $originalUrl) {
             $text = str_replace($placeholder, $originalUrl, $text);
         }
@@ -156,14 +162,23 @@ class EmbeddingService
     }
 
     /**
-     * Split text into sentences
+     * Split text into sentences and paragraph units.
+     * Splits on sentence-ending punctuation AND paragraph breaks (double newlines),
+     * which is critical for Indonesian regulatory/procedural documents.
      */
     private function splitIntoSentences(string $text): array
     {
-        // Split by sentence-ending punctuation, keeping the punctuation
-        $sentences = preg_split('/(?<=[.!?])\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+        // Split by:
+        // 1. Sentence-ending punctuation followed by whitespace
+        // 2. Double-newline paragraph breaks (common in PDF-extracted regulatory text)
+        $parts = preg_split('/(?<=[.!?;])\s+|\n\n+/', $text, -1, PREG_SPLIT_NO_EMPTY);
 
-        return array_map('trim', $sentences);
+        return array_values(
+            array_filter(
+                array_map('trim', $parts ?: []),
+                fn($s) => $s !== ''
+            )
+        );
     }
 
     /**

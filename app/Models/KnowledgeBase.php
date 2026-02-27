@@ -282,12 +282,23 @@ class KnowledgeBase extends Model
                 return true;
             }
 
-            // Chunk the content
+            // Chunk the content into focused segments
             $chunks = $embeddingService->chunkText($content);
+            $totalChunks = count($chunks);
             $vectors = [];
 
             foreach ($chunks as $index => $chunk) {
-                $embedding = $embeddingService->embed($chunk);
+                // ── Contextual prefix ──────────────────────────────────────────────
+                // Prepend document title + category to EVERY chunk before embedding.
+                // This anchors the embedding in document-level semantics, dramatically
+                // improving retrieval relevance (similar to Anthropic "contextual retrieval").
+                $contextPrefix = "[Sumber: {$this->title}]";
+                if (!empty($this->category)) {
+                    $contextPrefix .= "\n[Kategori: {$this->category}]";
+                }
+                $chunkWithContext = $contextPrefix . "\n\n" . $chunk;
+
+                $embedding = $embeddingService->embed($chunkWithContext);
                 if (!$embedding) {
                     continue;
                 }
@@ -296,17 +307,19 @@ class KnowledgeBase extends Model
                     id: $this->id . '_chunk_' . $index,
                     embedding: $embedding,
                     metadata: [
-                        'kb_id' => $this->id,
-                        'title' => $this->title,
-                        'category' => $this->category,
-                        'type' => $this->type,
+                        'kb_id'       => $this->id,
+                        'title'       => $this->title,
+                        'category'    => $this->category,
+                        'type'        => $this->type,
                         'chunk_index' => $index,
-                        'chunk_text' => $chunk,
+                        'total_chunks' => $totalChunks,
+                        // Store the CONTEXTUALISED text so the AI gets source+content together
+                        'chunk_text'  => $chunkWithContext,
                         'source_type' => $this->source_type,
-                        'is_active' => $this->is_active,
-                        'status' => $this->status,
-                        'created_at' => $this->created_at?->toISOString(),
-                        'updated_at' => $this->updated_at?->toISOString(),
+                        'is_active'   => $this->is_active,
+                        'status'      => $this->status,
+                        'created_at'  => $this->created_at?->toISOString(),
+                        'updated_at'  => $this->updated_at?->toISOString(),
                     ]
                 );
             }
@@ -380,10 +393,17 @@ class KnowledgeBase extends Model
             }
 
             $chunks = $embeddingService->chunkText($content);
+            $totalChunks = count($chunks);
             $vectors = [];
 
             foreach ($chunks as $index => $chunk) {
-                $embedding = $embeddingService->embed($chunk);
+                $contextPrefix = "[Sumber: {$this->title}]";
+                if (!empty($this->category)) {
+                    $contextPrefix .= "\n[Kategori: {$this->category}]";
+                }
+                $chunkWithContext = $contextPrefix . "\n\n" . $chunk;
+
+                $embedding = $embeddingService->embed($chunkWithContext);
                 if (!$embedding) {
                     continue;
                 }
@@ -392,17 +412,18 @@ class KnowledgeBase extends Model
                     id: $this->id . '_chunk_' . $index,
                     embedding: $embedding,
                     metadata: [
-                        'kb_id' => $this->id,
-                        'title' => $this->title,
-                        'category' => $this->category,
-                        'type' => $this->type,
-                        'chunk_index' => $index,
-                        'chunk_text' => $chunk,
-                        'source_type' => $this->source_type,
-                        'is_active' => $this->is_active,
-                        'status' => $this->status,
-                        'created_at' => $this->created_at?->toISOString(),
-                        'updated_at' => $this->updated_at?->toISOString(),
+                        'kb_id'        => $this->id,
+                        'title'        => $this->title,
+                        'category'     => $this->category,
+                        'type'         => $this->type,
+                        'chunk_index'  => $index,
+                        'total_chunks' => $totalChunks,
+                        'chunk_text'   => $chunkWithContext,
+                        'source_type'  => $this->source_type,
+                        'is_active'    => $this->is_active,
+                        'status'       => $this->status,
+                        'created_at'   => $this->created_at?->toISOString(),
+                        'updated_at'   => $this->updated_at?->toISOString(),
                     ]
                 );
             }

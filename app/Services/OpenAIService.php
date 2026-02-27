@@ -760,7 +760,7 @@ REQUIREMENTS:
     }
 
     /**
-     * Generate AI response for customer service chat with RAG (Simplified)
+     * Generate AI response for customer service chat with RAG
      */
     public function generateCustomerServiceResponse(array $messages, ?string $context = null): array
     {
@@ -787,62 +787,80 @@ REQUIREMENTS:
 
             $userQuery = (string)($latestUser['content'] ?? '');
 
-            // Get relevant knowledge from Pinecone vector search
+            // ── Retrieve relevant knowledge chunks ────────────────────────────
             $relevantKnowledge = $this->getVectorKnowledge($userQuery);
             if ($this->debug) {
                 Log::info('Vector search results', ['count' => count($relevantKnowledge)]);
             }
 
-            // Build simplified messages for OpenAI
+            // ── System prompt ─────────────────────────────────────────────────
+            $systemPrompt = <<<'PROMPT'
+Anda adalah SALMA AI — Asisten Samsat Lamongan yang berpengetahuan luas.
+
+ATURAN MENJAWAB:
+1. Gunakan SELURUH informasi dari Knowledge Base di bawah ini secara lengkap dan akurat
+2. Sertakan angka, persentase, tanggal, jadwal, dan persyaratan SPESIFIK dari dokumen
+3. Jangan menyederhanakan atau menghilangkan data penting yang ada di Knowledge Base
+4. Format jawaban dengan struktur yang jelas: gunakan poin, daftar, atau tabel bila perlu
+5. Jika ada beberapa sumber relevan, gabungkan informasinya secara kohesif
+6. Jika Knowledge Base tidak memiliki informasi yang relevan, berikan informasi umum dan sarankan menghubungi kantor Samsat secara langsung
+7. Jawab dalam Bahasa Indonesia yang profesional namun mudah dipahami
+PROMPT;
+
             $apiMessages = [
-                [
-                    'role' => 'system',
-                    'content' => 'Anda adalah SALMA AI — Asisten Samsat Lamongan. Jawab dalam Bahasa Indonesia dengan ringkas dan jelas. Prioritaskan informasi dari Knowledge Base jika tersedia.'
-                ]
+                ['role' => 'system', 'content' => $systemPrompt]
             ];
 
-            // Add KB context if found
+            // ── Build KB context — use top 5 chunks with FULL text ────────────
             if (!empty($relevantKnowledge)) {
                 $contextBlocks = [];
-                foreach (array_slice($relevantKnowledge, 0, 2) as $i => $kb) {
-                    $title = $kb['title'] ?? '';
-                    $content = $kb['content'] ?? $kb['answer'] ?? '';
-                    $snippet = mb_substr(strip_tags($content), 0, 400);
-                    if ($snippet) {
-                        $contextBlocks[] = "[KB" . ($i + 1) . "] {$title}\n{$snippet}";
+                $seen = [];
+
+                foreach (array_slice($relevantKnowledge, 0, 5) as $i => $kb) {
+                    $rawText   = $kb['content'] ?? $kb['answer'] ?? '';
+                    // Use up to 1200 chars per chunk (full chunk since we index at ~1000 chars)
+                    $snippet   = mb_substr(strip_tags($rawText), 0, 1200);
+                    $score     = round($kb['score'] ?? 0, 3);
+
+                    if ($snippet && !in_array(trim($snippet), $seen, true)) {
+                        $seen[] = trim($snippet);
+                        // chunk_text already contains the [Sumber]/[Kategori] prefix — use it directly
+                        $contextBlocks[] = "--- REFERENSI " . ($i + 1) . " (skor: {$score}) ---\n" . $snippet;
                     }
                 }
 
                 if (!empty($contextBlocks)) {
                     $apiMessages[] = [
                         'role' => 'system',
-                        'content' => "KNOWLEDGE BASE:\n" . implode("\n\n", $contextBlocks)
+                        'content' => "KNOWLEDGE BASE (gunakan informasi ini untuk menjawab):\n\n" . implode("\n\n", $contextBlocks)
                     ];
                 }
             }
 
-            $apiMessages[] = [
-                'role' => 'user',
-                'content' => $userQuery
-            ];
+            // Include recent conversation history (last 4 turns for context)
+            $historyMessages = array_filter($messages, fn($m) => isset($m['role'], $m['content']));
+            $historyMessages = array_slice(array_values($historyMessages), -4);
+            foreach ($historyMessages as $msg) {
+                $apiMessages[] = ['role' => $msg['role'], 'content' => $msg['content']];
+            }
 
-            // Call OpenAI with optimized parameters
+            // Call OpenAI
             $response = $this->client->chat()->create([
-                'model' => $this->model,
-                'messages' => $apiMessages,
-                'max_completion_tokens' => 350, // Reduced for speed
-                'temperature' => 0.1, // Lower for more direct responses
+                'model'                  => $this->model,
+                'messages'               => $apiMessages,
+                'max_completion_tokens'  => 900,  // Sufficient for detailed regulation answers
+                'temperature'            => 0.1,  // Low temperature = factual, grounded responses
             ]);
 
             $answerText = trim($response->choices[0]->message->content);
-            $normUsage = $this->normalizeUsage($response->usage ?? null);
+            $normUsage  = $this->normalizeUsage($response->usage ?? null);
 
             if ($this->debug) Log::info('Response generated', ['usage' => $normUsage]);
 
             return [
-                'success' => true,
-                'message' => $answerText,
-                'usage' => $normUsage,
+                'success'        => true,
+                'message'        => $answerText,
+                'usage'          => $normUsage,
                 'knowledge_used' => count($relevantKnowledge)
             ];
         } catch (Exception $e) {
@@ -850,46 +868,59 @@ REQUIREMENTS:
             return [
                 'success' => false,
                 'message' => 'Maaf, terjadi kesalahan sistem. Silakan coba lagi atau hubungi petugas kami.',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage()
             ];
         }
     }
     /**
-     * Get relevant knowledge using Pinecone vector search
+     * Get relevant knowledge using Pinecone vector search with fallback to DB.
      */
     private function getVectorKnowledge(string $userQuery): array
     {
-        // Try Pinecone vector search first
         try {
             if (class_exists(\App\Services\EmbeddingService::class) && class_exists(\App\Services\PineconeService::class)) {
                 $embeddingService = app(EmbeddingService::class);
-                $pineconeService = app(PineconeService::class);
+                $pineconeService  = app(PineconeService::class);
 
                 $queryEmbedding = $embeddingService->embed($userQuery);
                 if ($queryEmbedding) {
+                    // Retrieve more candidates for better coverage across multi-chunk documents
                     $matches = $pineconeService->query(
                         vector: $queryEmbedding,
-                        topK: 3
+                        topK: 8
                     );
 
                     $results = [];
+                    $seenKbIds = [];
+
                     foreach ($matches as $match) {
-                        $score = $match['score'] ?? 0;
-                        if ($score >= 0.2) {
-                            $metadata = $match['metadata'] ?? [];
-                            $results[] = [
-                                'id' => $metadata['id'] ?? null,
-                                'title' => $metadata['title'] ?? '',
-                                'content' => $metadata['chunk_text'] ?? $metadata['content'] ?? '',
-                                'answer' => $metadata['answer'] ?? '',
-                                'category' => $metadata['category'] ?? '',
-                                'score' => $score
-                            ];
-                        }
+                        $score    = $match['score'] ?? 0;
+                        $metadata = $match['metadata'] ?? [];
+                        $kbId     = $metadata['kb_id'] ?? null;
+
+                        // Score threshold: 0.35 filters noise while retaining genuinely relevant chunks
+                        if ($score < 0.35) continue;
+
+                        // Allow up to 3 chunks from the same document (for multi-part answers)
+                        $countFromDoc = $seenKbIds[$kbId] ?? 0;
+                        if ($kbId && $countFromDoc >= 3) continue;
+                        $seenKbIds[$kbId] = $countFromDoc + 1;
+
+                        $results[] = [
+                            'id'       => $kbId,
+                            'title'    => $metadata['title'] ?? '',
+                            'content'  => $metadata['chunk_text'] ?? '',
+                            'answer'   => $metadata['chunk_text'] ?? '',
+                            'category' => $metadata['category'] ?? '',
+                            'score'    => $score,
+                        ];
                     }
 
                     if (!empty($results)) {
-                        if ($this->debug) Log::info('Vector search success', ['results' => count($results)]);
+                        if ($this->debug) Log::info('Vector search success', [
+                            'results' => count($results),
+                            'top_score' => $results[0]['score'] ?? 0,
+                        ]);
                         return $results;
                     }
                 }
@@ -898,7 +929,7 @@ REQUIREMENTS:
             if ($this->debug) Log::warning('Vector search failed, falling back to DB: ' . $e->getMessage());
         }
 
-        // Fallback to simple database search
+        // Fallback: full-text database search
         return $this->getDatabaseKnowledge($userQuery);
     }
 
