@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\KnowledgeBase;
+use App\Models\KbBatchUpload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -247,11 +248,6 @@ class KnowledgeBaseController extends Controller
             if (!empty($images)) {
                 $data['images'] = $images;
             }
-        }
-
-        // Check if document is large and needs chunking
-        if (!empty($data['content']) && strlen($data['content']) > 1500) {
-            return $this->handleLargeDocument($data, $request);
         }
 
         // Set published_at if status is published and no date specified
@@ -830,5 +826,257 @@ class KnowledgeBaseController extends Controller
         }
 
         return $stats;
+    }
+
+    // =========================================================================
+    // Batch File Upload
+    // =========================================================================
+
+    /**
+     * Step 1 — Upload all files, persist to disk, create a batch record.
+     * Returns immediately with batch_id; the frontend processes files
+     * one-by-one via batchUploadProcessFile().
+     */
+    public function batchUploadInit(Request $request)
+    {
+        @ini_set('max_execution_time', 120);
+        @ini_set('memory_limit', '512M');
+
+        $validator = Validator::make($request->all(), [
+            'files'            => 'required|array|min:1|max:20',
+            'files.*'          => 'file|mimes:pdf,doc,docx|max:51200',
+            'default_category' => 'required|string|max:50',
+            'default_type'     => 'required|string|max:50',
+            'default_status'   => 'required|in:draft,published,archived',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $storedFiles = [];
+        foreach ($request->file('files') as $file) {
+            $tmpName = uniqid('kbbatch_', true) . '.' . $file->getClientOriginalExtension();
+            $tmpPath = $file->storeAs('kb-batch-tmp', $tmpName, 'local');
+
+            $storedFiles[] = [
+                'original_name' => $file->getClientOriginalName(),
+                'temp_path'     => $tmpPath,
+                'mime_type'     => $file->getMimeType(),
+                'size'          => $file->getSize(),
+                'extension'     => strtolower($file->getClientOriginalExtension()),
+                'status'        => 'pending',
+                'error'         => null,
+                'kb_id'         => null,
+                'kb_title'      => null,
+            ];
+        }
+
+        $batch = KbBatchUpload::create([
+            'user_id'          => Auth::id(),
+            'status'           => 'pending',
+            'total_files'      => count($storedFiles),
+            'processed'        => 0,
+            'failed'           => 0,
+            'default_category' => $request->default_category,
+            'default_type'     => $request->default_type,
+            'default_status'   => $request->default_status,
+            'files'            => $storedFiles,
+        ]);
+
+        return response()->json([
+            'success'     => true,
+            'batch_id'    => $batch->id,
+            'total_files' => $batch->total_files,
+            'files'       => array_map(fn($f) => [
+                'original_name' => $f['original_name'],
+                'size'          => $f['size'],
+                'status'        => 'pending',
+            ], $storedFiles),
+        ]);
+    }
+
+    /**
+     * Step 2 — Process a single file from the batch (called once per file).
+     * The frontend calls this sequentially, updating per-file progress.
+     */
+    public function batchUploadProcessFile(Request $request, $batchId, $fileIndex)
+    {
+        @ini_set('max_execution_time', 300);
+        @ini_set('memory_limit', '512M');
+
+        $batch     = KbBatchUpload::findOrFail($batchId);
+
+        if ($batch->user_id !== Auth::id()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $files     = $batch->files;
+        $fileIndex = (int) $fileIndex;
+
+        if (!isset($files[$fileIndex])) {
+            return response()->json(['success' => false, 'message' => 'File index not found'], 404);
+        }
+
+        if ($files[$fileIndex]['status'] !== 'pending') {
+            return response()->json([
+                'success'    => true,
+                'message'    => 'Already processed',
+                'file_index' => $fileIndex,
+                'file_status' => $files[$fileIndex]['status'],
+            ]);
+        }
+
+        // Mark as processing
+        $files[$fileIndex]['status'] = 'processing';
+        $batch->update(['files' => $files, 'status' => 'processing']);
+
+        $fileInfo = $files[$fileIndex];
+        $tmpPath  = storage_path('app/' . $fileInfo['temp_path']);
+
+        try {
+            if (!file_exists($tmpPath)) {
+                throw new \Exception('Temporary file not found on server.');
+            }
+
+            $ext      = $fileInfo['extension'];
+            $content  = '';
+            $title    = pathinfo($fileInfo['original_name'], PATHINFO_FILENAME);
+            $metadata = ['source_file' => $fileInfo['original_name']];
+
+            // ── Extract text ──────────────────────────────────────────────────
+            if ($ext === 'pdf') {
+                $fakeFile  = new \Illuminate\Http\UploadedFile($tmpPath, $fileInfo['original_name'], $fileInfo['mime_type'], null, true);
+                $pdfParser = app(PDFParserService::class);
+                $pdfData   = $pdfParser->processPDFForKnowledgeBase($fakeFile);
+                $content   = $pdfData['content'];
+                $title     = !empty($pdfData['title']) ? $pdfData['title'] : $title;
+                $metadata  = array_merge($metadata, $pdfData['metadata'] ?? []);
+            } elseif (in_array($ext, ['doc', 'docx'])) {
+                $docxParser = app(DocxParserService::class);
+                $content    = $ext === 'docx'
+                    ? ($docxParser->extractFromDocx($tmpPath) ?? '')
+                    : ($docxParser->extractFromDoc($tmpPath)  ?? '');
+                $fakeFile   = new \Illuminate\Http\UploadedFile($tmpPath, $fileInfo['original_name'], $fileInfo['mime_type'], null, true);
+                $docMeta    = $docxParser->extractMetadata($fakeFile);
+                if (!empty($docMeta['title'])) {
+                    $title = $docMeta['title'];
+                }
+                $metadata = array_merge($metadata, array_filter($docMeta));
+            } else {
+                throw new \Exception('Unsupported file type: ' . $ext);
+            }
+
+            if (empty(trim($content))) {
+                throw new \Exception('Could not extract readable text. The file may be scanned/image-based.');
+            }
+
+            // ── Move to permanent storage ─────────────────────────────────────
+            $permanentName = time() . '_' . Str::slug(pathinfo($fileInfo['original_name'], PATHINFO_FILENAME)) . '.' . $ext;
+            $permanentPath = Storage::disk('public')->putFileAs(
+                'knowledge-base',
+                new \Illuminate\Http\File($tmpPath),
+                $permanentName
+            );
+
+            // ── Create KB entry ───────────────────────────────────────────────
+            $kbStatus    = $batch->default_status;
+            $publishedAt = $kbStatus === 'published' ? now() : null;
+            $excerpt     = mb_substr(strip_tags($content), 0, 300);
+
+            $kb = KnowledgeBase::create([
+                'title'        => $title,
+                'question'     => $title,
+                'content'      => $content,
+                'answer'       => $content,
+                'excerpt'      => $excerpt,
+                'category'     => $batch->default_category,
+                'type'         => $batch->default_type,
+                'source_type'  => 'file',
+                'file_path'    => $permanentPath,
+                'file_name'    => $fileInfo['original_name'],
+                'file_size'    => $fileInfo['size'],
+                'mime_type'    => $fileInfo['mime_type'],
+                'metadata'     => $metadata,
+                'is_active'    => true,
+                'status'       => $kbStatus,
+                'published_at' => $publishedAt,
+                'created_by'   => $batch->user_id,
+                'updated_by'   => $batch->user_id,
+            ]);
+
+            // Cleanup temp file
+            @unlink($tmpPath);
+
+            $files[$fileIndex]['status']    = 'done';
+            $files[$fileIndex]['kb_id']     = $kb->id;
+            $files[$fileIndex]['kb_title']  = $kb->title;
+            $files[$fileIndex]['temp_path'] = null;
+
+            $batch->increment('processed');
+        } catch (\Exception $e) {
+            Log::error("Batch upload file #{$fileIndex} failed: " . $e->getMessage());
+            $files[$fileIndex]['status'] = 'failed';
+            $files[$fileIndex]['error']  = $e->getMessage();
+            if (!empty($tmpPath) && file_exists($tmpPath)) {
+                @unlink($tmpPath);
+            }
+            $batch->increment('processed');
+            $batch->increment('failed');
+        }
+
+        // Determine overall batch status
+        $fresh       = $batch->fresh();
+        $batchStatus = $fresh->processed >= $fresh->total_files
+            ? ($fresh->failed > 0 ? 'completed_with_errors' : 'completed')
+            : 'processing';
+
+        $batch->update(['files' => $files, 'status' => $batchStatus]);
+
+        return response()->json([
+            'success'      => $files[$fileIndex]['status'] === 'done',
+            'file_status'  => $files[$fileIndex]['status'],
+            'file_index'   => $fileIndex,
+            'kb_id'        => $files[$fileIndex]['kb_id']    ?? null,
+            'kb_title'     => $files[$fileIndex]['kb_title'] ?? null,
+            'error'        => $files[$fileIndex]['error']    ?? null,
+            'batch_status' => $batchStatus,
+            'processed'    => $fresh->processed,
+            'total_files'  => $fresh->total_files,
+            'failed'       => $fresh->failed,
+        ]);
+    }
+
+    /**
+     * Return current status of a batch — polled by the frontend.
+     */
+    public function batchUploadStatus($batchId)
+    {
+        $batch = KbBatchUpload::findOrFail($batchId);
+
+        if ($batch->user_id !== Auth::id()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        return response()->json([
+            'success'     => true,
+            'batch_id'    => $batch->id,
+            'status'      => $batch->status,
+            'total_files' => $batch->total_files,
+            'processed'   => $batch->processed,
+            'failed'      => $batch->failed,
+            'progress'    => $batch->progress,
+            'files'       => array_map(fn($f) => [
+                'original_name' => $f['original_name'],
+                'size'          => $f['size'],
+                'status'        => $f['status'],
+                'error'         => $f['error']    ?? null,
+                'kb_id'         => $f['kb_id']    ?? null,
+                'kb_title'      => $f['kb_title'] ?? null,
+            ], $batch->files ?? []),
+        ]);
     }
 }

@@ -261,7 +261,17 @@ class KnowledgeBase extends Model
      */
 
     /**
-     * Index this knowledge base entry to vector database
+     * Index this knowledge base entry to vector database.
+     *
+     * One KB entry = exactly ONE Pinecone vector.
+     * Users are expected to split large documents into separate files before
+     * uploading; the system should not fragment a single file into multiple entries.
+     *
+     * Embedding strategy:
+     *   - Input text truncated to 7 000 chars (≈ 5 500 tokens, safely within
+     *     text-embedding-3-small's 8 191-token limit).
+     *   - metadata.chunk_text stores up to 8 000 chars of contexturalised text
+     *     which the AI uses when constructing answers.
      */
     public function indexToVectorDatabase(): bool
     {
@@ -273,66 +283,53 @@ class KnowledgeBase extends Model
             }
 
             $embeddingService = app(EmbeddingService::class);
-            $pineconeService = app(PineconeService::class);
+            $pineconeService  = app(PineconeService::class);
 
-            // Prepare content for embedding
             $content = $this->getContentForEmbedding();
             if (empty($content)) {
                 Log::info("Skipping vector indexing for KB {$this->id}: empty content");
                 return true;
             }
 
-            // Chunk the content into focused segments
-            $chunks = $embeddingService->chunkText($content);
-            $totalChunks = count($chunks);
-            $vectors = [];
-
-            foreach ($chunks as $index => $chunk) {
-                // ── Contextual prefix ──────────────────────────────────────────────
-                // Prepend document title + category to EVERY chunk before embedding.
-                // This anchors the embedding in document-level semantics, dramatically
-                // improving retrieval relevance (similar to Anthropic "contextual retrieval").
-                $contextPrefix = "[Sumber: {$this->title}]";
-                if (!empty($this->category)) {
-                    $contextPrefix .= "\n[Kategori: {$this->category}]";
-                }
-                $chunkWithContext = $contextPrefix . "\n\n" . $chunk;
-
-                $embedding = $embeddingService->embed($chunkWithContext);
-                if (!$embedding) {
-                    continue;
-                }
-
-                $vectors[] = $embeddingService->createVectorData(
-                    id: $this->id . '_chunk_' . $index,
-                    embedding: $embedding,
-                    metadata: [
-                        'kb_id'       => $this->id,
-                        'title'       => $this->title,
-                        'category'    => $this->category,
-                        'type'        => $this->type,
-                        'chunk_index' => $index,
-                        'total_chunks' => $totalChunks,
-                        // Store the CONTEXTUALISED text so the AI gets source+content together
-                        'chunk_text'  => $chunkWithContext,
-                        'source_type' => $this->source_type,
-                        'is_active'   => $this->is_active,
-                        'status'      => $this->status,
-                        'created_at'  => $this->created_at?->toISOString(),
-                        'updated_at'  => $this->updated_at?->toISOString(),
-                    ]
-                );
+            // Build contextual prefix (anchors embedding in document identity)
+            $contextPrefix = "[Sumber: {$this->title}]";
+            if (!empty($this->category)) {
+                $contextPrefix .= "\n[Kategori: {$this->category}]";
             }
 
-            if (!empty($vectors)) {
-                $success = $pineconeService->upsert($vectors);
-                if ($success) {
-                    Log::info("Successfully indexed KB {$this->id} to vector database with " . count($vectors) . " chunks");
-                }
-                return $success;
+            // 7 000 chars for the embedding call; 8 000 chars stored in metadata
+            $embeddingText = $contextPrefix . "\n\n" . mb_substr($content, 0, 7000);
+            $metadataText  = $contextPrefix . "\n\n" . mb_substr($content, 0, 8000);
+
+            $embedding = $embeddingService->embed($embeddingText);
+            if (!$embedding) {
+                Log::error("Failed to generate embedding for KB {$this->id}");
+                return false;
             }
 
-            return true;
+            // Vector ID is a stable, unique key — 'kb_{id}' — one per entry
+            $vector = $embeddingService->createVectorData(
+                id: 'kb_' . $this->id,
+                embedding: $embedding,
+                metadata: [
+                    'kb_id'       => $this->id,
+                    'title'       => $this->title,
+                    'category'    => $this->category,
+                    'type'        => $this->type,
+                    'chunk_text'  => $metadataText,
+                    'source_type' => $this->source_type,
+                    'is_active'   => $this->is_active,
+                    'status'      => $this->status,
+                    'created_at'  => $this->created_at?->toISOString(),
+                    'updated_at'  => $this->updated_at?->toISOString(),
+                ]
+            );
+
+            $success = $pineconeService->upsert([$vector]);
+            if ($success) {
+                Log::info("Indexed KB {$this->id} as single vector kb_{$this->id}");
+            }
+            return $success;
         } catch (\Exception $e) {
             Log::error("Failed to index KB {$this->id} to vector database: " . $e->getMessage());
             return false;
@@ -377,66 +374,12 @@ class KnowledgeBase extends Model
     }
 
     /**
-     * Update only metadata in existing vectors
+     * Update the single vector for this entry when only status/active changed.
+     * Re-uses indexToVectorDatabase since Pinecone upsert is idempotent.
      */
     private function updateVectorMetadata(): bool
     {
-        try {
-            $embeddingService = app(EmbeddingService::class);
-            $pineconeService = app(PineconeService::class);
-
-            // For metadata updates, we still need to upsert the vectors
-            // because Pinecone doesn't have a metadata-only update
-            $content = $this->getContentForEmbedding();
-            if (empty($content)) {
-                return true;
-            }
-
-            $chunks = $embeddingService->chunkText($content);
-            $totalChunks = count($chunks);
-            $vectors = [];
-
-            foreach ($chunks as $index => $chunk) {
-                $contextPrefix = "[Sumber: {$this->title}]";
-                if (!empty($this->category)) {
-                    $contextPrefix .= "\n[Kategori: {$this->category}]";
-                }
-                $chunkWithContext = $contextPrefix . "\n\n" . $chunk;
-
-                $embedding = $embeddingService->embed($chunkWithContext);
-                if (!$embedding) {
-                    continue;
-                }
-
-                $vectors[] = $embeddingService->createVectorData(
-                    id: $this->id . '_chunk_' . $index,
-                    embedding: $embedding,
-                    metadata: [
-                        'kb_id'        => $this->id,
-                        'title'        => $this->title,
-                        'category'     => $this->category,
-                        'type'         => $this->type,
-                        'chunk_index'  => $index,
-                        'total_chunks' => $totalChunks,
-                        'chunk_text'   => $chunkWithContext,
-                        'source_type'  => $this->source_type,
-                        'is_active'    => $this->is_active,
-                        'status'       => $this->status,
-                        'created_at'   => $this->created_at?->toISOString(),
-                        'updated_at'   => $this->updated_at?->toISOString(),
-                    ]
-                );
-            }
-
-            if (!empty($vectors)) {
-                return $pineconeService->upsert($vectors);
-            }
-
-            return true;
-        } catch (\Exception $e) {
-            Log::error("Failed to update vector metadata for KB {$this->id}: " . $e->getMessage());
-            return false;
-        }
+        return $this->indexToVectorDatabase();
     }
 
     /**
@@ -464,10 +407,24 @@ class KnowledgeBase extends Model
      */
     private function getContentForEmbedding(): string
     {
+        // Prefer search_content — it is already stored as clean plain text (no HTML/XML).
+        // Fall back to stripping the raw content/answer HTML if search_content is absent.
+        $cleanText = '';
+
+        if (!empty($this->search_content)) {
+            $cleanText = $this->search_content;
+        } else {
+            $raw = (string) ($this->content ?: $this->answer ?? '');
+            // PHP's strip_tags() silently drops everything after an unclosed <?...>
+            // processing instruction (e.g. <?xml encoding="UTF-8">). Remove those first.
+            $raw = preg_replace('/<\?[^>]*>/', '', $raw);
+            $cleanText = trim(strip_tags($raw));
+        }
+
         $parts = array_filter([
             $this->title,
             $this->category ? '[Category: ' . $this->category . ']' : null,
-            strip_tags((string) ($this->content ?: $this->answer)),
+            $cleanText,
         ]);
 
         return implode("\n\n", $parts);

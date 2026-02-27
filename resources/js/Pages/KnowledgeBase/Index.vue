@@ -377,6 +377,184 @@ const closeSyncDialog = () => {
   syncDialog.value = false;
   syncResults.value = null;
 };
+
+// ── Batch Upload ─────────────────────────────────────────────────────────────
+const batchDialog = ref(false);
+const batchStep = ref('setup'); // 'setup' | 'processing' | 'completed'
+const batchFiles = ref([]); // raw File objects chosen by user
+const batchFileEntries = ref([]); // [{original_name, size, status, error, kb_id, kb_title}]
+const batchId = ref(null);
+const batchProcessing = ref(false);
+const batchCategory = ref('');
+const batchType = ref('regulation');
+const batchStatus = ref('published');
+const batchError = ref(null);
+const batchDragOver = ref(false);
+const batchProcessed = ref(0);
+const batchFailed = ref(0);
+
+const batchProgress = computed(() => {
+  if (!batchFileEntries.value.length) return 0;
+  return Math.round(
+    (batchProcessed.value / batchFileEntries.value.length) * 100,
+  );
+});
+
+const formatFileSize = (bytes) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const fileStatusIcon = (status) => {
+  const icons = {
+    pending: 'mdi-clock-outline',
+    processing: 'mdi-loading mdi-spin',
+    done: 'mdi-check-circle',
+    failed: 'mdi-alert-circle',
+  };
+  return icons[status] || 'mdi-help-circle';
+};
+const fileStatusColor = (status) => {
+  const colors = {
+    pending: 'grey',
+    processing: 'blue',
+    done: 'success',
+    failed: 'error',
+  };
+  return colors[status] || 'grey';
+};
+
+const openBatchDialog = () => {
+  batchDialog.value = true;
+  batchStep.value = 'setup';
+  batchFiles.value = [];
+  batchFileEntries.value = [];
+  batchId.value = null;
+  batchProcessing.value = false;
+  batchError.value = null;
+  batchDragOver.value = false;
+  batchProcessed.value = 0;
+  batchFailed.value = 0;
+  batchCategory.value = Object.keys(props.categories || {})[0] || '';
+  batchType.value = 'regulation';
+  batchStatus.value = 'published';
+};
+
+const closeBatchDialog = () => {
+  batchDialog.value = false;
+  if (batchStep.value === 'completed') {
+    router.reload({ only: ['knowledgeBases'] });
+  }
+};
+
+const onBatchDrop = (e) => {
+  e.preventDefault();
+  batchDragOver.value = false;
+  const dropped = Array.from(e.dataTransfer?.files || []);
+  addBatchFiles(dropped);
+};
+
+const onBatchFileInput = (e) => {
+  const selected = Array.from(e.target?.files || []);
+  addBatchFiles(selected);
+  // Reset input so same file can be re-added after removal
+  if (e.target) e.target.value = '';
+};
+
+const ALLOWED_EXTS = ['pdf', 'doc', 'docx'];
+const addBatchFiles = (newFiles) => {
+  for (const f of newFiles) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (!ALLOWED_EXTS.includes(ext)) continue;
+    // Avoid duplicates by name
+    if (!batchFiles.value.find((x) => x.name === f.name)) {
+      batchFiles.value.push(f);
+    }
+  }
+};
+
+const removeBatchFile = (index) => {
+  batchFiles.value.splice(index, 1);
+};
+
+const startBatchUpload = async () => {
+  if (!batchFiles.value.length || !batchCategory.value) return;
+
+  batchProcessing.value = true;
+  batchError.value = null;
+  batchStep.value = 'processing';
+
+  try {
+    // ── Step 1: Upload all files to server and get batch_id ──────────────
+    const formData = new FormData();
+    batchFiles.value.forEach((f) => formData.append('files[]', f));
+    formData.append('default_category', batchCategory.value);
+    formData.append('default_type', batchType.value);
+    formData.append('default_status', batchStatus.value);
+
+    const csrfToken = document.head.querySelector(
+      'meta[name="csrf-token"]',
+    )?.content;
+
+    const initRes = await axios.post(
+      route('knowledge-base.batch-init'),
+      formData,
+      {
+        headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+      },
+    );
+
+    if (!initRes.data.success) {
+      throw new Error(
+        initRes.data.message || 'Failed to initialise batch upload',
+      );
+    }
+
+    batchId.value = initRes.data.batch_id;
+    batchFileEntries.value = initRes.data.files.map((f) => ({ ...f }));
+    batchProcessed.value = 0;
+    batchFailed.value = 0;
+
+    // ── Step 2: Process each file sequentially ────────────────────────────
+    for (let i = 0; i < batchFileEntries.value.length; i++) {
+      batchFileEntries.value[i].status = 'processing';
+
+      try {
+        const procRes = await axios.post(
+          route('knowledge-base.batch-process', {
+            batchId: batchId.value,
+            fileIndex: i,
+          }),
+          {},
+          {
+            headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+          },
+        );
+
+        const d = procRes.data;
+        batchFileEntries.value[i].status = d.file_status;
+        batchFileEntries.value[i].error = d.error || null;
+        batchFileEntries.value[i].kb_id = d.kb_id;
+        batchFileEntries.value[i].kb_title = d.kb_title;
+        batchProcessed.value = d.processed;
+        batchFailed.value = d.failed;
+      } catch (err) {
+        batchFileEntries.value[i].status = 'failed';
+        batchFileEntries.value[i].error = err.response?.data?.message || err.message;
+        batchProcessed.value++;
+        batchFailed.value++;
+      }
+    }
+
+    batchStep.value = 'completed';
+  } catch (err) {
+    batchError.value = err.response?.data?.message || err.message || 'Upload failed';
+    batchStep.value = 'setup';
+  } finally {
+    batchProcessing.value = false;
+  }
+};
 </script>
 
 <template>
@@ -398,6 +576,15 @@ const closeSyncDialog = () => {
                   </p>
                 </VCol>
                 <VCol cols="12" md="6" class="text-right">
+                  <VBtn
+                    color="success"
+                    size="large"
+                    @click="openBatchDialog"
+                    prepend-icon="mdi-upload-multiple"
+                    class="mr-3"
+                  >
+                    Batch Upload
+                  </VBtn>
                   <VBtn
                     color="info"
                     size="large"
@@ -888,6 +1075,396 @@ const closeSyncDialog = () => {
         </VCard>
       </VDialog>
 
+      <!-- ─── Batch Upload Dialog ─────────────────────────────────────────── -->
+      <VDialog v-model="batchDialog" max-width="780" persistent scrollable>
+        <VCard>
+          <!-- Title bar -->
+          <VCardTitle class="d-flex align-center pa-5 pb-3">
+            <VIcon color="success" size="28" class="mr-3"
+              >mdi-upload-multiple</VIcon
+            >
+            <span class="text-h6 font-weight-bold">Batch Upload Documents</span>
+            <VSpacer />
+            <VBtn
+              icon="mdi-close"
+              variant="text"
+              size="small"
+              @click="closeBatchDialog"
+              :disabled="batchProcessing"
+            />
+          </VCardTitle>
+
+          <VDivider />
+
+          <!-- ── STEP: setup ─────────────────────────────────────── -->
+          <VCardText v-if="batchStep === 'setup'" class="pa-5">
+            <VAlert v-if="batchError" type="error" class="mb-4" closable>{{
+              batchError
+            }}</VAlert>
+
+            <!-- Drop zone -->
+            <div
+              class="batch-dropzone rounded-lg d-flex flex-column align-center justify-center pa-6 mb-4"
+              :class="{ 'batch-dropzone--active': batchDragOver }"
+              @dragover.prevent="batchDragOver = true"
+              @dragleave.prevent="batchDragOver = false"
+              @drop="onBatchDrop"
+              @click="$refs.batchFileInput.click()"
+            >
+              <VIcon
+                size="52"
+                :color="batchDragOver ? 'success' : 'grey-lighten-1'"
+                class="mb-3"
+              >
+                {{
+                  batchDragOver
+                    ? 'mdi-cloud-download'
+                    : 'mdi-cloud-upload-outline'
+                }}
+              </VIcon>
+              <p class="text-body-1 font-weight-medium text-grey-darken-1 mb-1">
+                {{
+                  batchDragOver
+                    ? 'Drop files here'
+                    : 'Drag & drop files here or click to browse'
+                }}
+              </p>
+              <p class="text-caption text-grey">
+                Supports PDF, DOC, DOCX — up to 50 MB each, max 20 files
+              </p>
+              <input
+                ref="batchFileInput"
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx"
+                class="d-none"
+                @change="onBatchFileInput"
+              />
+            </div>
+
+            <!-- File list -->
+            <div v-if="batchFiles.length" class="mb-4">
+              <div class="d-flex align-center mb-2">
+                <span class="text-subtitle-2 font-weight-semibold"
+                  >Selected Files</span
+                >
+                <VChip size="x-small" color="primary" class="ml-2">{{
+                  batchFiles.length
+                }}</VChip>
+              </div>
+              <VCard
+                variant="outlined"
+                class="pa-0"
+                style="max-height: 200px; overflow-y: auto"
+              >
+                <VList density="compact" class="pa-0">
+                  <VListItem v-for="(f, i) in batchFiles" :key="i" class="px-3">
+                    <template #prepend>
+                      <VIcon
+                        size="20"
+                        :color="
+                          f.name.endsWith('.pdf')
+                            ? 'red-darken-2'
+                            : 'blue-darken-2'
+                        "
+                      >
+                        {{
+                          f.name.endsWith('.pdf')
+                            ? 'mdi-file-pdf-box'
+                            : 'mdi-file-word-box'
+                        }}
+                      </VIcon>
+                    </template>
+                    <VListItemTitle class="text-body-2">{{
+                      f.name
+                    }}</VListItemTitle>
+                    <VListItemSubtitle class="text-caption">{{
+                      formatFileSize(f.size)
+                    }}</VListItemSubtitle>
+                    <template #append>
+                      <VBtn
+                        icon="mdi-close"
+                        size="x-small"
+                        variant="text"
+                        color="error"
+                        @click="removeBatchFile(i)"
+                      />
+                    </template>
+                  </VListItem>
+                </VList>
+              </VCard>
+            </div>
+
+            <!-- Settings -->
+            <div class="text-subtitle-2 font-weight-semibold mb-3">
+              Default Settings for All Files
+            </div>
+            <VRow dense>
+              <VCol cols="12" md="4">
+                <VSelect
+                  v-model="batchCategory"
+                  :items="
+                    Object.entries(props.categories || {}).map(([k, v]) => ({
+                      title: v,
+                      value: k,
+                    }))
+                  "
+                  label="Category *"
+                  variant="outlined"
+                  density="comfortable"
+                />
+              </VCol>
+              <VCol cols="12" md="4">
+                <VSelect
+                  v-model="batchType"
+                  :items="
+                    Object.entries(props.types || {}).map(([k, v]) => ({
+                      title: v,
+                      value: k,
+                    }))
+                  "
+                  label="Type *"
+                  variant="outlined"
+                  density="comfortable"
+                />
+              </VCol>
+              <VCol cols="12" md="4">
+                <VSelect
+                  v-model="batchStatus"
+                  :items="[
+                    { title: 'Published', value: 'published' },
+                    { title: 'Draft', value: 'draft' },
+                    { title: 'Archived', value: 'archived' },
+                  ]"
+                  label="Status"
+                  variant="outlined"
+                  density="comfortable"
+                />
+              </VCol>
+            </VRow>
+          </VCardText>
+
+          <!-- ── STEP: processing ────────────────────────────────── -->
+          <VCardText v-else-if="batchStep === 'processing'" class="pa-5">
+            <!-- Overall progress -->
+            <VCard variant="tonal" color="primary" class="pa-4 mb-5 rounded-lg">
+              <div class="d-flex align-center justify-space-between mb-2">
+                <span class="text-body-1 font-weight-semibold"
+                  >Processing files…</span
+                >
+                <span class="text-body-2 font-weight-bold text-primary">
+                  {{ batchProcessed }} / {{ batchFileEntries.length }}
+                </span>
+              </div>
+              <VProgressLinear
+                :model-value="batchProgress"
+                color="primary"
+                bg-color="primary-lighten-4"
+                rounded
+                height="10"
+                striped
+              />
+              <div class="d-flex justify-space-between mt-2">
+                <span
+                  class="text-caption text-success"
+                  v-if="batchProcessed - batchFailed > 0"
+                >
+                  <VIcon size="12">mdi-check-circle</VIcon>
+                  {{ batchProcessed - batchFailed }} done
+                </span>
+                <span class="text-caption text-error" v-if="batchFailed > 0">
+                  <VIcon size="12">mdi-alert-circle</VIcon>
+                  {{ batchFailed }} failed
+                </span>
+                <span class="text-caption text-grey">
+                  {{ batchProgress }}%
+                </span>
+              </div>
+            </VCard>
+
+            <!-- Per-file status list -->
+            <VList density="compact" class="pa-0">
+              <VListItem
+                v-for="(f, i) in batchFileEntries"
+                :key="i"
+                :class="[
+                  'rounded-lg mb-1',
+                  {
+                    'bg-success-lighten-5': f.status === 'done',
+                    'bg-error-lighten-5': f.status === 'failed',
+                    'bg-blue-lighten-5': f.status === 'processing',
+                  },
+                ]"
+              >
+                <template #prepend>
+                  <VIcon :color="fileStatusColor(f.status)" size="22">{{
+                    fileStatusIcon(f.status)
+                  }}</VIcon>
+                </template>
+                <VListItemTitle class="text-body-2 font-weight-medium">{{
+                  f.original_name
+                }}</VListItemTitle>
+                <VListItemSubtitle class="text-caption">
+                  <span v-if="f.status === 'done'" class="text-success">
+                    ✓ {{ f.kb_title || 'Saved' }}
+                  </span>
+                  <span v-else-if="f.status === 'failed'" class="text-error">
+                    {{ f.error || 'Processing failed' }}
+                  </span>
+                  <span v-else-if="f.status === 'processing'" class="text-blue">
+                    Extracting text and generating embedding…
+                  </span>
+                  <span v-else class="text-grey">Waiting…</span>
+                </VListItemSubtitle>
+                <template #append>
+                  <VChip
+                    :color="fileStatusColor(f.status)"
+                    size="x-small"
+                    variant="tonal"
+                    class="text-capitalize"
+                    >{{ f.status }}</VChip
+                  >
+                </template>
+              </VListItem>
+            </VList>
+          </VCardText>
+
+          <!-- ── STEP: completed ─────────────────────────────────── -->
+          <VCardText v-else-if="batchStep === 'completed'" class="pa-5">
+            <VAlert
+              :type="
+                batchFailed === batchFileEntries.length
+                  ? 'error'
+                  : batchFailed > 0
+                    ? 'warning'
+                    : 'success'
+              "
+              prominent
+              class="mb-5"
+            >
+              <VAlertTitle>
+                {{
+                  batchFailed === batchFileEntries.length
+                    ? 'All files failed to process'
+                    : batchFailed > 0
+                      ? `Completed with ${batchFailed} error(s)`
+                      : 'All files processed successfully!'
+                }}
+              </VAlertTitle>
+              {{ batchFileEntries.length - batchFailed }} of
+              {{ batchFileEntries.length }} files added to the Knowledge Base.
+            </VAlert>
+
+            <!-- Summary stats -->
+            <VRow dense class="mb-4">
+              <VCol cols="6" md="4">
+                <VCard
+                  variant="tonal"
+                  color="success"
+                  class="text-center pa-3 rounded-lg"
+                >
+                  <div class="text-h4 font-weight-bold text-success">
+                    {{ batchFileEntries.length - batchFailed }}
+                  </div>
+                  <div class="text-caption font-weight-medium">Successful</div>
+                </VCard>
+              </VCol>
+              <VCol cols="6" md="4">
+                <VCard
+                  variant="tonal"
+                  :color="batchFailed > 0 ? 'error' : 'grey'"
+                  class="text-center pa-3 rounded-lg"
+                >
+                  <div
+                    class="text-h4 font-weight-bold"
+                    :class="batchFailed > 0 ? 'text-error' : 'text-grey'"
+                  >
+                    {{ batchFailed }}
+                  </div>
+                  <div class="text-caption font-weight-medium">Failed</div>
+                </VCard>
+              </VCol>
+              <VCol cols="12" md="4">
+                <VCard
+                  variant="tonal"
+                  color="primary"
+                  class="text-center pa-3 rounded-lg"
+                >
+                  <div class="text-h4 font-weight-bold text-primary">
+                    {{ batchFileEntries.length }}
+                  </div>
+                  <div class="text-caption font-weight-medium">Total</div>
+                </VCard>
+              </VCol>
+            </VRow>
+
+            <!-- Results per file -->
+            <VList
+              density="compact"
+              class="pa-0"
+              style="max-height: 260px; overflow-y: auto"
+            >
+              <VListItem
+                v-for="(f, i) in batchFileEntries"
+                :key="i"
+                :class="[
+                  'rounded-lg mb-1',
+                  {
+                    'bg-success-lighten-5': f.status === 'done',
+                    'bg-error-lighten-5': f.status === 'failed',
+                  },
+                ]"
+              >
+                <template #prepend>
+                  <VIcon :color="fileStatusColor(f.status)" size="22">{{
+                    fileStatusIcon(f.status)
+                  }}</VIcon>
+                </template>
+                <VListItemTitle class="text-body-2 font-weight-medium">{{
+                  f.original_name
+                }}</VListItemTitle>
+                <VListItemSubtitle class="text-caption">
+                  <span v-if="f.status === 'done'" class="text-success">{{
+                    f.kb_title
+                  }}</span>
+                  <span v-else class="text-error">{{ f.error }}</span>
+                </VListItemSubtitle>
+              </VListItem>
+            </VList>
+          </VCardText>
+
+          <VDivider />
+
+          <VCardActions class="pa-4">
+            <VSpacer />
+            <VBtn
+              variant="outlined"
+              @click="closeBatchDialog"
+              :disabled="batchProcessing"
+            >
+              {{ batchStep === 'completed' ? 'Close & Refresh' : 'Cancel' }}
+            </VBtn>
+            <VBtn
+              v-if="batchStep === 'setup'"
+              color="success"
+              variant="flat"
+              prepend-icon="mdi-upload"
+              :disabled="!batchFiles.length || !batchCategory"
+              @click="startBatchUpload"
+            >
+              Upload
+              {{
+                batchFiles.length
+                  ? batchFiles.length +
+                    ' file' +
+                    (batchFiles.length > 1 ? 's' : '')
+                  : ''
+              }}
+            </VBtn>
+          </VCardActions>
+        </VCard>
+      </VDialog>
+
       <!-- Delete Confirmation Dialog -->
       <VDialog v-model="confirmDelete" max-width="400">
         <VCard>
@@ -915,5 +1492,36 @@ const closeSyncDialog = () => {
 <style scoped>
 .gap-2 {
   gap: 8px;
+}
+
+/* ── Batch Upload Dialog ──────────────────────────────────────── */
+.batch-dropzone {
+  border: 2px dashed #bdbdbd;
+  min-height: 160px;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+  user-select: none;
+}
+.batch-dropzone:hover {
+  border-color: rgb(var(--v-theme-success));
+  background: rgba(var(--v-theme-success), 0.04);
+}
+.batch-dropzone--active {
+  border-color: rgb(var(--v-theme-success));
+  background: rgba(var(--v-theme-success), 0.08);
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 </style>

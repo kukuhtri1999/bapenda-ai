@@ -48,6 +48,10 @@ Route::middleware([
     Route::post('/knowledge-base/bulk-action', [KnowledgeBaseController::class, 'bulkAction'])->name('knowledge-base.bulk-action');
     Route::post('/knowledge-base/sync-pinecone', [KnowledgeBaseController::class, 'syncPinecone'])->name('knowledge-base.sync-pinecone');
     Route::get('/knowledge-base/{knowledgeBase}/download', [KnowledgeBaseController::class, 'downloadFile'])->name('knowledge-base.download');
+    // Batch upload routes
+    Route::post('/knowledge-base/batch/init', [KnowledgeBaseController::class, 'batchUploadInit'])->name('knowledge-base.batch-init');
+    Route::post('/knowledge-base/batch/{batchId}/process/{fileIndex}', [KnowledgeBaseController::class, 'batchUploadProcessFile'])->name('knowledge-base.batch-process');
+    Route::get('/knowledge-base/batch/{batchId}/status', [KnowledgeBaseController::class, 'batchUploadStatus'])->name('knowledge-base.batch-status');
 
     // App Settings Routes
     Route::resource('settings', AppSettingController::class);

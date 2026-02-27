@@ -795,61 +795,87 @@ REQUIREMENTS:
 
             // ── System prompt ─────────────────────────────────────────────────
             $systemPrompt = <<<'PROMPT'
-Anda adalah SALMA AI — Asisten Samsat Lamongan yang berpengetahuan luas.
+Anda adalah SALMA AI — Asisten resmi Samsat Lamongan yang bertugas membantu masyarakat memahami prosedur, tarif, syarat, dan layanan perpajakan kendaraan bermotor di wilayah Lamongan.
 
-ATURAN MENJAWAB:
-1. Gunakan SELURUH informasi dari Knowledge Base di bawah ini secara lengkap dan akurat
-2. Sertakan angka, persentase, tanggal, jadwal, dan persyaratan SPESIFIK dari dokumen
-3. Jangan menyederhanakan atau menghilangkan data penting yang ada di Knowledge Base
-4. Format jawaban dengan struktur yang jelas: gunakan poin, daftar, atau tabel bila perlu
-5. Jika ada beberapa sumber relevan, gabungkan informasinya secara kohesif
-6. Jika Knowledge Base tidak memiliki informasi yang relevan, berikan informasi umum dan sarankan menghubungi kantor Samsat secara langsung
-7. Jawab dalam Bahasa Indonesia yang profesional namun mudah dipahami
+⚠️ ATURAN WAJIB — ANTI-HALUSINASI:
+- JANGAN PERNAH mengarang, mengira-ngira, atau menyebutkan angka/tarif/persentase/biaya yang TIDAK ADA dalam teks Knowledge Base di bawah ini
+- SEMUA angka dan tarif yang Anda sebutkan HARUS diambil KATA PER KATA dari isi Knowledge Base
+- Jika Knowledge Base tidak menyebutkan angka spesifik untuk suatu hal, KATAKAN "Informasi tarif spesifik tidak tersedia dalam data kami, silakan konfirmasi ke Samsat Lamongan"
+- JANGAN gunakan pengetahuan umum atau training data Anda untuk mengisi angka yang tidak ada di KB
+
+PRINSIP MENJAWAB:
+1. Jawaban harus LENGKAP dan RINCI — kutip langsung dari Knowledge Base, jangan ringkas berlebihan
+2. Sertakan SEMUA angka, tarif, persentase, dan biaya yang ADA di Knowledge Base
+3. Jika ada beberapa kategori/jenis kendaraan, jelaskan SETIAP kategori secara terperinci sesuai KB
+4. Gunakan format terstruktur: heading, sub-poin agar mudah dibaca
+5. Sertakan syarat/dokumen jika pertanyaan terkait pengurusan administrasi
+6. Jika ada contoh perhitungan di KB, tampilkan; jika tidak ada, jangan karang contoh dengan angka fiktif
+7. Di akhir jawaban, sebutkan sumber dokumen KB yang digunakan (judulnya)
+8. Gunakan Bahasa Indonesia yang ramah, profesional, dan mudah dipahami
 PROMPT;
 
             $apiMessages = [
                 ['role' => 'system', 'content' => $systemPrompt]
             ];
 
-            // ── Build KB context — use top 5 chunks with FULL text ────────────
+            // ── Build KB context — top 6 chunks, 1500 chars each (detailed answers) ─
             if (!empty($relevantKnowledge)) {
-                $contextBlocks = [];
-                $seen = [];
+                // Group chunks by their source document title
+                $byDocument = [];
+                $globalSeen = [];
 
-                foreach (array_slice($relevantKnowledge, 0, 5) as $i => $kb) {
-                    $rawText   = $kb['content'] ?? $kb['answer'] ?? '';
-                    // Use up to 1200 chars per chunk (full chunk since we index at ~1000 chars)
-                    $snippet   = mb_substr(strip_tags($rawText), 0, 1200);
-                    $score     = round($kb['score'] ?? 0, 3);
+                foreach (array_slice($relevantKnowledge, 0, 6) as $kb) {
+                    $rawText = $kb['content'] ?? $kb['answer'] ?? '';
+                    // 1500 chars per chunk — preserve full context for detailed responses
+                    $snippet = mb_substr(strip_tags($rawText), 0, 1500);
 
-                    if ($snippet && !in_array(trim($snippet), $seen, true)) {
-                        $seen[] = trim($snippet);
-                        // chunk_text already contains the [Sumber]/[Kategori] prefix — use it directly
-                        $contextBlocks[] = "--- REFERENSI " . ($i + 1) . " (skor: {$score}) ---\n" . $snippet;
-                    }
+                    if (!$snippet) continue;
+                    if (in_array(trim($snippet), $globalSeen, true)) continue;
+                    $globalSeen[] = trim($snippet);
+
+                    $docTitle = $kb['title'] ?? 'Sumber Tidak Diketahui';
+                    $byDocument[$docTitle][] = [
+                        'snippet' => $snippet,
+                        'score'   => round($kb['score'] ?? 0, 3),
+                        'source'  => $kb['_source'] ?? 'vector',
+                    ];
                 }
 
-                if (!empty($contextBlocks)) {
+                if (!empty($byDocument)) {
+                    $contextParts = [];
+                    $docIndex = 1;
+                    foreach ($byDocument as $docTitle => $chunks) {
+                        $header       = "===== DOKUMEN {$docIndex}: {$docTitle} =====";
+                        $chunkTexts   = [];
+                        foreach ($chunks as $ci => $c) {
+                            $chunkTexts[] = "[Bagian " . ($ci + 1) . " | skor: {$c['score']}]\n{$c['snippet']}";
+                        }
+                        $contextParts[] = $header . "\n" . implode("\n\n", $chunkTexts);
+                        $docIndex++;
+                    }
+
+                    $docCount = count($byDocument);
                     $apiMessages[] = [
-                        'role' => 'system',
-                        'content' => "KNOWLEDGE BASE (gunakan informasi ini untuk menjawab):\n\n" . implode("\n\n", $contextBlocks)
+                        'role'    => 'system',
+                        'content' => "⚠️ KNOWLEDGE BASE — GUNAKAN HANYA DATA INI. JANGAN mengarang angka di luar teks berikut ({$docCount} dokumen relevan):\n\n"
+                            . implode("\n\n", $contextParts),
                     ];
                 }
             }
 
-            // Include recent conversation history (last 4 turns for context)
+            // Include recent conversation history (last 6 turns for context)
             $historyMessages = array_filter($messages, fn($m) => isset($m['role'], $m['content']));
-            $historyMessages = array_slice(array_values($historyMessages), -4);
+            $historyMessages = array_slice(array_values($historyMessages), -6);
             foreach ($historyMessages as $msg) {
                 $apiMessages[] = ['role' => $msg['role'], 'content' => $msg['content']];
             }
 
             // Call OpenAI
             $response = $this->client->chat()->create([
-                'model'                  => $this->model,
-                'messages'               => $apiMessages,
-                'max_completion_tokens'  => 900,  // Sufficient for detailed regulation answers
-                'temperature'            => 0.1,  // Low temperature = factual, grounded responses
+                'model'       => $this->model,
+                'messages'    => $apiMessages,
+                'max_tokens'  => $this->maxTokens,
+                'temperature' => $this->temperature,
             ]);
 
             $answerText = trim($response->choices[0]->message->content);
@@ -873,10 +899,22 @@ PROMPT;
         }
     }
     /**
-     * Get relevant knowledge using Pinecone vector search with fallback to DB.
+     * Get relevant knowledge using hybrid retrieval: Pinecone vector search + DB full-text.
+     *
+     * Strategy:
+     *  1. Vector search with topK=15 — wide net across all indexed chunks
+     *  2. DB full-text search — always runs to catch documents not well-covered by vectors
+     *  3. Merge: vector results are primary; DB results fill in any uncovered documents
+     *
+     * This ensures queries that span multiple source documents (e.g. "biaya balik nama")
+     * receive relevant chunks from EVERY matching document, not just the top-ranked one.
      */
     private function getVectorKnowledge(string $userQuery): array
     {
+        $vectorResults = [];
+        $vectorOk      = false;
+
+        // ── Phase 1: Pinecone vector search ──────────────────────────────────
         try {
             if (class_exists(\App\Services\EmbeddingService::class) && class_exists(\App\Services\PineconeService::class)) {
                 $embeddingService = app(EmbeddingService::class);
@@ -884,53 +922,73 @@ PROMPT;
 
                 $queryEmbedding = $embeddingService->embed($userQuery);
                 if ($queryEmbedding) {
-                    // Retrieve more candidates for better coverage across multi-chunk documents
+                    // topK=15 casts a wide net so chunks from ALL relevant documents surface
                     $matches = $pineconeService->query(
                         vector: $queryEmbedding,
-                        topK: 8
+                        topK: 15
                     );
 
-                    $results = [];
                     $seenKbIds = [];
-
                     foreach ($matches as $match) {
                         $score    = $match['score'] ?? 0;
                         $metadata = $match['metadata'] ?? [];
                         $kbId     = $metadata['kb_id'] ?? null;
 
-                        // Score threshold: 0.35 filters noise while retaining genuinely relevant chunks
-                        if ($score < 0.35) continue;
+                        // Lower threshold (0.30) accepts marginally relevant chunks from secondary docs
+                        if ($score < 0.30) continue;
 
-                        // Allow up to 3 chunks from the same document (for multi-part answers)
+                        // Allow up to 5 chunks from the same document for multi-part answers
                         $countFromDoc = $seenKbIds[$kbId] ?? 0;
-                        if ($kbId && $countFromDoc >= 3) continue;
+                        if ($kbId && $countFromDoc >= 5) continue;
                         $seenKbIds[$kbId] = $countFromDoc + 1;
 
-                        $results[] = [
+                        $vectorResults[] = [
                             'id'       => $kbId,
                             'title'    => $metadata['title'] ?? '',
                             'content'  => $metadata['chunk_text'] ?? '',
                             'answer'   => $metadata['chunk_text'] ?? '',
                             'category' => $metadata['category'] ?? '',
                             'score'    => $score,
+                            '_source'  => 'vector',
                         ];
                     }
-
-                    if (!empty($results)) {
-                        if ($this->debug) Log::info('Vector search success', [
-                            'results' => count($results),
-                            'top_score' => $results[0]['score'] ?? 0,
-                        ]);
-                        return $results;
-                    }
+                    $vectorOk = true;
                 }
             }
         } catch (Exception $e) {
-            if ($this->debug) Log::warning('Vector search failed, falling back to DB: ' . $e->getMessage());
+            if ($this->debug) Log::warning('Vector search failed, using DB only: ' . $e->getMessage());
         }
 
-        // Fallback: full-text database search
-        return $this->getDatabaseKnowledge($userQuery);
+        // ── Phase 2: DB full-text search (always runs) ───────────────────────
+        // Supplements vector results to guarantee coverage of ALL matching documents,
+        // especially when a document is under-represented in the vector index.
+        $dbResults = $this->getDatabaseKnowledge($userQuery);
+
+        if ($vectorOk && !empty($vectorResults)) {
+            // IDs already covered by vector results
+            $coveredIds = array_unique(array_column($vectorResults, 'id'));
+
+            // Append DB results for documents NOT yet represented in vector results
+            foreach ($dbResults as $dbRow) {
+                $dbRow['_source'] = 'db';
+                if (!in_array($dbRow['id'], $coveredIds, true)) {
+                    $vectorResults[] = $dbRow;
+                    $coveredIds[]    = $dbRow['id'];
+                }
+            }
+
+            if ($this->debug) Log::info('Hybrid retrieval complete', [
+                'vector_chunks' => count(array_filter($vectorResults, fn($r) => ($r['_source'] ?? '') === 'vector')),
+                'db_supplements' => count(array_filter($vectorResults, fn($r) => ($r['_source'] ?? '') === 'db')),
+                'total' => count($vectorResults),
+                'top_score' => $vectorResults[0]['score'] ?? 0,
+            ]);
+
+            return $vectorResults;
+        }
+
+        // Pure DB fallback when vector search could not run at all
+        return $dbResults;
     }
 
     private function getDatabaseKnowledge(string $userQuery): array
@@ -954,7 +1012,7 @@ PROMPT;
             })
             ->orderByDesc('priority')
             ->orderByDesc('view_count')
-            ->limit(3)
+            ->limit(6)
             ->get(['id', 'title', 'content', 'answer', 'category', 'search_content'])
             ->map(function ($kb) use ($keywords) {
                 // Simple relevance scoring
