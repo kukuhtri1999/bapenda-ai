@@ -161,7 +161,7 @@
             <VBtn
               @click="goToPkbCheck"
               :style="{
-                background: 'linear-gradient(135deg, #4CAF50, #45a049)',
+                background: 'linear-gradient(135deg, #1261e0, #45a049)',
                 borderRadius: '20px',
                 textTransform: 'none',
                 marginBottom: '8px',

@@ -23,12 +23,12 @@ const vuetify = createVuetify({
     themes: {
       light: {
         colors: {
-          primary: '#00a65a', // Primary color
+          primary: '#1261e0', // Primary color
           secondary: '#8863f9', // Secondary color
-          accent: '#00a65a', // Accent color
+          accent: '#1261e0', // Accent color
           error: '#FF5252', // Error color
           info: '#2196F3', // Info color
-          success: '#4CAF50', // Success color
+          success: '#1261e0', // Success color
           warning: '#FFC107', // Warning color}
           greenlight: '#ddfff0',
         },

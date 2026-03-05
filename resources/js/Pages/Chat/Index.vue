@@ -1247,7 +1247,7 @@ watch(
 .salma-msg-img {
   width: 80px;
   height: 100px;
-  object-fit: cover;
+  object-fit: fill;
   /* border-radius: 50%; */
   display: block;
 }
@@ -1266,7 +1266,7 @@ watch(
   .salma-msg-img {
     width: 40 px;
     height: 50px;
-    object-fit: cover;
+    object-fit: fill;
     /* border-radius: 50%; */
     display: block;
   }

@@ -163,11 +163,12 @@ const proceedToChat = () => {
               </div>
 
               <!-- Show existing data if available -->
-              <VAlert
+              <VCard
                 v-if="canProceedToChat"
                 type="success"
                 variant="tonal"
-                class="mb-6"
+                class="pa-4 rounded-lg"
+                color="#1261e0"
                 prominent
               >
                 <template #title>Data Sudah Tersimpan</template>
@@ -188,7 +189,7 @@ const proceedToChat = () => {
                 </ul>
 
                 <VBtn
-                  color="success w-full"
+                  color="primary"
                   size="large"
                   class="mr-3"
                   @click="proceedToChat"
@@ -212,7 +213,7 @@ const proceedToChat = () => {
                   <VIcon left>mdi-pencil</VIcon>
                   Ubah Data
                 </VBtn> -->
-              </VAlert>
+              </VCard>
 
               <!-- Form input -->
               <VForm
@@ -288,10 +289,6 @@ const proceedToChat = () => {
                 <p class="text-sm text-grey-600">
                   Data yang Anda masukkan akan digunakan untuk memberikan
                   layanan yang lebih personal.<br />
-                  <!-- <strong>Data akan disimpan secara permanen</strong>
-                  dalam database kami untuk keperluan bank data dan peningkatan
-                  layanan.<br /> -->
-                  Data juga disimpan dalam session untuk akses chat AI.
                 </p>
               </div>
             </VCard>
@@ -315,7 +312,7 @@ const proceedToChat = () => {
 
 <style scoped>
 .bg-gradient {
-  background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 50%, #a5d6a7 100%);
+  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 50%, #c4b5fd 100%);
   min-height: 100vh;
 }
 
@@ -337,5 +334,9 @@ const proceedToChat = () => {
 
 .v-alert {
   border-radius: 16px !important;
+}
+
+.v-alert__prepend {
+  display: none;
 }
 </style>

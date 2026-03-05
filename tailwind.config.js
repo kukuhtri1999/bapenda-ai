@@ -25,7 +25,7 @@ export default {
         body: ['"Poppins"'],
       },
       white: '#ffffff',
-      primary: '#00a65a',
+      primary: '#1261e0',
       greenlight: '#ddfff0',
       secondary: '#8863f9',
     },

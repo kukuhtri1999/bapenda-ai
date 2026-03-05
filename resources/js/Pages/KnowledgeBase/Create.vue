@@ -65,13 +65,13 @@ const STAGES = [
     id: 'indexing',
     icon: 'mdi-vector-link',
     label: 'Indexing for AI search…',
-    color: '#4CAF50',
+    color: '#1261e0',
   },
   {
     id: 'done',
     icon: 'mdi-check-circle-outline',
     label: 'Done!',
-    color: '#4CAF50',
+    color: '#1261e0',
   },
 ];
 
@@ -1100,8 +1100,8 @@ const cancel = () => {
   flex-shrink: 0;
 }
 .kb-step--done .kb-step-dot {
-  background: #4caf50;
-  border-color: #4caf50;
+  background: #1261e0;
+  border-color: #1261e0;
 }
 .kb-step--active .kb-step-dot {
   box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.08);
@@ -1149,7 +1149,7 @@ const cancel = () => {
   transition: background 0.4s ease;
 }
 .kb-step-line--done {
-  background: #4caf50;
+  background: #1261e0;
 }
 
 /* Byte counter */

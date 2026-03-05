@@ -163,40 +163,41 @@ function handleImageError() {
 
     <!-- Hero Section -->
     <VAppBar app :elevation="0" color="transparent" class="landing-navbar">
-      <VContainer class="px-4">
-        <VRow align="center">
+      <VContainer class="px-2 px-sm-4">
+        <VRow align="center" no-gutters>
           <VCol cols="auto">
             <div class="d-flex align-center">
-              <!-- <VIcon color="white" size="40" class="me-3">mdi-robot</VIcon> -->
-              <VImg :src="logoUrl" alt="Logo" contain width="40" class="me-3" />
+              <VImg :src="logoUrl" alt="Logo" contain width="36" class="me-2" />
               <VImg
                 src="/images/logo-jatim.png"
                 alt="Logo Jatim"
                 contain
-                :height="40"
-                width="40"
+                height="36"
+                width="36"
                 aspect-ratio="1"
-                class="me-2"
+                class="me-2 d-none d-sm-flex"
               />
               <VImg
                 src="/images/Lambang_Polda_Jatim.png"
                 alt="Logo Polri"
                 contain
-                height="40"
-                width="40"
+                height="36"
+                width="36"
                 aspect-ratio="1"
-                class="me-2"
+                class="me-2 d-none d-sm-flex"
               />
               <VImg
                 src="/images/jasa-raharja.png"
                 alt="Jasa Raharja"
                 contain
-                height="40"
-                width="40"
+                height="36"
+                width="36"
                 aspect-ratio="1"
-                class="me-3"
+                class="me-2 d-none d-md-flex"
               />
-              <span class="text-h6 font-weight-bold text-white">SALMA AI</span>
+              <span class="navbar-brand-text text-white font-weight-bold"
+                >SALMA AI</span
+              >
             </div>
           </VCol>
           <VSpacer></VSpacer>
@@ -205,33 +206,23 @@ function handleImageError() {
               <VBtn
                 color="white"
                 variant="outlined"
-                class="me-3"
+                size="small"
+                class="me-2"
                 :href="route('dashboard')"
               >
                 Dashboard
               </VBtn>
             </template>
-            <template v-else>
-              <!-- <v-btn
-                                color="white"
-                                variant="outlined"
-                                class="me-3"
-                                :href="route('login')"
-                            >
-                                Login
-                            </v-btn>
-                            <v-btn
-                                v-if="canRegister"
-                                color="white"
-                                variant="flat"
-                                :href="route('register')"
-                            >
-                                Register
-                            </v-btn> -->
-            </template>
-            <VBtn color="white" variant="flat" class="ms-3" @click="startChat">
-              <VIcon class="mr-2" left>mdi-robot</VIcon>
-              Mulai Chat
+            <VBtn
+              color="white"
+              variant="flat"
+              size="small"
+              class="ms-1"
+              @click="startChat"
+            >
+              <VIcon size="18" class="me-1">mdi-robot</VIcon>
+              <span class="d-none d-sm-inline">Mulai Chat</span>
+              <span class="d-sm-none">Chat</span>
             </VBtn>
           </VCol>
         </VRow>
@@ -492,7 +483,7 @@ function handleImageError() {
                       v-for="feature in service.features"
                       :key="feature"
                       size="small"
-                      color="green"
+                      color="primary"
                       variant="flat"
                     >
                       <span class="text-white">{{ feature }}</span>
@@ -670,6 +661,21 @@ function handleImageError() {
 .landing-navbar {
   background: rgba(233, 165, 241, 0.95) !important;
   backdrop-filter: blur(10px);
+}
+
+.navbar-brand-text {
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 600px) {
+  .navbar-brand-text {
+    font-size: 0.95rem;
+  }
+
+  .landing-navbar {
+    background: rgba(198, 142, 253, 0.98) !important;
+  }
 }
 
 .hero-content {
@@ -1201,6 +1207,12 @@ function handleImageError() {
     font-size: 2.5rem !important;
   }
 
+  /* Mascot smaller on tablet */
+  .salma-mascot {
+    width: 120px !important;
+    height: 160px !important;
+  }
+
   .hero-actions .v-btn {
     display: block;
     width: 100%;
@@ -1229,10 +1241,29 @@ function handleImageError() {
 
   .display-1 {
     font-size: 2rem !important;
+    line-height: 1.25 !important;
   }
 
   .text-h6 {
-    font-size: 1.1rem !important;
+    font-size: 1rem !important;
+  }
+
+  /* Hero description text */
+  .hero-content p.text-xl {
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+  }
+
+  /* Hero buttons full-width stacked */
+  .hero-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-actions .v-btn {
+    margin-right: 0 !important;
+    width: 100%;
   }
 
   /* Hide complex animations on small screens */
@@ -1243,6 +1274,11 @@ function handleImageError() {
 
   .particles-container .particle:nth-child(n + 4) {
     display: none;
+  }
+
+  /* Service cards */
+  .service-card {
+    border-radius: 12px !important;
   }
 }
 </style>

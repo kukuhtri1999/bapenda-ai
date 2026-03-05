@@ -19,6 +19,6 @@ const classes = computed(() => (props.active
 </template>
 <style>
 .border-primary {
-  border-color: #00a65a;
+  border-color: #1261e0;
 }
 </style>
