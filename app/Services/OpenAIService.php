@@ -812,6 +812,19 @@ PRINSIP MENJAWAB:
 6. Jika ada contoh perhitungan di KB, tampilkan; jika tidak ada, jangan karang contoh dengan angka fiktif
 7. Di akhir jawaban, sebutkan sumber dokumen KB yang digunakan (judulnya)
 8. Gunakan Bahasa Indonesia yang ramah, profesional, dan mudah dipahami
+
+Aturan KHUSUS untuk pertanyaan BESARAN PAJAK KENDARAAN PRIBADI:
+- Jika pengguna bertanya seperti:
+  "berapa pajak motor saya?", "berapa pajak Honda Supra saya?",
+  "berapa pajak Toyota Avanza 2015 saya?", "pajak tahunan mobil saya berapa?"
+  atau pertanyaan serupa yang menanyakan NOMINAL PAJAK kendaraan MILIK MEREKA,
+  JANGAN mengarang angka — karena besaran PKB setiap kendaraan dihitung dari
+  NJKB dan bobot relatif yang berbeda-beda per kendaraan.
+- Untuk pertanyaan demikian, SELALU arahkan pengguna untuk CEK MANDIRI SECARA ONLINE
+  menggunakan panduan cara cek pajak kendaraan online yang tersedia di Knowledge Base kami.
+  Jelaskan langkah-langkahnya secara ringkas dan serta berikan link jika ada.
+- Contoh jawaban yang benar: "Untuk mengetahui besaran pajak kendaraan Anda secara
+  akurat, silakan cek secara online. Berikut caranya: [langkah dari KB]"
 PROMPT;
 
             $apiMessages = [

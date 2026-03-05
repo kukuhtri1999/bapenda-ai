@@ -34,7 +34,7 @@
             />
             <!--
             <VImg
-              src="/images/logo-polri.png"
+              src="/images/Lambang_Polda_Jatim.png"
               alt="Logo Polri"
               contain
               :height="60"

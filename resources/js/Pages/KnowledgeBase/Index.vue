@@ -559,497 +559,479 @@ const startBatchUpload = async () => {
 
 <template>
   <AppLayout title="Knowledge Base Management">
-    <div class="pa-0">
-      <!-- Header -->
-      <VRow class="mb-6">
-        <VCol cols="12">
-          <VCard elevation="2">
-            <VCardText class="pa-6">
-              <VRow align="center">
-                <VCol cols="12" md="6">
-                  <h1 class="text-h4 font-weight-bold text-primary mb-2">
-                    <VIcon class="mr-3" size="36">mdi-book-open-variant</VIcon>
-                    Knowledge Base Management
-                  </h1>
-                  <p class="text-body-1 text-medium-emphasis">
-                    Manage AI knowledge base entries and content
-                  </p>
-                </VCol>
-                <VCol cols="12" md="6" class="text-right">
-                  <VBtn
-                    color="success"
-                    size="large"
-                    @click="openBatchDialog"
-                    prepend-icon="mdi-upload-multiple"
-                    class="mr-3"
-                  >
-                    Batch Upload
-                  </VBtn>
-                  <VBtn
-                    color="info"
-                    size="large"
-                    @click="openSyncDialog"
-                    prepend-icon="mdi-sync"
-                    class="mr-3"
-                  >
-                    Rebuild Vector DB
-                  </VBtn>
-                  <VBtn
-                    color="primary"
-                    size="large"
-                    @click="$inertia.visit(route('knowledge-base.create'))"
-                    prepend-icon="mdi-plus"
-                  >
-                    Add New Entry
-                  </VBtn>
-                </VCol>
-              </VRow>
-            </VCardText>
-          </VCard>
-        </VCol>
-      </VRow>
-
-      <!-- Filters -->
-      <VRow class="mb-4">
-        <VCol cols="12">
-          <VCard elevation="2">
-            <VCardText>
-              <VRow>
-                <VCol cols="12" md="3">
-                  <VTextField
-                    v-model="search"
-                    label="Search..."
-                    prepend-inner-icon="mdi-magnify"
-                    variant="outlined"
-                    density="compact"
-                    @keyup.enter="applyFilters"
-                    clearable
-                  ></VTextField>
-                </VCol>
-                <VCol cols="12" md="2">
-                  <VSelect
-                    v-model="categoryFilter"
-                    :items="[
-                      { title: 'All Categories', value: '' },
-                      ...Object.entries(categories || {}).map(
-                        ([key, value]) => ({ title: value, value: key }),
-                      ),
-                    ]"
-                    label="Category"
-                    variant="outlined"
-                    density="compact"
-                  ></VSelect>
-                </VCol>
-                <VCol cols="12" md="2">
-                  <VSelect
-                    v-model="typeFilter"
-                    :items="[
-                      { title: 'All Types', value: '' },
-                      ...Object.entries(types || {}).map(([key, value]) => ({
-                        title: value,
-                        value: key,
-                      })),
-                    ]"
-                    label="Type"
-                    variant="outlined"
-                    density="compact"
-                  ></VSelect>
-                </VCol>
-                <!-- <v-col cols="12" md="2">
-                                    <v-select
-                                        v-model="sourceTypeFilter"
-                                        :items="sourceTypeItems"
-                                        label="Source"
-                                        variant="outlined"
-                                        density="compact"
-                                    ></v-select>
-                                </v-col> -->
-                <VCol cols="12" md="2">
-                  <VSelect
-                    v-model="statusFilter"
-                    :items="[
-                      { title: 'All Status', value: '' },
-                      ...Object.entries(statuses || {}).map(([key, value]) => ({
-                        title: value,
-                        value: key,
-                      })),
-                    ]"
-                    label="Status"
-                    variant="outlined"
-                    density="compact"
-                  ></VSelect>
-                </VCol>
-                <VCol cols="12" md="2" class="d-flex">
-                  <VBtn
-                    color="primary"
-                    variant="flat"
-                    class="w-auto"
-                    @click="applyFilters"
-                  >
-                    Apply
-                  </VBtn>
-                  <VBtn variant="outlined" @click="clearFilters" class="mx-2">
-                    Clear
-                  </VBtn>
-                </VCol>
-              </VRow>
-            </VCardText>
-          </VCard>
-        </VCol>
-      </VRow>
-
-      <!-- Bulk Actions -->
-      <VRow class="mb-4" v-if="selectedItems.length > 0">
-        <VCol cols="12">
-          <VCard elevation="2" color="blue-grey-lighten-5">
-            <VCardText>
-              <VRow align="center">
-                <VCol cols="auto">
-                  <span class="text-body-1 font-weight-medium">
-                    {{ selectedItems.length }} items selected
-                  </span>
-                </VCol>
-                <VCol cols="auto">
-                  <VSelect
-                    v-model="bulkAction"
-                    :items="bulkActions"
-                    variant="outlined"
-                    density="compact"
-                    hide-details
-                    style="min-width: 200px"
-                  ></VSelect>
-                </VCol>
-                <VCol cols="auto">
-                  <VBtn
-                    color="primary"
-                    @click="executeBulkAction"
-                    :disabled="!bulkAction"
-                  >
-                    Execute
-                  </VBtn>
-                </VCol>
-              </VRow>
-            </VCardText>
-          </VCard>
-        </VCol>
-      </VRow>
-
-      <!-- Knowledge Base Table -->
-      <VRow>
-        <VCol cols="12">
-          <VCard elevation="2">
-            <VDataTable
-              v-model="selectedItems"
-              :headers="headers"
-              :items="filteredKnowledgeBases"
-              :items-per-page="15"
-              class="elevation-0"
-              show-select
-              item-value="id"
-            >
-              <!-- Title Column -->
-              <template #item.title="{ item }">
-                <div class="d-flex align-center">
-                  <VIcon
-                    :icon="getSourceIcon(item.source_type)"
-                    :color="item.source_type === 'file' ? 'blue' : 'green'"
-                    class="mr-3"
-                    size="small"
-                  ></VIcon>
-                  <div>
-                    <div class="font-weight-medium">
-                      {{ item.title }}
-                    </div>
-                    <small class="text-medium-emphasis" v-if="item.excerpt">
-                      {{ item.excerpt.substring(0, 100) }}...
-                    </small>
-                  </div>
-                </div>
-              </template>
-
-              <!-- Category Column -->
-              <template #item.category="{ item }">
-                <VChip
-                  :color="
-                    item.category === 'pajak'
-                      ? 'blue'
-                      : item.category === 'stnk'
-                        ? 'green'
-                        : 'grey'
-                  "
-                  variant="tonal"
-                  size="small"
-                >
-                  {{ categories[item.category] || item.category }}
-                </VChip>
-              </template>
-
-              <!-- Type Column -->
-              <template #item.type="{ item }">
-                <VChip
-                  :color="
-                    item.type === 'faq'
-                      ? 'orange'
-                      : item.type === 'sop'
-                        ? 'purple'
-                        : 'blue-grey'
-                  "
-                  variant="tonal"
-                  size="small"
-                >
-                  {{ types[item.type] || item.type }}
-                </VChip>
-              </template>
-
-              <!-- Source Type Column -->
-              <template #item.source_type="{ item }">
-                <VChip
-                  :color="item.source_type === 'file' ? 'blue' : 'green'"
-                  variant="outlined"
-                  size="small"
-                >
-                  <VIcon
-                    :icon="getSourceIcon(item.source_type)"
-                    class="mr-1"
-                    size="small"
-                  ></VIcon>
-                  {{ item.source_type === 'file' ? 'File' : 'Manual' }}
-                </VChip>
-              </template>
-
-              <!-- Status Column -->
-              <template #item.status="{ item }">
-                <VChip
-                  :color="getStatusColor(item.status)"
-                  variant="tonal"
-                  size="small"
-                >
-                  {{ statuses[item.status] || item.status }}
-                </VChip>
-              </template>
-
-              <!-- Active Column -->
-              <template #item.is_active="{ item }">
-                <VSwitch
-                  :model-value="item.is_active"
-                  @change="toggleStatus(item)"
-                  color="success"
-                  density="compact"
-                  hide-details
-                ></VSwitch>
-              </template>
-
-              <!-- Views Column -->
-              <template #item.view_count="{ item }">
-                <VChip color="info" variant="outlined" size="small">
-                  <VIcon icon="mdi-eye" class="mr-1" size="small"></VIcon>
-                  {{ item.view_count || 0 }}
-                </VChip>
-              </template>
-
-              <!-- Created Date Column -->
-              <template #item.created_at="{ item }">
-                <div>
-                  {{ formatDate(item.created_at) }}
-                  <div
-                    class="text-caption text-medium-emphasis"
-                    v-if="item.creator"
-                  >
-                    by {{ item.creator.name }}
-                  </div>
-                </div>
-              </template>
-
-              <!-- Actions Column -->
-              <template #item.actions="{ item }">
-                <div class="d-flex gap-2">
-                  <VBtn
-                    size="small"
-                    color="primary"
-                    variant="tonal"
-                    icon="mdi-eye"
-                    @click="
-                      $inertia.visit(route('knowledge-base.show', item.id))
-                    "
-                  ></VBtn>
-                  <VBtn
-                    size="small"
-                    color="orange"
-                    variant="tonal"
-                    icon="mdi-pencil"
-                    @click="
-                      $inertia.visit(route('knowledge-base.edit', item.id))
-                    "
-                  ></VBtn>
-                  <VBtn
-                    v-if="item.file_path"
-                    size="small"
-                    color="blue"
-                    variant="tonal"
-                    icon="mdi-download"
-                    @click="
-                      window.open(route('knowledge-base.download', item.id))
-                    "
-                  ></VBtn>
-                  <VBtn
-                    size="small"
-                    color="error"
-                    variant="tonal"
-                    icon="mdi-delete"
-                    @click="deleteItem(item)"
-                  ></VBtn>
-                </div>
-              </template>
-
-              <!-- No Data -->
-              <template #no-data>
-                <div class="text-center pa-6">
-                  <VIcon size="64" color="grey">mdi-book-open-variant</VIcon>
-                  <h3 class="text-h6 mt-3">No Knowledge Base Entries Found</h3>
-                  <p class="text-body-2 text-medium-emphasis">
-                    Try adjusting your search criteria or create a new entry.
-                  </p>
-                </div>
-              </template>
-            </VDataTable>
-
-            <!-- Pagination -->
-            <VDivider></VDivider>
-            <div class="pa-4 d-flex justify-center">
-              <VPagination
-                :model-value="knowledgeBases.current_page"
-                :length="knowledgeBases.last_page"
-                @update:model-value="
-                  (page) =>
-                    router.get(route('knowledge-base.index'), {
-                      ...filters,
-                      page,
-                    })
-                "
-                total-visible="7"
-              ></VPagination>
+    <div class="kb-page">
+      <!-- ── Page header ──────────────────────────────────────────────────── -->
+      <div class="kb-header mb-5">
+        <div class="d-flex align-center justify-space-between flex-wrap gap-3">
+          <div class="d-flex align-center gap-3">
+            <div class="kb-header-icon">
+              <VIcon size="22" color="white">mdi-book-open-variant</VIcon>
             </div>
-          </VCard>
-        </VCol>
-      </VRow>
+            <div>
+              <h1 class="text-h5 font-weight-bold text-grey-darken-4">
+                Knowledge Base
+              </h1>
+              <p class="text-caption text-medium-emphasis mb-0">
+                Manage AI knowledge base entries and content
+              </p>
+            </div>
+          </div>
+          <div class="d-flex align-center gap-2 flex-wrap">
+            <VBtn
+              variant="outlined"
+              color="grey-darken-1"
+              size="small"
+              prepend-icon="mdi-sync"
+              @click="openSyncDialog"
+              >Rebuild Vector DB</VBtn
+            >
+            <VBtn
+              variant="outlined"
+              color="success"
+              size="small"
+              prepend-icon="mdi-upload-multiple"
+              @click="openBatchDialog"
+              >Batch Upload</VBtn
+            >
+            <VBtn
+              color="primary"
+              size="small"
+              prepend-icon="mdi-plus"
+              @click="$inertia.visit(route('knowledge-base.create'))"
+              >Add New Entry</VBtn
+            >
+          </div>
+        </div>
+      </div>
 
-      <!-- Rebuild Pinecone Dialog -->
-      <VDialog v-model="syncDialog" max-width="800" persistent>
-        <VCard>
-          <VCardTitle class="d-flex align-center">
-            <VIcon color="warning" class="mr-2">mdi-database-refresh</VIcon>
-            Rebuild Vector Database
+      <!-- ── Filters ──────────────────────────────────────────────────────── -->
+      <div class="kb-section mb-4 pa-4">
+        <VRow dense align="center">
+          <VCol cols="12" sm="4" md="3">
+            <VTextField
+              v-model="search"
+              placeholder="Search entries..."
+              prepend-inner-icon="mdi-magnify"
+              variant="outlined"
+              density="compact"
+              hide-details
+              @keyup.enter="applyFilters"
+              clearable
+            />
+          </VCol>
+          <VCol cols="6" sm="4" md="2">
+            <VSelect
+              v-model="categoryFilter"
+              :items="[
+                { title: 'All Categories', value: '' },
+                ...Object.entries(categories || {}).map(([k, v]) => ({
+                  title: v,
+                  value: k,
+                })),
+              ]"
+              label="Category"
+              variant="outlined"
+              density="compact"
+              hide-details
+            />
+          </VCol>
+          <VCol cols="6" sm="4" md="2">
+            <VSelect
+              v-model="typeFilter"
+              :items="[
+                { title: 'All Types', value: '' },
+                ...Object.entries(types || {}).map(([k, v]) => ({
+                  title: v,
+                  value: k,
+                })),
+              ]"
+              label="Type"
+              variant="outlined"
+              density="compact"
+              hide-details
+            />
+          </VCol>
+          <VCol cols="6" sm="4" md="2">
+            <VSelect
+              v-model="statusFilter"
+              :items="[
+                { title: 'All Status', value: '' },
+                ...Object.entries(statuses || {}).map(([k, v]) => ({
+                  title: v,
+                  value: k,
+                })),
+              ]"
+              label="Status"
+              variant="outlined"
+              density="compact"
+              hide-details
+            />
+          </VCol>
+          <VCol cols="6" sm="auto" class="d-flex gap-2">
+            <VBtn
+              color="primary"
+              size="small"
+              variant="flat"
+              @click="applyFilters"
+              >Apply</VBtn
+            >
+            <VBtn size="small" variant="outlined" @click="clearFilters"
+              >Clear</VBtn
+            >
+          </VCol>
+        </VRow>
+      </div>
+
+      <!-- ── Bulk action bar ──────────────────────────────────────────────── -->
+      <Transition name="slide-down">
+        <div v-if="selectedItems.length > 0" class="kb-bulk-bar mb-3">
+          <div class="d-flex align-center gap-3 flex-wrap">
+            <VIcon color="primary" size="18"
+              >mdi-checkbox-multiple-marked</VIcon
+            >
+            <span class="text-body-2 font-weight-medium"
+              >{{ selectedItems.length }} selected</span
+            >
+            <VSelect
+              v-model="bulkAction"
+              :items="bulkActions"
+              variant="outlined"
+              density="compact"
+              hide-details
+              style="min-width: 180px; max-width: 220px"
+            />
+            <VBtn
+              size="small"
+              color="primary"
+              variant="flat"
+              :disabled="!bulkAction"
+              @click="executeBulkAction"
+            >
+              Execute
+            </VBtn>
+            <VSpacer />
+            <VBtn
+              size="small"
+              variant="text"
+              color="error"
+              @click="selectedItems = []"
+            >
+              <VIcon size="16" class="mr-1">mdi-close</VIcon>
+              Deselect all
+            </VBtn>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- ── Data table ───────────────────────────────────────────────────── -->
+      <div class="kb-section">
+        <VDataTable
+          v-model="selectedItems"
+          :headers="headers"
+          :items="filteredKnowledgeBases"
+          :items-per-page="15"
+          class="kb-table"
+          show-select
+          item-value="id"
+          hover
+        >
+          <!-- Title column -->
+          <template #item.title="{ item }">
+            <div class="d-flex align-center gap-2 py-1">
+              <VIcon
+                :icon="getSourceIcon(item.source_type)"
+                :color="item.source_type === 'file' ? 'blue' : 'teal'"
+                size="16"
+              />
+              <div>
+                <div class="text-body-2 font-weight-medium text-grey-darken-4">
+                  {{ item.title }}
+                </div>
+                <div
+                  class="text-caption text-medium-emphasis"
+                  v-if="item.excerpt"
+                >
+                  {{ item.excerpt.substring(0, 80) }}…
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Category column -->
+          <template #item.category="{ item }">
+            <VChip
+              size="x-small"
+              :color="
+                item.category === 'pajak'
+                  ? 'blue'
+                  : item.category === 'stnk'
+                    ? 'teal'
+                    : 'grey'
+              "
+              variant="tonal"
+              class="font-weight-medium"
+              >{{ categories[item.category] || item.category }}</VChip
+            >
+          </template>
+
+          <!-- Type column -->
+          <template #item.type="{ item }">
+            <VChip
+              size="x-small"
+              :color="
+                item.type === 'faq'
+                  ? 'orange'
+                  : item.type === 'sop'
+                    ? 'purple'
+                    : 'blue-grey'
+              "
+              variant="tonal"
+              class="font-weight-medium"
+              >{{ types[item.type] || item.type }}</VChip
+            >
+          </template>
+
+          <!-- Status column -->
+          <template #item.status="{ item }">
+            <VChip
+              size="x-small"
+              :color="getStatusColor(item.status)"
+              variant="tonal"
+              class="font-weight-medium"
+              >{{ statuses[item.status] || item.status }}</VChip
+            >
+          </template>
+
+          <!-- Active toggle column -->
+          <template #item.is_active="{ item }">
+            <VSwitch
+              :model-value="item.is_active"
+              @change="toggleStatus(item)"
+              color="success"
+              density="compact"
+              hide-details
+              inset
+            />
+          </template>
+
+          <!-- Date column -->
+          <template #item.created_at="{ item }">
+            <div class="text-body-2">{{ formatDate(item.created_at) }}</div>
+            <div class="text-caption text-medium-emphasis" v-if="item.creator">
+              by {{ item.creator.name }}
+            </div>
+          </template>
+
+          <!-- Actions column -->
+          <template #item.actions="{ item }">
+            <div class="d-flex gap-1">
+              <VBtn
+                size="x-small"
+                icon
+                variant="text"
+                color="primary"
+                @click="$inertia.visit(route('knowledge-base.show', item.id))"
+                ><VIcon size="16">mdi-eye</VIcon></VBtn
+              >
+              <VBtn
+                size="x-small"
+                icon
+                variant="text"
+                color="orange-darken-1"
+                @click="$inertia.visit(route('knowledge-base.edit', item.id))"
+                ><VIcon size="16">mdi-pencil</VIcon></VBtn
+              >
+              <VBtn
+                v-if="item.file_path"
+                size="x-small"
+                icon
+                variant="text"
+                color="blue"
+                @click="window.open(route('knowledge-base.download', item.id))"
+                ><VIcon size="16">mdi-download</VIcon></VBtn
+              >
+              <VBtn
+                size="x-small"
+                icon
+                variant="text"
+                color="error"
+                @click="deleteItem(item)"
+                ><VIcon size="16">mdi-delete</VIcon></VBtn
+              >
+            </div>
+          </template>
+
+          <!-- Empty state -->
+          <template #no-data>
+            <div class="text-center py-12">
+              <VIcon size="52" color="grey-lighten-2"
+                >mdi-book-open-variant</VIcon
+              >
+              <div
+                class="text-subtitle-1 mt-3 text-medium-emphasis font-weight-medium"
+              >
+                No entries found
+              </div>
+              <div class="text-caption text-medium-emphasis mt-1">
+                Try adjusting your filters or add a new entry
+              </div>
+              <VBtn
+                class="mt-4"
+                size="small"
+                color="primary"
+                prepend-icon="mdi-plus"
+                @click="$inertia.visit(route('knowledge-base.create'))"
+              >
+                Add First Entry
+              </VBtn>
+            </div>
+          </template>
+        </VDataTable>
+
+        <!-- Pagination -->
+        <VDivider />
+        <div class="pa-3 d-flex justify-center">
+          <VPagination
+            :model-value="knowledgeBases.current_page"
+            :length="knowledgeBases.last_page"
+            @update:model-value="
+              (page) =>
+                router.get(route('knowledge-base.index'), { ...filters, page })
+            "
+            total-visible="7"
+            size="small"
+          />
+        </div>
+      </div>
+
+      <!-- ── Rebuild Vector DB Dialog ─────────────────────────────────────── -->
+      <VDialog v-model="syncDialog" max-width="640" persistent>
+        <VCard rounded="lg" border>
+          <VCardTitle class="d-flex align-center px-5 pt-5 pb-0">
+            <div
+              class="kb-dialog-icon mr-3"
+              style="background: rgba(var(--v-theme-warning), 0.12)"
+            >
+              <VIcon color="warning" size="20">mdi-database-refresh</VIcon>
+            </div>
+            <span class="text-h6 font-weight-bold"
+              >Rebuild Vector Database</span
+            >
+            <VSpacer />
+            <VBtn
+              icon="mdi-close"
+              variant="text"
+              size="small"
+              @click="closeSyncDialog"
+              :disabled="syncProgress"
+            />
           </VCardTitle>
 
-          <VCardText>
+          <VCardText class="px-5 pt-4 pb-2">
             <div v-if="!syncResults">
-              <VAlert type="warning" variant="outlined" class="mb-4">
+              <VAlert
+                type="warning"
+                variant="tonal"
+                density="compact"
+                class="mb-4"
+              >
                 <strong>Destructive Operation:</strong> This will completely
                 rebuild your vector database.
               </VAlert>
-              <p class="mb-4">This operation will:</p>
-              <VList density="compact">
-                <VListItem>
-                  <VListItemTitle
-                    >• Clear ALL existing vectors from Pinecone</VListItemTitle
+              <VList density="compact" class="pa-0 mb-3">
+                <VListItem
+                  v-for="step in [
+                    'Clear ALL existing vectors from Pinecone',
+                    'Reindex all Knowledge Base entries from scratch',
+                    'Ensure complete data consistency',
+                  ]"
+                  :key="step"
+                  class="px-0"
+                >
+                  <template #prepend
+                    ><VIcon size="16" color="warning" class="mr-2"
+                      >mdi-alert-circle-outline</VIcon
+                    ></template
                   >
-                </VListItem>
-                <VListItem>
-                  <VListItemTitle
-                    >• Reindex all Knowledge Base entries from
-                    scratch</VListItemTitle
-                  >
-                </VListItem>
-                <VListItem>
-                  <VListItemTitle
-                    >• Ensure complete data consistency</VListItemTitle
-                  >
+                  <VListItemTitle class="text-body-2">{{
+                    step
+                  }}</VListItemTitle>
                 </VListItem>
               </VList>
-
               <VCheckbox
                 v-model="syncDryRun"
                 label="Dry run (analyze only, don't make changes)"
                 color="primary"
-                class="mt-4"
-              ></VCheckbox>
+                density="compact"
+                hide-details
+              />
             </div>
-
-            <!-- Sync Results -->
             <div v-if="syncResults">
               <VAlert
                 :type="syncResults.success ? 'success' : 'error'"
+                variant="tonal"
                 class="mb-4"
                 prominent
               >
                 <VAlertTitle>{{ syncResults.message }}</VAlertTitle>
               </VAlert>
-
               <div v-if="syncResults.stats">
-                <h4 class="text-h6 mb-3">Sync Statistics:</h4>
-                <VRow>
-                  <VCol cols="6" md="4">
-                    <VCard variant="outlined" class="text-center pa-3">
-                      <div class="text-h4 text-primary">
-                        {{ syncResults.stats.db_entries }}
-                      </div>
-                      <div class="text-caption">DB Entries</div>
-                    </VCard>
-                  </VCol>
-                  <VCol cols="6" md="4">
-                    <VCard variant="outlined" class="text-center pa-3">
-                      <div class="text-h4 text-warning">
-                        {{ syncResults.stats.vectors_cleared }}
-                      </div>
-                      <div class="text-caption">Vectors Cleared</div>
-                    </VCard>
-                  </VCol>
-                  <VCol cols="6" md="4">
-                    <VCard variant="outlined" class="text-center pa-3">
-                      <div class="text-h4 text-success">
-                        {{ syncResults.stats.vectors_indexed }}
-                      </div>
-                      <div class="text-caption">Vectors Indexed</div>
-                    </VCard>
-                  </VCol>
-                </VRow>
-
-                <div v-if="syncResults.stats.errors > 0" class="mt-4">
-                  <VAlert type="error">
-                    {{ syncResults.stats.errors }} errors occurred during
-                    rebuild
-                  </VAlert>
+                <div class="text-subtitle-2 font-weight-semibold mb-3">
+                  Statistics
+                </div>
+                <div class="d-flex gap-3">
+                  <div class="stat-chip">
+                    <div class="text-h5 font-weight-bold text-primary">
+                      {{ syncResults.stats.db_entries }}
+                    </div>
+                    <div class="text-caption">DB Entries</div>
+                  </div>
+                  <div class="stat-chip">
+                    <div class="text-h5 font-weight-bold text-warning">
+                      {{ syncResults.stats.vectors_cleared }}
+                    </div>
+                    <div class="text-caption">Cleared</div>
+                  </div>
+                  <div class="stat-chip">
+                    <div class="text-h5 font-weight-bold text-success">
+                      {{ syncResults.stats.vectors_indexed }}
+                    </div>
+                    <div class="text-caption">Indexed</div>
+                  </div>
                 </div>
               </div>
-
-              <div
+              <VAlert
                 v-if="
                   syncResults.dry_run &&
                   syncResults.stats &&
                   syncResults.stats.db_entries > 0
                 "
+                type="info"
+                variant="tonal"
+                density="compact"
                 class="mt-4"
               >
-                <VAlert type="info">
-                  <VAlertTitle>Ready to Rebuild</VAlertTitle>
-                  Uncheck "Dry run" and click "Rebuild Now" to perform the
-                  actual vector database rebuild.
-                </VAlert>
-              </div>
+                Uncheck "Dry run" and click <strong>Rebuild Now</strong> to
+                proceed.
+              </VAlert>
             </div>
           </VCardText>
 
-          <VCardActions>
-            <VSpacer></VSpacer>
-            <VBtn @click="closeSyncDialog" :disabled="syncProgress">
+          <VCardActions class="px-5 pb-4 pt-2">
+            <VSpacer />
+            <VBtn
+              variant="outlined"
+              @click="closeSyncDialog"
+              :disabled="syncProgress"
+            >
               {{ syncResults ? 'Close' : 'Cancel' }}
             </VBtn>
             <VBtn
               v-if="!syncResults"
               color="warning"
+              variant="flat"
               @click="syncPinecone"
               :loading="syncProgress"
-              :disabled="syncProgress"
             >
               {{ syncDryRun ? 'Preview Rebuild' : 'Rebuild Now' }}
             </VBtn>
@@ -1061,13 +1043,13 @@ const startBatchUpload = async () => {
                 syncResults.stats.db_entries > 0
               "
               color="warning"
+              variant="flat"
               @click="
                 syncDryRun = false;
                 syncResults = null;
                 syncPinecone();
               "
               :loading="syncProgress"
-              :disabled="syncProgress"
             >
               Perform Rebuild
             </VBtn>
@@ -1075,14 +1057,16 @@ const startBatchUpload = async () => {
         </VCard>
       </VDialog>
 
-      <!-- ─── Batch Upload Dialog ─────────────────────────────────────────── -->
-      <VDialog v-model="batchDialog" max-width="780" persistent scrollable>
-        <VCard>
-          <!-- Title bar -->
-          <VCardTitle class="d-flex align-center pa-5 pb-3">
-            <VIcon color="success" size="28" class="mr-3"
-              >mdi-upload-multiple</VIcon
+      <!-- ── Batch Upload Dialog ─────────────────────────────────────────── -->
+      <VDialog v-model="batchDialog" max-width="720" persistent scrollable>
+        <VCard rounded="lg" border>
+          <VCardTitle class="d-flex align-center px-5 pt-5 pb-3">
+            <div
+              class="kb-dialog-icon mr-3"
+              style="background: rgba(var(--v-theme-success), 0.12)"
             >
+              <VIcon color="success" size="20">mdi-upload-multiple</VIcon>
+            </div>
             <span class="text-h6 font-weight-bold">Batch Upload Documents</span>
             <VSpacer />
             <VBtn
@@ -1093,16 +1077,19 @@ const startBatchUpload = async () => {
               :disabled="batchProcessing"
             />
           </VCardTitle>
-
           <VDivider />
 
-          <!-- ── STEP: setup ─────────────────────────────────────── -->
+          <!-- setup step -->
           <VCardText v-if="batchStep === 'setup'" class="pa-5">
-            <VAlert v-if="batchError" type="error" class="mb-4" closable>{{
-              batchError
-            }}</VAlert>
-
-            <!-- Drop zone -->
+            <VAlert
+              v-if="batchError"
+              type="error"
+              variant="tonal"
+              density="compact"
+              class="mb-4"
+              closable
+              >{{ batchError }}</VAlert
+            >
             <div
               class="batch-dropzone rounded-lg d-flex flex-column align-center justify-center pa-6 mb-4"
               :class="{ 'batch-dropzone--active': batchDragOver }"
@@ -1112,9 +1099,9 @@ const startBatchUpload = async () => {
               @click="$refs.batchFileInput.click()"
             >
               <VIcon
-                size="52"
+                size="44"
                 :color="batchDragOver ? 'success' : 'grey-lighten-1'"
-                class="mb-3"
+                class="mb-2"
               >
                 {{
                   batchDragOver
@@ -1122,15 +1109,15 @@ const startBatchUpload = async () => {
                     : 'mdi-cloud-upload-outline'
                 }}
               </VIcon>
-              <p class="text-body-1 font-weight-medium text-grey-darken-1 mb-1">
+              <p class="text-body-2 font-weight-medium text-grey-darken-1 mb-1">
                 {{
                   batchDragOver
                     ? 'Drop files here'
-                    : 'Drag & drop files here or click to browse'
+                    : 'Drag & drop files or click to browse'
                 }}
               </p>
-              <p class="text-caption text-grey">
-                Supports PDF, DOC, DOCX — up to 50 MB each, max 20 files
+              <p class="text-caption text-grey-darken-1">
+                PDF, DOC, DOCX — max 50 MB each
               </p>
               <input
                 ref="batchFileInput"
@@ -1142,7 +1129,6 @@ const startBatchUpload = async () => {
               />
             </div>
 
-            <!-- File list -->
             <div v-if="batchFiles.length" class="mb-4">
               <div class="d-flex align-center mb-2">
                 <span class="text-subtitle-2 font-weight-semibold"
@@ -1152,52 +1138,39 @@ const startBatchUpload = async () => {
                   batchFiles.length
                 }}</VChip>
               </div>
-              <VCard
-                variant="outlined"
-                class="pa-0"
-                style="max-height: 200px; overflow-y: auto"
-              >
-                <VList density="compact" class="pa-0">
-                  <VListItem v-for="(f, i) in batchFiles" :key="i" class="px-3">
-                    <template #prepend>
-                      <VIcon
-                        size="20"
-                        :color="
-                          f.name.endsWith('.pdf')
-                            ? 'red-darken-2'
-                            : 'blue-darken-2'
-                        "
-                      >
-                        {{
-                          f.name.endsWith('.pdf')
-                            ? 'mdi-file-pdf-box'
-                            : 'mdi-file-word-box'
-                        }}
-                      </VIcon>
-                    </template>
-                    <VListItemTitle class="text-body-2">{{
-                      f.name
-                    }}</VListItemTitle>
-                    <VListItemSubtitle class="text-caption">{{
-                      formatFileSize(f.size)
-                    }}</VListItemSubtitle>
-                    <template #append>
-                      <VBtn
-                        icon="mdi-close"
-                        size="x-small"
-                        variant="text"
-                        color="error"
-                        @click="removeBatchFile(i)"
-                      />
-                    </template>
-                  </VListItem>
-                </VList>
-              </VCard>
+              <div class="kb-file-list">
+                <div v-for="(f, i) in batchFiles" :key="i" class="kb-file-row">
+                  <VIcon
+                    size="18"
+                    :color="
+                      f.name.endsWith('.pdf') ? 'red-darken-2' : 'blue-darken-2'
+                    "
+                  >
+                    {{
+                      f.name.endsWith('.pdf')
+                        ? 'mdi-file-pdf-box'
+                        : 'mdi-file-word-box'
+                    }}
+                  </VIcon>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-body-2 text-truncate">{{ f.name }}</div>
+                    <div class="text-caption text-medium-emphasis">
+                      {{ formatFileSize(f.size) }}
+                    </div>
+                  </div>
+                  <VBtn
+                    icon="mdi-close"
+                    size="x-small"
+                    variant="text"
+                    color="error"
+                    @click="removeBatchFile(i)"
+                  />
+                </div>
+              </div>
             </div>
 
-            <!-- Settings -->
             <div class="text-subtitle-2 font-weight-semibold mb-3">
-              Default Settings for All Files
+              Default Settings
             </div>
             <VRow dense>
               <VCol cols="12" md="4">
@@ -1211,7 +1184,7 @@ const startBatchUpload = async () => {
                   "
                   label="Category *"
                   variant="outlined"
-                  density="comfortable"
+                  density="compact"
                 />
               </VCol>
               <VCol cols="12" md="4">
@@ -1225,7 +1198,7 @@ const startBatchUpload = async () => {
                   "
                   label="Type *"
                   variant="outlined"
-                  density="comfortable"
+                  density="compact"
                 />
               </VCol>
               <VCol cols="12" md="4">
@@ -1238,98 +1211,87 @@ const startBatchUpload = async () => {
                   ]"
                   label="Status"
                   variant="outlined"
-                  density="comfortable"
+                  density="compact"
                 />
               </VCol>
             </VRow>
           </VCardText>
 
-          <!-- ── STEP: processing ────────────────────────────────── -->
+          <!-- processing step -->
           <VCardText v-else-if="batchStep === 'processing'" class="pa-5">
-            <!-- Overall progress -->
-            <VCard variant="tonal" color="primary" class="pa-4 mb-5 rounded-lg">
+            <div class="kb-progress-card mb-5">
               <div class="d-flex align-center justify-space-between mb-2">
-                <span class="text-body-1 font-weight-semibold"
+                <span class="text-body-2 font-weight-semibold"
                   >Processing files…</span
                 >
-                <span class="text-body-2 font-weight-bold text-primary">
-                  {{ batchProcessed }} / {{ batchFileEntries.length }}
-                </span>
+                <span class="text-body-2 font-weight-bold text-primary"
+                  >{{ batchProcessed }} / {{ batchFileEntries.length }}</span
+                >
               </div>
               <VProgressLinear
                 :model-value="batchProgress"
                 color="primary"
-                bg-color="primary-lighten-4"
                 rounded
-                height="10"
-                striped
+                height="8"
               />
               <div class="d-flex justify-space-between mt-2">
                 <span
                   class="text-caption text-success"
                   v-if="batchProcessed - batchFailed > 0"
+                  ><VIcon size="12">mdi-check-circle</VIcon>
+                  {{ batchProcessed - batchFailed }} done</span
                 >
-                  <VIcon size="12">mdi-check-circle</VIcon>
-                  {{ batchProcessed - batchFailed }} done
-                </span>
-                <span class="text-caption text-error" v-if="batchFailed > 0">
-                  <VIcon size="12">mdi-alert-circle</VIcon>
-                  {{ batchFailed }} failed
-                </span>
-                <span class="text-caption text-grey">
-                  {{ batchProgress }}%
-                </span>
+                <span class="text-caption text-error" v-if="batchFailed > 0"
+                  ><VIcon size="12">mdi-alert-circle</VIcon>
+                  {{ batchFailed }} failed</span
+                >
+                <span class="text-caption text-medium-emphasis"
+                  >{{ batchProgress }}%</span
+                >
               </div>
-            </VCard>
-
-            <!-- Per-file status list -->
-            <VList density="compact" class="pa-0">
-              <VListItem
+            </div>
+            <div class="kb-file-list">
+              <div
                 v-for="(f, i) in batchFileEntries"
                 :key="i"
-                :class="[
-                  'rounded-lg mb-1',
-                  {
-                    'bg-success-lighten-5': f.status === 'done',
-                    'bg-error-lighten-5': f.status === 'failed',
-                    'bg-blue-lighten-5': f.status === 'processing',
-                  },
-                ]"
+                class="kb-file-row"
               >
-                <template #prepend>
-                  <VIcon :color="fileStatusColor(f.status)" size="22">{{
-                    fileStatusIcon(f.status)
-                  }}</VIcon>
-                </template>
-                <VListItemTitle class="text-body-2 font-weight-medium">{{
-                  f.original_name
-                }}</VListItemTitle>
-                <VListItemSubtitle class="text-caption">
-                  <span v-if="f.status === 'done'" class="text-success">
-                    ✓ {{ f.kb_title || 'Saved' }}
-                  </span>
-                  <span v-else-if="f.status === 'failed'" class="text-error">
-                    {{ f.error || 'Processing failed' }}
-                  </span>
-                  <span v-else-if="f.status === 'processing'" class="text-blue">
-                    Extracting text and generating embedding…
-                  </span>
-                  <span v-else class="text-grey">Waiting…</span>
-                </VListItemSubtitle>
-                <template #append>
-                  <VChip
-                    :color="fileStatusColor(f.status)"
-                    size="x-small"
-                    variant="tonal"
-                    class="text-capitalize"
-                    >{{ f.status }}</VChip
-                  >
-                </template>
-              </VListItem>
-            </VList>
+                <VIcon :color="fileStatusColor(f.status)" size="18">{{
+                  fileStatusIcon(f.status)
+                }}</VIcon>
+                <div class="flex-1 min-w-0">
+                  <div class="text-body-2 font-weight-medium text-truncate">
+                    {{ f.original_name }}
+                  </div>
+                  <div class="text-caption">
+                    <span v-if="f.status === 'done'" class="text-success"
+                      >✓ {{ f.kb_title || 'Saved' }}</span
+                    >
+                    <span
+                      v-else-if="f.status === 'failed'"
+                      class="text-error"
+                      >{{ f.error || 'Failed' }}</span
+                    >
+                    <span
+                      v-else-if="f.status === 'processing'"
+                      class="text-blue"
+                      >Extracting &amp; indexing…</span
+                    >
+                    <span v-else class="text-grey-darken-1">Waiting…</span>
+                  </div>
+                </div>
+                <VChip
+                  :color="fileStatusColor(f.status)"
+                  size="x-small"
+                  variant="tonal"
+                  class="text-capitalize"
+                  >{{ f.status }}</VChip
+                >
+              </div>
+            </div>
           </VCardText>
 
-          <!-- ── STEP: completed ─────────────────────────────────── -->
+          <!-- completed step -->
           <VCardText v-else-if="batchStep === 'completed'" class="pa-5">
             <VAlert
               :type="
@@ -1339,103 +1301,74 @@ const startBatchUpload = async () => {
                     ? 'warning'
                     : 'success'
               "
+              variant="tonal"
               prominent
               class="mb-5"
             >
               <VAlertTitle>
                 {{
                   batchFailed === batchFileEntries.length
-                    ? 'All files failed to process'
+                    ? 'All files failed'
                     : batchFailed > 0
-                      ? `Completed with ${batchFailed} error(s)`
-                      : 'All files processed successfully!'
+                      ? `Done with ${batchFailed} error(s)`
+                      : 'All files processed!'
                 }}
               </VAlertTitle>
               {{ batchFileEntries.length - batchFailed }} of
               {{ batchFileEntries.length }} files added to the Knowledge Base.
             </VAlert>
-
-            <!-- Summary stats -->
-            <VRow dense class="mb-4">
-              <VCol cols="6" md="4">
-                <VCard
-                  variant="tonal"
-                  color="success"
-                  class="text-center pa-3 rounded-lg"
+            <div class="d-flex gap-3 mb-4">
+              <div class="stat-chip flex-1">
+                <div class="text-h4 font-weight-bold text-success">
+                  {{ batchFileEntries.length - batchFailed }}
+                </div>
+                <div class="text-caption">Successful</div>
+              </div>
+              <div class="stat-chip flex-1">
+                <div
+                  class="text-h4 font-weight-bold"
+                  :class="batchFailed > 0 ? 'text-error' : 'text-grey'"
                 >
-                  <div class="text-h4 font-weight-bold text-success">
-                    {{ batchFileEntries.length - batchFailed }}
-                  </div>
-                  <div class="text-caption font-weight-medium">Successful</div>
-                </VCard>
-              </VCol>
-              <VCol cols="6" md="4">
-                <VCard
-                  variant="tonal"
-                  :color="batchFailed > 0 ? 'error' : 'grey'"
-                  class="text-center pa-3 rounded-lg"
-                >
-                  <div
-                    class="text-h4 font-weight-bold"
-                    :class="batchFailed > 0 ? 'text-error' : 'text-grey'"
-                  >
-                    {{ batchFailed }}
-                  </div>
-                  <div class="text-caption font-weight-medium">Failed</div>
-                </VCard>
-              </VCol>
-              <VCol cols="12" md="4">
-                <VCard
-                  variant="tonal"
-                  color="primary"
-                  class="text-center pa-3 rounded-lg"
-                >
-                  <div class="text-h4 font-weight-bold text-primary">
-                    {{ batchFileEntries.length }}
-                  </div>
-                  <div class="text-caption font-weight-medium">Total</div>
-                </VCard>
-              </VCol>
-            </VRow>
-
-            <!-- Results per file -->
-            <VList
-              density="compact"
-              class="pa-0"
-              style="max-height: 260px; overflow-y: auto"
+                  {{ batchFailed }}
+                </div>
+                <div class="text-caption">Failed</div>
+              </div>
+              <div class="stat-chip flex-1">
+                <div class="text-h4 font-weight-bold text-primary">
+                  {{ batchFileEntries.length }}
+                </div>
+                <div class="text-caption">Total</div>
+              </div>
+            </div>
+            <div
+              class="kb-file-list"
+              style="max-height: 220px; overflow-y: auto"
             >
-              <VListItem
+              <div
                 v-for="(f, i) in batchFileEntries"
                 :key="i"
-                :class="[
-                  'rounded-lg mb-1',
-                  {
-                    'bg-success-lighten-5': f.status === 'done',
-                    'bg-error-lighten-5': f.status === 'failed',
-                  },
-                ]"
+                class="kb-file-row"
               >
-                <template #prepend>
-                  <VIcon :color="fileStatusColor(f.status)" size="22">{{
-                    fileStatusIcon(f.status)
-                  }}</VIcon>
-                </template>
-                <VListItemTitle class="text-body-2 font-weight-medium">{{
-                  f.original_name
-                }}</VListItemTitle>
-                <VListItemSubtitle class="text-caption">
-                  <span v-if="f.status === 'done'" class="text-success">{{
-                    f.kb_title
-                  }}</span>
-                  <span v-else class="text-error">{{ f.error }}</span>
-                </VListItemSubtitle>
-              </VListItem>
-            </VList>
+                <VIcon :color="fileStatusColor(f.status)" size="18">{{
+                  fileStatusIcon(f.status)
+                }}</VIcon>
+                <div class="flex-1 min-w-0">
+                  <div class="text-body-2 font-weight-medium text-truncate">
+                    {{ f.original_name }}
+                  </div>
+                  <div class="text-caption">
+                    <span v-if="f.status === 'done'" class="text-success">{{
+                      f.kb_title
+                    }}</span>
+                    <span v-else class="text-error">{{ f.error }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </VCardText>
 
           <VDivider />
-
-          <VCardActions class="pa-4">
+          <VCardActions class="px-5 py-3">
             <VSpacer />
             <VBtn
               variant="outlined"
@@ -1465,23 +1398,35 @@ const startBatchUpload = async () => {
         </VCard>
       </VDialog>
 
-      <!-- Delete Confirmation Dialog -->
-      <VDialog v-model="confirmDelete" max-width="400">
-        <VCard>
-          <VCardTitle>
-            <VIcon color="error" class="mr-2">mdi-alert</VIcon>
-            Confirm Deletion
-          </VCardTitle>
-          <VCardText>
-            Are you sure you want to delete "<strong>{{
-              itemToDelete?.title
-            }}</strong
-            >"? This action cannot be undone.
+      <!-- ── Delete confirmation ──────────────────────────────────────────── -->
+      <VDialog v-model="confirmDelete" max-width="380">
+        <VCard rounded="lg" border>
+          <VCardText class="pa-5">
+            <div class="d-flex align-center gap-3 mb-3">
+              <div
+                class="kb-dialog-icon"
+                style="background: rgba(var(--v-theme-error), 0.12)"
+              >
+                <VIcon color="error" size="20">mdi-delete-alert</VIcon>
+              </div>
+              <span class="text-h6 font-weight-bold">Delete Entry</span>
+            </div>
+            <p class="text-body-2 text-medium-emphasis">
+              Are you sure you want to delete
+              <strong class="text-grey-darken-3">{{
+                itemToDelete ? itemToDelete.title : ''
+              }}</strong
+              >? This action cannot be undone.
+            </p>
           </VCardText>
-          <VCardActions>
-            <VSpacer></VSpacer>
-            <VBtn @click="confirmDelete = false">Cancel</VBtn>
-            <VBtn color="error" @click="confirmDeleteItem">Delete</VBtn>
+          <VCardActions class="px-5 pb-4 pt-0">
+            <VSpacer />
+            <VBtn variant="outlined" @click="confirmDelete = false"
+              >Cancel</VBtn
+            >
+            <VBtn color="error" variant="flat" @click="confirmDeleteItem"
+              >Delete</VBtn
+            >
           </VCardActions>
         </VCard>
       </VDialog>
@@ -1490,38 +1435,181 @@ const startBatchUpload = async () => {
 </template>
 
 <style scoped>
+/* ── Page layout ─────────────────────────────────────────────────────── */
+.kb-page {
+  padding: 4px 0;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+.kb-header {
+  padding: 4px 0;
+}
+
+.kb-header-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── Flat bordered section card ──────────────────────────────────────── */
+.kb-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+/* ── Filter bar ──────────────────────────────────────────────────────── */
+/* filter row is in a kb-section wrapper with internal padding */
+.kb-section > .v-row,
+.kb-section > form,
+.kb-section > div:not(.kb-table) {
+  padding: 16px 20px;
+}
+
+/* ── Bulk action bar ─────────────────────────────────────────────────── */
+.kb-bulk-bar {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 10px 16px;
+}
+
+/* ── Table overrides ─────────────────────────────────────────────────── */
+.kb-table {
+  background: transparent;
+}
+
+.kb-table :deep(.v-data-table-header__cell) {
+  background: #f9fafb !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280 !important;
+  padding: 10px 16px !important;
+}
+
+.kb-table :deep(td) {
+  border-bottom: 1px solid #f3f4f6 !important;
+  padding: 10px 16px !important;
+}
+
+.kb-table :deep(tr:last-child td) {
+  border-bottom: none !important;
+}
+
+.kb-table :deep(tr:hover td) {
+  background: #fafafa !important;
+}
+
+.gap-1 {
+  gap: 4px;
+}
 .gap-2 {
   gap: 8px;
 }
+.gap-3 {
+  gap: 12px;
+}
 
-/* ── Batch Upload Dialog ──────────────────────────────────────── */
+/* ── Stat chip (in dialogs) ──────────────────────────────────────────── */
+.stat-chip {
+  flex: 1;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+/* ── Dialog icon badge ───────────────────────────────────────────────── */
+.kb-dialog-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── File list (batch upload) ────────────────────────────────────────── */
+.kb-file-list {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.kb-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  background: #fff;
+}
+
+.kb-file-row:last-child {
+  border-bottom: none;
+}
+
+.kb-file-row:hover {
+  background: #f9fafb;
+}
+
+/* ── Batch progress card ─────────────────────────────────────────────── */
+.kb-progress-card {
+  background: #f0f4ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+/* ── Batch dropzone ──────────────────────────────────────────────────── */
 .batch-dropzone {
-  border: 2px dashed #bdbdbd;
-  min-height: 160px;
+  border: 2px dashed #d1d5db;
+  min-height: 140px;
   cursor: pointer;
   transition:
     border-color 0.2s,
     background 0.2s;
   user-select: none;
-}
-.batch-dropzone:hover {
-  border-color: rgb(var(--v-theme-success));
-  background: rgba(var(--v-theme-success), 0.04);
-}
-.batch-dropzone--active {
-  border-color: rgb(var(--v-theme-success));
-  background: rgba(var(--v-theme-success), 0.08);
+  background: #fafafa;
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.batch-dropzone:hover {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.04);
 }
-.animate-spin {
-  animation: spin 1s linear infinite;
+
+.batch-dropzone--active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.08);
+}
+
+/* ── Transition ──────────────────────────────────────────────────────── */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.2s ease;
+}
+.slide-down-enter-from,
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* ── Utility ─────────────────────────────────────────────────────────── */
+.flex-1 {
+  flex: 1;
+}
+.min-w-0 {
+  min-width: 0;
 }
 </style>

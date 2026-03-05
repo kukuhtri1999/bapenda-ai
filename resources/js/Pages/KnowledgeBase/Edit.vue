@@ -514,8 +514,33 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                   prepend-inner-icon="mdi-format-title"
                 ></VTextField>
 
-                <!-- Content (for manual entry) -->
-                <div v-if="form.source_type === 'manual'">
+                <!-- Content editor — shown for both manual and file-based entries -->
+                <div class="mb-2">
+                  <div class="d-flex align-center justify-space-between mb-2">
+                    <span
+                      class="text-subtitle-2 font-weight-medium text-medium-emphasis"
+                    >
+                      Content
+                      <span
+                        v-if="form.source_type === 'file'"
+                        class="text-caption ml-1 text-info"
+                      >
+                        (extracted from uploaded file — you may edit freely)
+                      </span>
+                    </span>
+                  </div>
+                  <VAlert
+                    v-if="form.source_type === 'file'"
+                    type="info"
+                    variant="tonal"
+                    density="compact"
+                    class="mb-3"
+                    icon="mdi-information-outline"
+                  >
+                    This content was automatically extracted from the uploaded
+                    file. You can edit it here and the changes will be saved to
+                    the knowledge base and re-indexed in the vector database.
+                  </VAlert>
                   <QuillEditor
                     v-if="isClient"
                     v-model:content="form.content"

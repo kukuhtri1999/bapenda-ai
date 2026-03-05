@@ -1,467 +1,480 @@
 <template>
-  <Head title="Mulai Chat"></Head>
   <VApp>
-    <VContainer fluid class="pa-0 pt-16 chat-app">
-      <VRow no-gutters class="fill-height">
-        <VCol cols="12">
-          <!-- Chat Header -->
-          <VAppBar
-            density="comfortable"
-            class="chat-header"
+    <Head title="Mulai Chat"></Head>
+
+    <!-- ── App Bar at VApp level so VMain auto-offsets content ── -->
+    <VAppBar
+      density="comfortable"
+      class="chat-header"
+      :style="{
+        background:
+          'linear-gradient(135deg, #A855F7 0%, #9333EA 50%, #7C3AED 100%)',
+        boxShadow: '0 4px 16px rgba(147, 51, 234, 0.35)',
+      }"
+    >
+      <VBtn
+        icon="mdi-arrow-left"
+        variant="text"
+        color="white"
+        @click="goToHome"
+        class="me-2"
+      ></VBtn>
+      <VAppBarTitle class="text-white">
+        <div class="d-flex align-center gap-2">
+          <!-- Salma mini avatar in header -->
+          <div class="salma-header-avatar">
+            <img
+              src="/images/salma2.gif"
+              alt="SALMA"
+              loading="lazy"
+              class="salma-header-img"
+            />
+          </div>
+          <div>
+            <div class="font-weight-bold">
+              SALMA AI — Asisten Samsat Lamongan
+            </div>
+            <div v-if="props.wajibPajakData" class="text-caption opacity-90">
+              {{ props.wajibPajakData.nama }} ({{ props.wajibPajakData.nopol }})
+            </div>
+          </div>
+        </div>
+      </VAppBarTitle>
+      <VSpacer></VSpacer>
+      <VBtn
+        icon="mdi-refresh"
+        variant="text"
+        color="white"
+        @click="startNewChat"
+        title="Chat Baru"
+        class="me-2"
+      ></VBtn>
+    </VAppBar>
+
+    <!-- ── VMain auto-applies top padding = AppBar height ── -->
+    <VMain class="chat-main">
+      <!-- Chat Container -->
+      <VCard
+        class="chat-container mx-auto"
+        max-width="1000"
+        :style="{
+          borderRadius: '0',
+          overflow: 'hidden',
+          background: 'white',
+          border: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          flex: '1 1 auto',
+          minHeight: '0',
+        }"
+        elevation="0"
+      >
+        <!-- Welcome Section -->
+        <div
+          v-if="!chatSession || messages.length === 0"
+          class="welcome-section pa-6 text-center"
+          :style="{
+            background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+          }"
+        >
+          <!-- SALMA Mascot GIF - welcome screen hero -->
+          <div class="salma-mascot-wrapper mb-3">
+            <img
+              src="/images/salma2.gif"
+              alt="SALMA AI Assistant"
+              loading="eager"
+              class="salma-mascot-img"
+            />
+          </div>
+
+          <h2 class="text-h5 mb-3 gradient-text font-weight-bold">
+            Selamat Datang di Layanan AI
+          </h2>
+          <h3 class="text-h6 mb-3 text-primary">Samsat Lamongan</h3>
+          <p
+            class="text-body-2 text-grey-700 mb-4 mx-auto"
+            style="max-width: 450px; line-height: 1.6"
+          >
+            Saya siap membantu Anda dengan informasi seputar pajak kendaraan,
+            STNK, dan layanan Samsat lainnya 24/7.
+          </p>
+
+          <!-- Quick Suggestions -->
+          <div class="mb-4">
+            <h4 class="text-subtitle-1 mb-3 text-grey-800">
+              Pertanyaan Populer:
+            </h4>
+            <VRow justify="center" class="ma-0" dense>
+              <VCol
+                v-for="(suggestion, index) in quickSuggestions"
+                :key="suggestion"
+                cols="12"
+                sm="6"
+                lg="3"
+                class="pa-1"
+              >
+                <VCard
+                  @click="sendQuickMessage(suggestion)"
+                  class="suggestion-card pa-3 text-center"
+                  :style="{
+                    cursor: 'pointer',
+                    background:
+                      'linear-gradient(135deg, ' +
+                      getSuggestionColor(index) +
+                      '15, ' +
+                      getSuggestionColor(index) +
+                      '08)',
+                    border: '1.5px solid ' + getSuggestionColor(index) + '30',
+                    borderRadius: '16px',
+                    transition: 'all 0.3s ease',
+                    minHeight: '80px',
+                  }"
+                  hover
+                  elevation="1"
+                >
+                  <VIcon
+                    :color="getSuggestionColor(index)"
+                    size="24"
+                    class="mb-1"
+                  >
+                    {{ getSuggestionIcon(index) }}
+                  </VIcon>
+                  <p
+                    class="text-caption font-weight-medium mb-0"
+                    :style="{
+                      color: getSuggestionColor(index),
+                      fontSize: '11px',
+                      lineHeight: '1.3',
+                    }"
+                  >
+                    {{ suggestion }}
+                  </p>
+                </VCard>
+              </VCol>
+            </VRow>
+          </div>
+
+          <VBtn
+            @click="startNewChat"
+            :style="{
+              background: 'linear-gradient(135deg, #9B59B6, #7D3C98)',
+              borderRadius: '20px',
+              textTransform: 'none',
+              padding: '10px 28px',
+              boxShadow: '0 6px 16px rgba(125, 60, 152, 0.4)',
+            }"
+            color="white"
+            class="start-chat-btn text-white font-weight-bold"
+            size="large"
+            elevation="0"
+          >
+            <VIcon left size="20">mdi-chat</VIcon>
+            Mulai Chat
+          </VBtn>
+        </div>
+
+        <!-- Messages Area -->
+        <div v-else class="chat-messages-area">
+          <!-- Messages Container -->
+          <div
+            ref="messagesContainer"
+            class="messages-scroll pa-3"
+            :style="{
+              flex: '1 1 auto',
+              minHeight: '0',
+              overflowY: 'auto',
+              background: 'linear-gradient(to bottom, #fafafa, #ffffff)',
+            }"
+          >
+            <!-- Message Items -->
+            <div
+              v-for="message in messages"
+              :key="message.id || message.sent_at"
+              class="mb-3"
+            >
+              <!-- User Message -->
+              <VRow
+                v-if="message.role === 'user'"
+                justify="end"
+                no-gutters
+                class="mb-2"
+              >
+                <VCol cols="auto" class="max-width-75">
+                  <VCard
+                    class="user-message pa-3"
+                    :style="{
+                      background: 'linear-gradient(135deg, #9B59B6, #7D3C98)',
+                      borderRadius: '18px 18px 4px 18px',
+                      boxShadow: '0 3px 10px rgba(125, 60, 152, 0.35)',
+                      maxWidth: '100%',
+                    }"
+                    elevation="0"
+                  >
+                    <div class="text-white font-weight-medium text-body-2">
+                      {{ message.content }}
+                    </div>
+                    <div class="text-right mt-1">
+                      <small
+                        class="text-white"
+                        style="opacity: 0.8; font-size: 10px"
+                      >
+                        {{ formatTime(message.sent_at) }}
+                      </small>
+                    </div>
+                  </VCard>
+                </VCol>
+              </VRow>
+
+              <!-- Assistant Message -->
+              <VRow v-else justify="start" no-gutters class="mb-2">
+                <VCol cols="auto" class="max-width-160">
+                  <div class="d-flex align-start">
+                    <!-- Salma avatar - lazy loaded for off-screen messages -->
+                    <div class="salma-msg-avatar me-2 mt-1 flex-shrink-0">
+                      <img
+                        src="/images/salma2.gif"
+                        alt="SALMA"
+                        loading="lazy"
+                        class="salma-msg-img"
+                      />
+                    </div>
+                    <VCard
+                      class="assistant-message pa-3 flex-grow-1"
+                      :style="{
+                        background: 'white',
+                        borderRadius: '18px 18px 18px 4px',
+                        border: '1px solid #e0e0e0',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                        maxWidth: '100%',
+                      }"
+                      elevation="0"
+                    >
+                      <!-- Feedback Form Component -->
+                      <!-- (Feedback is now shown as a VDialog popup) -->
+
+                      <!-- Final Thank You or Regular Assistant Message -->
+                      <div
+                        class="assistant-content text-grey-800 text-body-2"
+                        style="line-height: 1.6"
+                        v-html="getFormattedContent(message)"
+                      ></div>
+
+                      <div class="text-left mt-1">
+                        <small class="text-grey-500" style="font-size: 10px">
+                          {{ formatTime(message.sent_at) }}
+                        </small>
+                      </div>
+                    </VCard>
+                  </div>
+                </VCol>
+              </VRow>
+            </div>
+
+            <!-- Typing Indicator -->
+            <VRow v-if="isTyping" justify="start" no-gutters>
+              <VCol cols="auto">
+                <div class="d-flex align-start">
+                  <div class="salma-msg-avatar me-2">
+                    <img
+                      src="/images/salma2.gif"
+                      alt="SALMA"
+                      loading="lazy"
+                      class="salma-msg-img"
+                    />
+                  </div>
+                  <VCard
+                    class="pa-3"
+                    :style="{
+                      background: 'white',
+                      borderRadius: '18px 18px 18px 4px',
+                      border: '1px solid #e0e0e0',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    }"
+                    elevation="0"
+                  >
+                    <div class="typing-indicator">
+                      <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                      <span class="typing-text ms-2 text-grey-600 text-caption">
+                        sedang mengetik...
+                      </span>
+                    </div>
+                  </VCard>
+                </div>
+              </VCol>
+            </VRow>
+          </div>
+
+          <!-- Input Area -->
+          <VDivider style="border-color: rgba(0, 0, 0, 0.05)"></VDivider>
+          <div
+            class="pa-3"
+            style="background: white; border-radius: 0 0 24px 24px"
+          >
+            <VRow no-gutters align="center" class="gap-2">
+              <VCol>
+                <VTextarea
+                  v-model="currentMessage"
+                  placeholder="Ketik pertanyaan Anda tentang layanan Samsat..."
+                  rows="1"
+                  auto-grow
+                  max-rows="3"
+                  variant="outlined"
+                  class="message-input"
+                  :disabled="isLoading"
+                  @keydown.enter="handleEnterKey"
+                  hide-details
+                  density="compact"
+                  :style="{
+                    borderRadius: '20px',
+                  }"
+                ></VTextarea>
+              </VCol>
+              <VCol cols="auto">
+                <VBtn
+                  @click="() => sendMessage()"
+                  :disabled="!currentMessage.trim() || isLoading"
+                  :style="{
+                    background: 'linear-gradient(135deg, #9B59B6, #7D3C98)',
+                    borderRadius: '50%',
+                    minWidth: '48px',
+                    width: '48px',
+                    height: '48px',
+                    boxShadow: '0 4px 12px rgba(125, 60, 152, 0.35)',
+                  }"
+                  class="text-white"
+                  elevation="0"
+                  icon
+                >
+                  <VIcon v-if="!isLoading" size="20">mdi-send</VIcon>
+                  <VProgressCircular
+                    v-else
+                    indeterminate
+                    size="16"
+                    color="white"
+                  ></VProgressCircular>
+                </VBtn>
+              </VCol>
+            </VRow>
+          </div>
+        </div>
+      </VCard>
+    </VMain>
+
+    <!-- ─── Feedback Dialog Popup ──────────────────────────────────────── -->
+    <VDialog
+      v-model="showFeedbackDialog"
+      max-width="460"
+      persistent
+      :scrim="'rgba(0,0,0,0.55)'"
+    >
+      <VCard class="feedback-popup rounded-xl pa-1" elevation="24">
+        <!-- Header -->
+        <div
+          class="feedback-popup-header text-center pa-5 pb-3"
+          :style="{
+            background: 'linear-gradient(135deg, #A855F7 0%, #9333EA 100%)',
+            borderRadius: '12px 12px 0 0',
+          }"
+        >
+          <div class="feedback-emoji-large mb-2">
+            {{ idleAutoTriggered ? '⏰' : '💬' }}
+          </div>
+          <h2 class="text-white font-weight-bold text-h6">
+            {{
+              idleAutoTriggered
+                ? 'Sesi Berakhir Otomatis'
+                : 'Bagaimana Layanan Kami?'
+            }}
+          </h2>
+          <p class="text-white text-caption mt-1" style="opacity: 0.85">
+            {{
+              idleAutoTriggered
+                ? 'Anda tidak aktif selama 5 menit. Sesi telah diakhiri.'
+                : 'Terima kasih telah menggunakan SALMA AI'
+            }}
+          </p>
+        </div>
+
+        <VCardText class="pa-5">
+          <!-- Rating section -->
+          <div class="text-center mb-4">
+            <p class="text-subtitle-2 font-weight-semibold text-grey-800 mb-3">
+              Berikan Penilaian Anda
+            </p>
+            <VRating
+              v-model="feedbackRating"
+              :size="40"
+              color="amber-darken-1"
+              active-color="amber-darken-1"
+              hover
+              :density="'comfortable'"
+              @update:model-value="onRatingChange"
+            />
+            <div
+              class="rating-label mt-2 text-body-2 font-weight-medium"
+              :style="{ color: feedbackRating > 0 ? '#9333EA' : '#9e9e9e' }"
+            >
+              {{ getRatingLabel(feedbackRating) }}
+            </div>
+          </div>
+
+          <VDivider class="mb-4" />
+
+          <!-- Feedback text -->
+          <VTextarea
+            v-model="feedbackText"
+            label="Saran atau Komentar (opsional)"
+            placeholder="Ceritakan pengalaman Anda menggunakan SALMA AI..."
+            rows="3"
+            variant="outlined"
+            density="compact"
+            no-resize
+            :color="'deep-purple'"
+            hide-details
+          />
+        </VCardText>
+
+        <VCardActions class="px-5 pb-5 pt-0 d-flex gap-3">
+          <VBtn
+            variant="text"
+            :disabled="isSubmittingFeedback"
+            @click="
+              showFeedbackDialog = false;
+              feedbackRating = 0;
+              feedbackText = '';
+            "
+            class="text-grey flex-grow-1"
+          >
+            Lewati
+          </VBtn>
+          <VBtn
+            :disabled="feedbackRating === 0 || isSubmittingFeedback"
+            :loading="isSubmittingFeedback"
+            @click="submitFeedback"
+            variant="flat"
+            class="flex-grow-1 text-white"
             :style="{
               background:
-                'linear-gradient(135deg, #E9A5F1 0%, #C68EFD 50%, #8F87F1 100%)',
-              boxShadow: '0 4px 12px rgba(233, 165, 241, 0.3)',
+                feedbackRating > 0
+                  ? 'linear-gradient(135deg, #9B59B6, #7D3C98)'
+                  : undefined,
+              borderRadius: '10px',
             }"
+            prepend-icon="mdi-send"
           >
-            <VBtn
-              icon="mdi-arrow-left"
-              variant="text"
-              color="white"
-              @click="goToHome"
-              class="me-2"
-            ></VBtn>
-            <VAppBarTitle class="text-white">
-              <div class="d-flex align-center">
-                <VIcon left color="white" size="28">mdi-robot</VIcon>
-                <div class="ml-2">
-                  <div class="font-weight-bold">
-                    SALMA AI — Asisten Samsat Lamongan
-                  </div>
-                  <div
-                    v-if="props.wajibPajakData"
-                    class="text-caption opacity-90"
-                  >
-                    {{ props.wajibPajakData.nama }} ({{
-                      props.wajibPajakData.nopol
-                    }})
-                  </div>
-                </div>
-              </div>
-            </VAppBarTitle>
-            <VSpacer></VSpacer>
-            <VBtn
-              icon="mdi-refresh"
-              variant="text"
-              color="white"
-              @click="startNewChat"
-              title="Chat Baru"
-              class="me-2"
-            ></VBtn>
-          </VAppBar>
-
-          <!-- Chat Container -->
-          <VCard
-            class="chat-container mx-auto elevation-12"
-            max-width="1000"
-            height="calc(100vh - 160px)"
-            :style="{
-              borderRadius: '24px',
-              overflow: 'hidden',
-              background: 'white',
-              border: '1px solid rgba(0,0,0,0.05)',
-            }"
-          >
-            <!-- Welcome Section -->
-            <div
-              v-if="!chatSession || messages.length === 0"
-              class="welcome-section pa-6 text-center"
-              :style="{
-                background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-              }"
-            >
-              <VAvatar
-                size="80"
-                class="mb-4 mx-auto"
-                :style="{
-                  background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
-                  boxShadow: '0 8px 24px rgba(233, 165, 241, 0.4)',
-                }"
-              >
-                <VIcon size="40" color="white">mdi-robot</VIcon>
-              </VAvatar>
-
-              <h2 class="text-h5 mb-3 gradient-text font-weight-bold">
-                Selamat Datang di Layanan AI
-              </h2>
-              <h3 class="text-h6 mb-3 text-primary">Samsat Lamongan</h3>
-              <p
-                class="text-body-2 text-grey-700 mb-4 mx-auto"
-                style="max-width: 450px; line-height: 1.6"
-              >
-                Saya siap membantu Anda dengan informasi seputar pajak
-                kendaraan, STNK, dan layanan Samsat lainnya 24/7.
-              </p>
-
-              <!-- Quick Suggestions -->
-              <div class="mb-4">
-                <h4 class="text-subtitle-1 mb-3 text-grey-800">
-                  Pertanyaan Populer:
-                </h4>
-                <VRow justify="center" class="ma-0" dense>
-                  <VCol
-                    v-for="(suggestion, index) in quickSuggestions"
-                    :key="suggestion"
-                    cols="12"
-                    sm="6"
-                    lg="3"
-                    class="pa-1"
-                  >
-                    <VCard
-                      @click="sendQuickMessage(suggestion)"
-                      class="suggestion-card pa-3 text-center"
-                      :style="{
-                        cursor: 'pointer',
-                        background:
-                          'linear-gradient(135deg, ' +
-                          getSuggestionColor(index) +
-                          '15, ' +
-                          getSuggestionColor(index) +
-                          '08)',
-                        border:
-                          '1.5px solid ' + getSuggestionColor(index) + '30',
-                        borderRadius: '16px',
-                        transition: 'all 0.3s ease',
-                        minHeight: '80px',
-                      }"
-                      hover
-                      elevation="1"
-                    >
-                      <VIcon
-                        :color="getSuggestionColor(index)"
-                        size="24"
-                        class="mb-1"
-                      >
-                        {{ getSuggestionIcon(index) }}
-                      </VIcon>
-                      <p
-                        class="text-caption font-weight-medium mb-0"
-                        :style="{
-                          color: getSuggestionColor(index),
-                          fontSize: '11px',
-                          lineHeight: '1.3',
-                        }"
-                      >
-                        {{ suggestion }}
-                      </p>
-                    </VCard>
-                  </VCol>
-                </VRow>
-              </div>
-
-              <VBtn
-                @click="startNewChat"
-                :style="{
-                  background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
-                  borderRadius: '20px',
-                  textTransform: 'none',
-                  padding: '10px 28px',
-                  boxShadow: '0 6px 16px rgba(233, 165, 241, 0.4)',
-                }"
-                color="white"
-                class="start-chat-btn text-white font-weight-bold"
-                size="large"
-                elevation="0"
-              >
-                <VIcon left size="20">mdi-chat</VIcon>
-                Mulai Chat
-              </VBtn>
-            </div>
-
-            <!-- Messages Area -->
-            <div v-else class="chat-messages-area">
-              <!-- Messages Container -->
-              <div
-                ref="messagesContainer"
-                class="messages-scroll pa-3"
-                :style="{
-                  height: 'calc(100vh - 260px)',
-                  overflowY: 'auto',
-                  background: 'linear-gradient(to bottom, #fafafa, #ffffff)',
-                }"
-              >
-                <!-- Message Items -->
-                <div
-                  v-for="message in messages"
-                  :key="message.id || message.sent_at"
-                  class="mb-3"
-                >
-                  <!-- User Message -->
-                  <VRow
-                    v-if="message.role === 'user'"
-                    justify="end"
-                    no-gutters
-                    class="mb-2"
-                  >
-                    <VCol cols="auto" class="max-width-75">
-                      <VCard
-                        class="user-message pa-3"
-                        :style="{
-                          background:
-                            'linear-gradient(135deg, #E9A5F1, #C68EFD)',
-                          borderRadius: '18px 18px 4px 18px',
-                          boxShadow: '0 3px 10px rgba(233, 165, 241, 0.3)',
-                          maxWidth: '100%',
-                        }"
-                        elevation="0"
-                      >
-                        <div class="text-white font-weight-medium text-body-2">
-                          {{ message.content }}
-                        </div>
-                        <div class="text-right mt-1">
-                          <small
-                            class="text-white"
-                            style="opacity: 0.8; font-size: 10px"
-                          >
-                            {{ formatTime(message.sent_at) }}
-                          </small>
-                        </div>
-                      </VCard>
-                    </VCol>
-                  </VRow>
-
-                  <!-- Assistant Message -->
-                  <VRow v-else justify="start" no-gutters class="mb-2">
-                    <VCol cols="auto" class="max-width-80">
-                      <div class="d-flex align-start">
-                        <VAvatar
-                          size="32"
-                          class="me-2 mt-1 flex-shrink-0"
-                          :style="{
-                            background:
-                              'linear-gradient(135deg, #8F87F1, #C68EFD)',
-                          }"
-                        >
-                          <VIcon color="white" size="16">mdi-robot</VIcon>
-                        </VAvatar>
-                        <VCard
-                          class="assistant-message pa-3 flex-grow-1"
-                          :style="{
-                            background: 'white',
-                            borderRadius: '18px 18px 18px 4px',
-                            border: '1px solid #e0e0e0',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                            maxWidth: '100%',
-                          }"
-                          elevation="0"
-                        >
-                          <!-- Feedback Form Component -->
-                          <div
-                            v-if="message.type === 'feedback'"
-                            class="feedback-form"
-                          >
-                            <div class="text-center mb-4">
-                              <div style="font-size: 32px; margin-bottom: 8px">
-                                ❤️
-                              </div>
-                              <h3 class="text-primary mb-2">Terima Kasih!</h3>
-                              <p class="text-grey-600 text-body-2">
-                                Mohon berikan penilaian Anda terhadap layanan
-                                SALMA AI untuk membantu kami memberikan
-                                pelayanan yang lebih baik.
-                              </p>
-                            </div>
-
-                            <div class="text-center mb-4">
-                              <p
-                                class="text-subtitle-2 font-weight-medium mb-3"
-                              >
-                                Berikan Rating Layanan:
-                              </p>
-                              <VRating
-                                v-model="feedbackRating"
-                                :size="32"
-                                color="amber"
-                                active-color="amber"
-                                hover
-                                half-increments
-                                clearable
-                                @update:model-value="onRatingChange"
-                              />
-                              <p class="text-caption text-grey-600 mt-2">
-                                {{ getRatingLabel(feedbackRating) }}
-                              </p>
-                            </div>
-
-                            <div class="mb-4">
-                              <VTextarea
-                                v-model="feedbackText"
-                                placeholder="Bagikan pengalaman Anda menggunakan layanan SALMA AI..."
-                                rows="3"
-                                variant="outlined"
-                                density="compact"
-                                no-resize
-                              />
-                            </div>
-
-                            <div class="text-center">
-                              <VBtn
-                                @click="submitFeedback"
-                                :disabled="
-                                  feedbackRating === 0 || isSubmittingFeedback
-                                "
-                                :loading="isSubmittingFeedback"
-                                color="primary"
-                                variant="flat"
-                                size="large"
-                                prepend-icon="mdi-send"
-                                class="px-6"
-                              >
-                                Kirim Feedback
-                              </VBtn>
-                            </div>
-                          </div>
-
-                          <!-- Final Thank You Message -->
-                          <div
-                            v-else-if="message.type === 'final'"
-                            class="final-message text-center"
-                          >
-                            <div
-                              style="
-                                font-size: 40px;
-                                color: #4caf50;
-                                margin-bottom: 12px;
-                              "
-                            >
-                              ✅
-                            </div>
-                            <h3 class="text-success mb-2">Terima Kasih!</h3>
-                            <p class="text-grey-600 text-body-2 mb-3">
-                              Feedback Anda telah tersimpan. Masukan Anda sangat
-                              berharga untuk meningkatkan kualitas layanan kami.
-                            </p>
-                            <p class="text-grey-600 text-body-2">
-                              Anda akan dialihkan ke halaman utama dalam 5
-                              detik...
-                            </p>
-                          </div>
-
-                          <!-- Regular Assistant Message -->
-                          <div
-                            v-else
-                            class="assistant-content text-grey-800 text-body-2"
-                            style="line-height: 1.5"
-                            v-html="getFormattedContent(message)"
-                          ></div>
-
-                          <div class="text-left mt-1">
-                            <small
-                              class="text-grey-500"
-                              style="font-size: 10px"
-                            >
-                              {{ formatTime(message.sent_at) }}
-                            </small>
-                          </div>
-                        </VCard>
-                      </div>
-                    </VCol>
-                  </VRow>
-                </div>
-
-                <!-- Typing Indicator -->
-                <VRow v-if="isTyping" justify="start" no-gutters>
-                  <VCol cols="auto">
-                    <div class="d-flex align-start">
-                      <VAvatar
-                        size="32"
-                        class="me-2"
-                        :style="{
-                          background:
-                            'linear-gradient(135deg, #8F87F1, #C68EFD)',
-                        }"
-                      >
-                        <VIcon color="white" size="16">mdi-robot</VIcon>
-                      </VAvatar>
-                      <VCard
-                        class="pa-3"
-                        :style="{
-                          background: 'white',
-                          borderRadius: '18px 18px 18px 4px',
-                          border: '1px solid #e0e0e0',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                        }"
-                        elevation="0"
-                      >
-                        <div class="typing-indicator">
-                          <div class="typing-dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                          </div>
-                          <span
-                            class="typing-text ms-2 text-grey-600 text-caption"
-                          >
-                            sedang mengetik...
-                          </span>
-                        </div>
-                      </VCard>
-                    </div>
-                  </VCol>
-                </VRow>
-              </div>
-
-              <!-- Input Area -->
-              <VDivider style="border-color: rgba(0, 0, 0, 0.05)"></VDivider>
-              <div
-                class="pa-3"
-                style="background: white; border-radius: 0 0 24px 24px"
-              >
-                <VRow no-gutters align="center" class="gap-2">
-                  <VCol>
-                    <VTextarea
-                      v-model="currentMessage"
-                      placeholder="Ketik pertanyaan Anda tentang layanan Samsat..."
-                      rows="1"
-                      auto-grow
-                      max-rows="3"
-                      variant="outlined"
-                      class="message-input"
-                      :disabled="isLoading"
-                      @keydown.enter="handleEnterKey"
-                      hide-details
-                      density="compact"
-                      :style="{
-                        borderRadius: '20px',
-                      }"
-                    ></VTextarea>
-                  </VCol>
-                  <VCol cols="auto">
-                    <VBtn
-                      @click="() => sendMessage()"
-                      :disabled="!currentMessage.trim() || isLoading"
-                      :style="{
-                        background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
-                        borderRadius: '50%',
-                        minWidth: '48px',
-                        width: '48px',
-                        height: '48px',
-                        boxShadow: '0 4px 12px rgba(233, 165, 241, 0.3)',
-                      }"
-                      class="text-white"
-                      elevation="0"
-                      icon
-                    >
-                      <VIcon v-if="!isLoading" size="20">mdi-send</VIcon>
-                      <VProgressCircular
-                        v-else
-                        indeterminate
-                        size="16"
-                        color="white"
-                      ></VProgressCircular>
-                    </VBtn>
-                  </VCol>
-                </VRow>
-              </div>
-            </div>
-          </VCard>
-        </VCol>
-      </VRow>
-    </VContainer>
+            Kirim Feedback
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
 
     <!-- Lightbox -->
     <VueEasyLightbox
@@ -522,6 +535,12 @@ const feedbackText = ref('');
 const isSubmittingFeedback = ref(false);
 const feedbackSubmitted = ref(false);
 
+// Feedback dialog (popup) + idle auto-end
+const showFeedbackDialog = ref(false);
+const idleAutoTriggered = ref(false);
+let idleTimer = null;
+const IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
 // Quick suggestions
 const quickSuggestions = ref([
   'Bagaimana cara bayar pajak kendaraan?',
@@ -552,6 +571,19 @@ const getSessionId = (forceNew = false) => {
   return sessionId;
 };
 
+// ── Idle timer ────────────────────────────────────────────────────────
+const resetIdleTimer = () => {
+  clearTimeout(idleTimer);
+  if (feedbackSubmitted.value || showFeedbackDialog.value) return;
+  if (!chatSession.value && messages.value.length === 0) return;
+  idleTimer = setTimeout(() => {
+    if (!showFeedbackDialog.value && !feedbackSubmitted.value) {
+      idleAutoTriggered.value = true;
+      showFeedbackDialog.value = true;
+    }
+  }, IDLE_TIMEOUT);
+};
+
 // Initialize chat
 const initializeChat = async () => {
   try {
@@ -572,6 +604,7 @@ const initializeChat = async () => {
       chatSession.value = response.data.chat;
       messages.value = response.data.chat.messages || [];
       await scrollToBottom();
+      resetIdleTimer();
     }
   } catch (error) {
     console.error('Error initializing chat:', error);
@@ -604,6 +637,7 @@ const startNewChat = async () => {
       chatSession.value = response.data.chat;
       messages.value = response.data.chat.messages || [];
       await scrollToBottom();
+      resetIdleTimer();
     }
   } catch (error) {
     console.error('Error starting new chat:', error);
@@ -613,17 +647,9 @@ const startNewChat = async () => {
 
 // Send message
 const sendMessage = async (messageText = null, isContext = false) => {
-  console.log('=== sendMessage CALLED ===');
-  console.log('messageText:', messageText);
-  console.log('isContext:', isContext);
-
   const text = messageText || currentMessage.value.trim();
-  console.log('text to send:', text);
 
-  if (!text || isLoading.value) {
-    console.log('=== EARLY RETURN - no text or loading ===');
-    return;
-  }
+  if (!text || isLoading.value) return;
 
   if (!messageText) {
     currentMessage.value = '';
@@ -633,6 +659,9 @@ const sendMessage = async (messageText = null, isContext = false) => {
   if (!chatSession.value) {
     await initializeChat();
   }
+
+  // Reset idle timer on activity
+  resetIdleTimer();
 
   // Add user message to UI immediately (skip for context messages)
   if (!isContext) {
@@ -661,7 +690,6 @@ const sendMessage = async (messageText = null, isContext = false) => {
     if (response.data.success) {
       // Only show AI response if it's not a context message
       if (!isContext) {
-        console.log('=== AI RESPONSE SUCCESS - NOT CONTEXT ===');
         const assistantMessage = {
           ...response.data.assistant_message,
           id: `assistant_${Date.now()}_${Math.random()
@@ -670,24 +698,7 @@ const sendMessage = async (messageText = null, isContext = false) => {
         };
         messages.value.push(assistantMessage);
         await scrollToBottom();
-
-        // Show follow-up message after AI response
-        console.log('=== ABOUT TO CALL showFollowUpMessage ===');
-        console.log('isContext:', isContext);
-
-        // Try immediate call first
-        console.log('=== CALLING showFollowUpMessage IMMEDIATELY ===');
         showFollowUpMessage();
-
-        // Also try with timeout
-        setTimeout(() => {
-          console.log(
-            '=== TIMEOUT EXECUTING - CALLING showFollowUpMessage AGAIN ===',
-          );
-          showFollowUpMessage();
-        }, 1000);
-      } else {
-        console.log('=== SKIPPING FOLLOW-UP - IS CONTEXT MESSAGE ===');
       }
     } else {
       showErrorMessage(response.data.message || 'Gagal mengirim pesan');
@@ -734,7 +745,7 @@ const showFollowUpMessage = async () => {
       id: `followup_${now}`,
       role: 'assistant',
       content:
-        'Ada lagi yang bisa SALMA bantu? <button data-action="end-chat" style="margin-left:8px;padding:6px 10px;border-radius:10px;border:1px solid #e0e0e0;background:#f7f7f7;cursor:pointer;">Akhiri Chat</button>',
+        'Ada lagi yang bisa SALMA bantu? <button data-action="end-chat" style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;padding:6px 14px;border-radius:20px;border:1.5px solid #9333EA;background:transparent;color:#9333EA;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;">⛔ Akhiri Chat</button>',
       sent_at: new Date().toISOString(),
       type: 'follow_up',
     };
@@ -752,8 +763,9 @@ window.endChatFromMessage = () => {
 };
 
 const endChat = () => {
-  // Add feedback form as a message
-  showFeedbackMessage();
+  clearTimeout(idleTimer);
+  idleAutoTriggered.value = false;
+  showFeedbackDialog.value = true;
 };
 
 const showFeedbackMessage = async () => {
@@ -804,12 +816,15 @@ const submitFeedback = async () => {
 
     if (response.data.success) {
       feedbackSubmitted.value = true;
+      showFeedbackDialog.value = false;
+      clearTimeout(idleTimer);
 
-      // Add final thank you message
+      // Add final message to chat
       const finalMessage = {
         id: `final_${Date.now()}`,
         role: 'assistant',
-        content: 'Thank you message will be displayed here',
+        content:
+          '✅ **Terima kasih atas feedback Anda!**\n\nMasukan Anda sangat berharga untuk meningkatkan kualitas layanan SALMA AI. Sampai jumpa! 👋\n\nAnda akan diarahkan ke halaman utama dalam 5 detik...',
         sent_at: new Date().toISOString(),
         type: 'final',
       };
@@ -906,18 +921,33 @@ const formatMessage = async (content) => {
 
   // Enhanced formatting with better link handling
   const formatted = content
+    // Handle Markdown headings FIRST (before line break conversion)
+    .replace(
+      /^### (.+)$/gm,
+      '<h4 style="font-size:13px;font-weight:700;margin:10px 0 4px;color:#1a1a2e">$1</h4>',
+    )
+    .replace(
+      /^## (.+)$/gm,
+      '<h3 style="font-size:14px;font-weight:700;margin:12px 0 5px;color:#1a1a2e">$1</h3>',
+    )
+    .replace(
+      /^# (.+)$/gm,
+      '<h2 style="font-size:15px;font-weight:700;margin:14px 0 6px;color:#1a1a2e">$1</h2>',
+    )
     // Handle Markdown-style links [text](url) first
     .replace(
       /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline; font-weight: 500;">$1</a>',
+      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #7C3AED; text-decoration: underline; font-weight: 500;">$1</a>',
     )
     // Handle plain URLs (but not those already in HTML tags)
     .replace(
       /(?<!href="|">)(https?:\/\/[^\s<]+)(?![^<]*<\/a>)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;">$1</a>',
+      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #7C3AED; text-decoration: underline;">$1</a>',
     )
     // Convert bold text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Convert italic text
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>')
     // Convert line breaks
     .replace(/\n/g, '<br>')
     // Format numbered lists with proper line breaks
@@ -946,18 +976,33 @@ const getFormattedContent = (message) => {
 
   // Enhanced formatting with better link handling
   content = content
+    // Handle Markdown headings FIRST (before line break conversion)
+    .replace(
+      /^### (.+)$/gm,
+      '<h4 style="font-size:13px;font-weight:700;margin:10px 0 4px;color:#1a1a2e">$1</h4>',
+    )
+    .replace(
+      /^## (.+)$/gm,
+      '<h3 style="font-size:14px;font-weight:700;margin:12px 0 5px;color:#1a1a2e">$1</h3>',
+    )
+    .replace(
+      /^# (.+)$/gm,
+      '<h2 style="font-size:15px;font-weight:700;margin:14px 0 6px;color:#1a1a2e">$1</h2>',
+    )
     // Handle Markdown-style links [text](url)
     .replace(
       /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline; font-weight: 500;">$1</a>',
+      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #7C3AED; text-decoration: underline; font-weight: 500;">$1</a>',
     )
     // Handle plain URLs (but not those already in HTML tags)
     .replace(
       /(?<!href="|">)(https?:\/\/[^\s<]+)(?![^<]*<\/a>)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;">$1</a>',
+      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #7C3AED; text-decoration: underline;">$1</a>',
     )
     // Handle bold text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Handle italic text
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>')
     // Handle line breaks
     .replace(/\n/g, '<br>')
     // Handle numbered lists
@@ -1041,10 +1086,6 @@ const listenerAttached = ref(false);
 
 // Initialize on mount
 onMounted(() => {
-  console.log(
-    '[Chat Index] mounted - build active at',
-    new Date().toISOString(),
-  );
   initializeChat();
 
   if (messagesContainer.value) {
@@ -1083,6 +1124,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  clearTimeout(idleTimer);
   if (messagesContainer.value && listenerAttached.value) {
     messagesContainer.value.removeEventListener('click', handleContentClick);
     listenerAttached.value = false;
@@ -1109,25 +1151,155 @@ watch(
 </script>
 
 <style scoped>
-.chat-app {
+/* ── Full-height layout ─────────────────────────────────────────────── */
+/* VMain is the Vuetify 3 correct way: it auto-applies top-padding equal
+   to VAppBar height, so nothing overlaps the header. */
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
   background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
-  min-height: 100vh;
 }
 
-.chat-header {
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 12px rgba(233, 165, 241, 0.3) !important;
+.chat-app {
+  background: transparent;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-row {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-row > .v-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .chat-container {
-  backdrop-filter: blur(20px);
-  transition: all 0.3s ease;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex !important;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  /* Fill remaining height inside VMain */
+  height: 100%;
 }
 
-/* Lightbox uses vue-easy-lightbox styles */
+.chat-messages-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
 
+.messages-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── SALMA Mascot & Avatars ─────────────────────────────────────────── */
+.salma-mascot-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* fixed dimensions so page doesn't jump on gif load */
+  width: 140px;
+  height: 140px;
+  margin: 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f3e8ff, #ede9fe);
+  box-shadow: 0 8px 32px rgba(147, 51, 234, 0.25);
+}
+
+.salma-mascot-img {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+/* Small avatar next to chat bubbles */
+.salma-msg-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  /* background: linear-gradient(135deg, #8f87f1, #c68efd); */
+  border: 2px solid #ede9fe;
+}
+
+.salma-msg-img {
+  width: 80px;
+  height: 100px;
+  object-fit: cover;
+  /* border-radius: 50%; */
+  display: block;
+}
+
+@media screen and (max-width: 600px) {
+  .salma-msg-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    /* background: linear-gradient(135deg, #8f87f1, #c68efd); */
+    border: 2px solid #ede9fe;
+  }
+
+  .salma-msg-img {
+    width: 40 px;
+    height: 50px;
+    object-fit: cover;
+    /* border-radius: 50%; */
+    display: block;
+  }
+}
+
+/* Tiny header avatar next to SALMA AI title */
+.salma-header-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.salma-header-img {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+.chat-header {
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(147, 51, 234, 0.35) !important;
+}
+
+/* ── Welcome screen ─────────────────────────────────────────────────── */
 .gradient-text {
-  background: linear-gradient(135deg, #e9a5f1, #c68efd);
+  background: linear-gradient(135deg, #9b59b6, #7d3c98);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1140,14 +1312,21 @@ watch(
 
 .start-chat-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(233, 165, 241, 0.6) !important;
+  box-shadow: 0 8px 24px rgba(125, 60, 152, 0.55) !important;
 }
 
+/* ── Message input ──────────────────────────────────────────────────── */
 .message-input >>> .v-field {
   border-radius: 20px !important;
   border: 1px solid #e0e0e0 !important;
 }
 
+.message-input >>> .v-field:focus-within {
+  border-color: #9333ea !important;
+  box-shadow: 0 0 0 2px rgba(147, 51, 234, 0.18) !important;
+}
+
+/* ── Message bubbles ────────────────────────────────────────────────── */
 .assistant-content .kb-image-gallery {
   display: flex;
   flex-wrap: wrap;
@@ -1182,16 +1361,10 @@ watch(
   margin: 0.5em 0;
 }
 
-/* Generic images inside assistant content */
 .assistant-content img {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
-}
-
-.message-input >>> .v-field:focus-within {
-  border-color: #e9a5f1 !important;
-  box-shadow: 0 0 0 2px rgba(233, 165, 241, 0.2) !important;
 }
 
 .text-white-70 {
@@ -1215,12 +1388,7 @@ watch(
   transition: all 0.2s ease;
 }
 
-.user-message:hover,
-.assistant-message:hover {
-  transform: translateY(-1px);
-}
-
-/* Typing indicator animation */
+/* ── Typing indicator ───────────────────────────────────────────────── */
 .typing-indicator {
   display: flex;
   align-items: center;
@@ -1237,7 +1405,7 @@ watch(
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #c68efd;
+  background-color: #9333ea;
   animation: typing-bounce 1.4s infinite ease-in-out both;
   display: inline-block;
 }
@@ -1245,11 +1413,9 @@ watch(
 .typing-dots span:nth-child(1) {
   animation-delay: -0.32s;
 }
-
 .typing-dots span:nth-child(2) {
   animation-delay: -0.16s;
 }
-
 .typing-dots span:nth-child(3) {
   animation-delay: 0s;
 }
@@ -1264,18 +1430,16 @@ watch(
   0%,
   80%,
   100% {
-    transform: scale(0.8);
-    opacity: 0.6;
+    transform: scale(0);
   }
   40% {
-    transform: scale(1.2);
-    opacity: 1;
+    transform: scale(1);
   }
 }
 
-/* Scrollbar styling */
+/* ── Scrollbar ──────────────────────────────────────────────────────── */
 .messages-scroll::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .messages-scroll::-webkit-scrollbar-track {
@@ -1283,66 +1447,31 @@ watch(
 }
 
 .messages-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #e9a5f1, #c68efd);
+  background: linear-gradient(135deg, #9b59b6, #7d3c98);
   border-radius: 10px;
 }
 
 .messages-scroll::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #c68efd, #8f87f1);
+  background: linear-gradient(135deg, #7d3c98, #6c3483);
 }
 
-/* Mobile responsive */
-@media (max-width: 768px) {
-  .chat-container {
-    margin: 0 !important;
-    border-radius: 0 !important;
-    height: calc(100vh - 100px) !important;
-    max-width: 100% !important;
-  }
-
-  .welcome-section {
-    padding: 20px 16px !important;
-  }
-
-  .gradient-text {
-    font-size: 1.5rem !important;
-  }
-
-  .max-width-75 {
-    max-width: 85%;
-  }
-
-  .max-width-80 {
-    max-width: 90%;
-  }
-
-  .suggestion-card {
-    min-height: 70px !important;
-  }
-
-  .max-width-90 {
-    max-width: 95%;
-  }
+/* ── Feedback dialog ────────────────────────────────────────────────── */
+.feedback-popup {
+  border-radius: 16px !important;
+  overflow: hidden;
 }
 
-/* Feedback and follow-up components */
-.feedback-card {
-  transition: all 0.3s ease;
+.feedback-emoji-large {
+  font-size: 44px;
+  line-height: 1;
 }
 
-.feedback-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12) !important;
+.rating-label {
+  min-height: 20px;
+  transition: color 0.2s;
 }
 
-.star-btn {
-  transition: all 0.2s ease;
-}
-
-.star-btn:hover {
-  transform: scale(1.1);
-}
-
+/* ── Final thank you message ─────────────────────────────────────────── */
 .final-message {
   animation: slideInUp 0.5s ease-out;
 }
@@ -1358,7 +1487,48 @@ watch(
   }
 }
 
+/* ── Mobile responsive ──────────────────────────────────────────────── */
 .max-width-90 {
   max-width: 90%;
+}
+
+@media (max-width: 768px) {
+  .chat-app {
+    height: 100%; /* VMain handles the full height */
+  }
+
+  .salma-mascot-wrapper {
+    width: 110px;
+    height: 110px;
+  }
+
+  .salma-mascot-img {
+    width: 110px;
+    height: 110px;
+  }
+
+  .max-width-75 {
+    max-width: 88%;
+  }
+
+  .max-width-80 {
+    max-width: 92%;
+  }
+
+  .max-width-90 {
+    max-width: 96%;
+  }
+
+  .welcome-section {
+    padding: 16px !important;
+  }
+
+  .gradient-text {
+    font-size: 1.2rem !important;
+  }
+
+  .suggestion-card {
+    min-height: 64px !important;
+  }
 }
 </style>

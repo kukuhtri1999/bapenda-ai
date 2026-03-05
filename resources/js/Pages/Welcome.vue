@@ -179,7 +179,7 @@ function handleImageError() {
                 class="me-2"
               />
               <VImg
-                src="/images/logo-polri.png"
+                src="/images/Lambang_Polda_Jatim.png"
                 alt="Logo Polri"
                 contain
                 height="40"
@@ -245,6 +245,16 @@ function handleImageError() {
           <VRow align="center" justify="center" class="text-center">
             <VCol cols="12" md="8" lg="8">
               <div class="hero-content">
+                <div
+                  class="salma-msg-avatar me-2 mt-1 flex-shrink-0 place-items-center"
+                >
+                  <img
+                    src="/images/salma2.gif"
+                    alt="SALMA"
+                    loading="lazy"
+                    class="salma-mascot"
+                  />
+                </div>
                 <h1 class="display-1 text-h2 font-weight-bold text-white mb-6">
                   SALMA AI <br />
                   <span class="text-3xl">Samsat Lamongan Modern Assistant</span>
@@ -289,7 +299,7 @@ function handleImageError() {
                 </div>
 
                 <!-- Stats -->
-                <VRow class="mt-8">
+                <!-- <VRow class="mt-8">
                   <VCol cols="4">
                     <div class="stat-item">
                       <h3 class="text-h4 font-weight-bold text-white">24/7</h3>
@@ -310,7 +320,7 @@ function handleImageError() {
                       <p class="text-white-70">Respon Cepat</p>
                     </div>
                   </VCol>
-                </VRow>
+                </VRow> -->
               </div>
             </VCol>
           </VRow>
@@ -1119,6 +1129,14 @@ function handleImageError() {
 /* Quick Actions Section */
 .quick-actions-section {
   background: linear-gradient(to bottom, #f8f9fa, #ffffff);
+}
+
+.salma-mascot {
+  width: 180px;
+  height: 240px;
+  /* border-radius: 50%; */
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .question-card {

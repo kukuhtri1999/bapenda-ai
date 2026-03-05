@@ -79,8 +79,8 @@ onMounted(() => {
               class="me-2"
             />
             <VImg
-              src="/images/logo-polri.png"
-              alt="Logo Polri"
+              src="/images/Lambang_Polda_Jatim.png"
+              alt="Logo Polda Jatim"
               contain
               height="40"
               width="40"
