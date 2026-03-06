@@ -48,6 +48,8 @@ Route::middleware([
     Route::post('/knowledge-base/bulk-action', [KnowledgeBaseController::class, 'bulkAction'])->name('knowledge-base.bulk-action');
     Route::post('/knowledge-base/sync-pinecone', [KnowledgeBaseController::class, 'syncPinecone'])->name('knowledge-base.sync-pinecone');
     Route::get('/knowledge-base/{knowledgeBase}/download', [KnowledgeBaseController::class, 'downloadFile'])->name('knowledge-base.download');
+    Route::post('/knowledge-base/{knowledgeBase}/score', [KnowledgeBaseController::class, 'computeScore'])->name('knowledge-base.score');
+    Route::post('/knowledge-base/{knowledgeBase}/enhance', [KnowledgeBaseController::class, 'enhanceWithAI'])->name('knowledge-base.enhance');
     // Batch upload routes
     Route::post('/knowledge-base/batch/init', [KnowledgeBaseController::class, 'batchUploadInit'])->name('knowledge-base.batch-init');
     Route::post('/knowledge-base/batch/{batchId}/process/{fileIndex}', [KnowledgeBaseController::class, 'batchUploadProcessFile'])->name('knowledge-base.batch-process');

@@ -1067,7 +1067,7 @@ class KnowledgeBaseController extends Controller
             'status'      => $batch->status,
             'total_files' => $batch->total_files,
             'processed'   => $batch->processed,
-            'failed'      => $batch->failed,
+            'failed'       => $batch->failed,
             'progress'    => $batch->progress,
             'files'       => array_map(fn($f) => [
                 'original_name' => $f['original_name'],
@@ -1078,5 +1078,80 @@ class KnowledgeBaseController extends Controller
                 'kb_title'      => $f['kb_title'] ?? null,
             ], $batch->files ?? []),
         ]);
+    }
+
+    /**
+     * Compute an AI quality score (0.00 – 1.00) for a KB entry and persist it.
+     */
+    public function computeScore(KnowledgeBase $knowledgeBase)
+    {
+        try {
+            $openAI = app(\App\Services\OpenAIService::class);
+            $result = $openAI->scoreKnowledgeBase($knowledgeBase);
+
+            if ($result['success']) {
+                $knowledgeBase->quality_score    = $result['score'];
+                $knowledgeBase->quality_scored_at = now();
+                $knowledgeBase->saveQuietly(); // skip event observers (no re-index needed just for score)
+
+                return response()->json([
+                    'success' => true,
+                    'score'   => $result['score'],
+                    'breakdown' => $result['breakdown'] ?? null,
+                    'message' => $result['reasoning'] ?? 'Score computed.',
+                ]);
+            }
+
+            return response()->json(['success' => false, 'message' => $result['error'] ?? 'Scoring failed'], 500);
+        } catch (\Throwable $e) {
+            Log::error('KB computeScore error', ['id' => $knowledgeBase->id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Enhance the KB entry's content with AI and re-index to vector DB.
+     */
+    public function enhanceWithAI(KnowledgeBase $knowledgeBase)
+    {
+        try {
+            $openAI = app(\App\Services\OpenAIService::class);
+            $result = $openAI->enhanceKnowledgeBase($knowledgeBase);
+
+            if ($result['success']) {
+                // Apply enhanced fields (only update fields that were improved)
+                if (!empty($result['title']))   $knowledgeBase->title   = $result['title'];
+                if (!empty($result['question'])) $knowledgeBase->question = $result['question'];
+                if (!empty($result['answer']))  $knowledgeBase->answer  = $result['answer'];
+                if (!empty($result['content'])) $knowledgeBase->content = $result['content'];
+                if (!empty($result['keywords'])) $knowledgeBase->keywords = $result['keywords'];
+
+                // Recompute search content
+                $knowledgeBase->generateSearchContent();
+
+                // Persist (triggers updateVectorDatabase via boot observer)
+                $knowledgeBase->save();
+
+                // Immediately re-score after enhancement
+                $scoreResult = $openAI->scoreKnowledgeBase($knowledgeBase);
+                if ($scoreResult['success']) {
+                    $knowledgeBase->quality_score    = $scoreResult['score'];
+                    $knowledgeBase->quality_scored_at = now();
+                    $knowledgeBase->saveQuietly();
+                }
+
+                return response()->json([
+                    'success'     => true,
+                    'message'     => 'Konten berhasil ditingkatkan dengan AI.',
+                    'quality_score' => $knowledgeBase->quality_score,
+                    'changes_summary' => $result['changes_summary'] ?? null,
+                ]);
+            }
+
+            return response()->json(['success' => false, 'message' => $result['error'] ?? 'Enhancement failed'], 500);
+        } catch (\Throwable $e) {
+            Log::error('KB enhanceWithAI error', ['id' => $knowledgeBase->id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 }

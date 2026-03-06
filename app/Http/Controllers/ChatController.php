@@ -190,11 +190,13 @@ class ChatController extends Controller
             ];
         }
 
-        // Get AI response with session-specific context
+        // Get AI response with session-specific context (track response time)
+        $aiStartTime = microtime(true);
         $aiResponse = $this->openAIService->generateCustomerServiceResponse(
             $currentContext,
             "Session ID: {$request->session_id}, Current time: " . now()->format('Y-m-d H:i:s')
         );
+        $aiResponseTime = round(microtime(true) - $aiStartTime, 2);
 
         // Classify the user message quickly using classification endpoint (single-item)
         $topic = null;
@@ -221,10 +223,11 @@ class ChatController extends Controller
         }
 
         if ($aiResponse['success']) {
-            // Update existing user message with AI answer + topic/sentiment
+            // Update existing user message with AI answer + topic/sentiment + response time
             $userMessage->answer = $aiResponse['message'];
             $userMessage->topic = $topic;
             $userMessage->sentiment = $sentiment;
+            $userMessage->response_time_seconds = $aiResponseTime;
             $meta = $userMessage->metadata ?? [];
             $meta['tokens_used'] = $aiResponse['usage'] ?? null;
             $meta['model'] = config('services.openai.model');

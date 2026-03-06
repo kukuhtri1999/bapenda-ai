@@ -1,155 +1,266 @@
 <template>
   <AppLayout title="AI Chat History">
-    <div class="p-6">
-      <div class="flex flex-wrap items-end gap-3 mb-4">
+    <div class="ch-page">
+      <!-- ── Page Header ─────────────────────────────────────── -->
+      <div class="ch-header mb-6">
         <div>
-          <label class="block text-xs text-gray-600">Search</label>
-          <input
-            v-model="q"
-            @input="debouncedFetch()"
-            placeholder="Cari pertanyaan..."
-            class="px-3 py-2 border rounded w-64"
-          />
+          <h1 class="ch-title">Riwayat Chat AI</h1>
+          <p class="ch-sub">
+            Telusuri dan filter semua percakapan dengan SALMA AI
+          </p>
         </div>
-        <div>
-          <label class="block text-xs text-gray-600">Start date</label>
-          <input
-            ref="startFlat"
-            type="text"
-            v-model="startDisplay"
-            placeholder="dd/mm/yyyy"
-            class="px-3 py-2 border rounded w-40"
-          />
-        </div>
-        <div>
-          <label class="block text-xs text-gray-600">End date</label>
-          <input
-            ref="endFlat"
-            type="text"
-            v-model="endDisplay"
-            placeholder="dd/mm/yyyy"
-            class="px-3 py-2 border rounded w-40"
-          />
-        </div>
-        <div>
-          <label class="block text-xs text-gray-600">Sentiment</label>
-          <select
-            v-model="sentiment"
-            @change="fetchRows()"
-            class="px-3 py-2 border rounded w-40"
-          >
-            <option value="">All</option>
-            <option value="positive">Positive</option>
-            <option value="neutral">Neutral</option>
-            <option value="negative">Negative</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs text-gray-600">Topic</label>
-          <select
-            v-model="topic"
-            @change="fetchRows()"
-            class="px-3 py-2 border rounded w-56"
-          >
-            <option value="">All topics</option>
-            <option v-for="t in topics" :key="t" :value="t">
-              {{ formatTopic(t) }}
-            </option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs text-gray-600">Per page</label>
-          <select
-            v-model.number="perPage"
-            @change="fetchRows()"
-            class="px-3 py-2 border rounded w-28"
-          >
-            <option v-for="n in perPageOptions" :key="n" :value="n">
-              {{ n }}
-            </option>
-          </select>
-        </div>
-        <div class="ml-auto">
-          <button @click="clearFilters" class="px-3 py-2 border rounded">
-            Clear
-          </button>
+        <span class="ch-total-badge"
+          >{{ total.toLocaleString('id-ID') }} pesan</span
+        >
+        <span v-if="avgResponseTime !== null" class="ch-avg-badge">
+          Rata-rata jawab AI: <strong>{{ avgResponseTime }}s</strong>
+        </span>
+      </div>
+
+      <!-- ── Filter Bar ──────────────────────────────────────── -->
+      <div class="ch-filter-card mb-5">
+        <div class="ch-filter-grid">
+          <div class="ch-field">
+            <label class="ch-label">Cari</label>
+            <div class="ch-input-wrap">
+              <svg
+                class="ch-input-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                v-model="q"
+                @input="debouncedFetch()"
+                placeholder="Cari pertanyaan..."
+                class="ch-input ch-input-padded"
+              />
+            </div>
+          </div>
+
+          <div class="ch-field">
+            <label class="ch-label">Dari Tanggal</label>
+            <input
+              ref="startFlat"
+              type="text"
+              v-model="startDisplay"
+              placeholder="dd/mm/yyyy"
+              class="ch-input"
+            />
+          </div>
+
+          <div class="ch-field">
+            <label class="ch-label">Sampai Tanggal</label>
+            <input
+              ref="endFlat"
+              type="text"
+              v-model="endDisplay"
+              placeholder="dd/mm/yyyy"
+              class="ch-input"
+            />
+          </div>
+
+          <div class="ch-field">
+            <label class="ch-label">Sentimen</label>
+            <select v-model="sentiment" @change="fetchRows()" class="ch-input">
+              <option value="">Semua</option>
+              <option value="positive">Positif</option>
+              <option value="neutral">Netral</option>
+              <option value="negative">Negatif</option>
+            </select>
+          </div>
+
+          <div class="ch-field">
+            <label class="ch-label">Topik</label>
+            <select v-model="topic" @change="fetchRows()" class="ch-input">
+              <option value="">Semua topik</option>
+              <option v-for="t in topics" :key="t" :value="t">
+                {{ formatTopic(t) }}
+              </option>
+            </select>
+          </div>
+
+          <div class="ch-field">
+            <label class="ch-label">Per Halaman</label>
+            <select
+              v-model.number="perPage"
+              @change="fetchRows()"
+              class="ch-input"
+            >
+              <option v-for="n in perPageOptions" :key="n" :value="n">
+                {{ n }}
+              </option>
+            </select>
+          </div>
+
+          <div class="ch-field ch-field-action">
+            <button @click="clearFilters" class="ch-btn-outline">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 .49-3.51" />
+              </svg>
+              Reset Filter
+            </button>
+          </div>
         </div>
       </div>
 
-      <div class="bg-white rounded shadow overflow-auto relative">
+      <!-- ── Table Card ──────────────────────────────────────── -->
+      <div class="ch-table-card">
+        <!-- Loading overlay -->
         <Transition name="fade">
-          <div
-            v-if="loading"
-            class="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-10"
-          >
-            <div class="flex flex-col items-center gap-3">
-              <svg
-                class="animate-spin h-8 w-8 text-blue-600"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  class="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  stroke-width="4"
-                ></circle>
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                ></path>
-              </svg>
-              <span class="text-sm text-gray-600">Loading messages…</span>
-            </div>
+          <div v-if="loading" class="ch-loading">
+            <svg
+              class="ch-spinner"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+              ></path>
+            </svg>
+            <span>Memuat data…</span>
           </div>
         </Transition>
-        <table class="min-w-full text-sm">
-          <thead class="bg-gray-50 text-left">
-            <tr>
-              <th class="p-3 w-16">ID</th>
-              <th class="p-3">Content / Question</th>
-              <th class="p-3 w-28">Sentiment</th>
-              <th class="p-3 w-56">Topic</th>
-              <th class="p-3 w-56">Sent At</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in rows" :key="row.id" class="border-t align-top">
-              <td class="p-3 text-gray-600">{{ row.id }}</td>
-              <td class="p-3 whitespace-pre-wrap">{{ row.content }}</td>
-              <td class="p-3 capitalize">{{ row.sentiment || '-' }}</td>
-              <td class="p-3">
-                {{ row.topic ? formatTopic(row.topic) : '-' }}
-              </td>
-              <td class="p-3">{{ formatDateTime(row.sent_at) }}</td>
-            </tr>
-            <tr v-if="!loading && rows.length === 0">
-              <td colspan="5" class="p-6 text-center text-gray-500">No data</td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="p-3 flex items-center justify-between">
-          <div class="text-xs text-gray-600">
-            Page {{ page }} of {{ lastPage }} — {{ total }} total
+
+        <div class="ch-table-wrap">
+          <table class="ch-table">
+            <thead>
+              <tr>
+                <th class="th-id">ID</th>
+                <th>Isi / Pertanyaan</th>
+                <th class="th-sm">Sentimen</th>
+                <th class="th-md">Topik</th>
+                <th class="th-sm">Waktu Jawab</th>
+                <th class="th-md">Tanggal Kirim</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in rows" :key="row.id" class="ch-row">
+                <td class="td-id">{{ row.id }}</td>
+                <td class="td-content">{{ row.content }}</td>
+                <td>
+                  <span
+                    v-if="row.sentiment"
+                    :class="`sentiment-badge sentiment-${row.sentiment}`"
+                    >{{ formatTopic(row.sentiment) }}</span
+                  >
+                  <span v-else class="td-empty">—</span>
+                </td>
+                <td>
+                  <span v-if="row.topic" class="topic-badge">{{
+                    formatTopic(row.topic)
+                  }}</span>
+                  <span v-else class="td-empty">—</span>
+                </td>
+                <td>
+                  <span
+                    v-if="row.response_time_seconds != null"
+                    class="rt-badge"
+                    >{{ row.response_time_seconds }}s</span
+                  >
+                  <span v-else class="td-empty">—</span>
+                </td>
+                <td class="td-date">{{ formatDateTime(row.sent_at) }}</td>
+              </tr>
+              <tr v-if="!loading && rows.length === 0">
+                <td colspan="6" class="ch-empty">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="36"
+                    height="36"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <span>Tidak ada data ditemukan</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination footer -->
+        <div class="ch-footer">
+          <div class="ch-pagination-info">
+            Halaman <strong>{{ page }}</strong> dari
+            <strong>{{ lastPage }}</strong> &mdash;
+            <strong>{{ total.toLocaleString('id-ID') }}</strong> total
           </div>
-          <div class="flex gap-2">
+          <div class="ch-pagination-btns">
             <button
-              class="px-3 py-1 border rounded"
               :disabled="page <= 1 || loading"
               @click="go(page - 1)"
+              class="ch-page-btn"
             >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
               Prev
             </button>
             <button
-              class="px-3 py-1 border rounded"
               :disabled="page >= lastPage || loading"
               @click="go(page + 1)"
+              class="ch-page-btn"
             >
               Next
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             </button>
           </div>
         </div>
@@ -177,6 +288,7 @@ const formatTopic = (s) => {
 const rows = ref([]);
 const topics = ref([]);
 const loading = ref(false);
+const avgResponseTime = ref(null);
 const q = ref('');
 const topic = ref('');
 const sentiment = ref('');
@@ -269,6 +381,7 @@ onMounted(async () => {
   try {
     const meta = await axios.get('/api/admin/chat-history/meta');
     topics.value = meta.data?.topics || [];
+    avgResponseTime.value = meta.data?.avg_response_time_seconds ?? null;
   } catch {}
 
   // init flatpickr
@@ -314,11 +427,381 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* Simple, clean table UI */
-th,
-td {
+/* ── Page ─────────────────────────────────────────────────── */
+.ch-page {
+  padding: 24px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ── Page Header ──────────────────────────────────────────── */
+.ch-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ch-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 3px;
+}
+
+.ch-sub {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.ch-total-badge {
+  background: #ede9fe;
+  color: #5b21b6;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ch-avg-badge {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+/* ── Filter Card ──────────────────────────────────────────── */
+.ch-filter-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+
+.ch-filter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.ch-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ch-field-action {
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.ch-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ch-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ch-input-icon {
+  position: absolute;
+  left: 10px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.ch-input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #1e293b;
+  background: #fff;
+  outline: none;
+  min-width: 140px;
+  transition: border-color 0.2s;
+  appearance: auto;
+}
+
+.ch-input-padded {
+  padding-left: 32px;
+}
+
+.ch-input:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.08);
+}
+
+.ch-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.ch-btn-outline:hover {
+  border-color: #7c3aed;
+  color: #7c3aed;
+  background: #faf5ff;
+}
+
+/* ── Table Card ───────────────────────────────────────────── */
+.ch-table-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Loading ──────────────────────────────────────────────── */
+.ch-loading {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  z-index: 10;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.ch-spinner {
+  width: 30px;
+  height: 30px;
+  animation: spin 0.8s linear infinite;
+  color: #7c3aed;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Table ────────────────────────────────────────────────── */
+.ch-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ch-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.ch-table thead tr {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ch-table th {
+  padding: 11px 14px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.th-id {
+  width: 60px;
+}
+.th-sm {
+  width: 110px;
+}
+.th-md {
+  width: 200px;
+}
+
+.ch-table td {
+  padding: 11px 14px;
+  color: #1e293b;
   vertical-align: top;
 }
+
+.ch-row {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.15s;
+}
+
+.ch-row:last-child {
+  border-bottom: none;
+}
+.ch-row:hover {
+  background: #faf5ff;
+}
+
+.td-id {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+.td-content {
+  line-height: 1.5;
+  white-space: pre-wrap;
+  max-width: 380px;
+}
+
+.td-date {
+  font-size: 0.8rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.td-empty {
+  color: #cbd5e1;
+}
+
+/* ── Sentiment Badges ─────────────────────────────────────── */
+.sentiment-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.sentiment-positive {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.sentiment-neutral {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.sentiment-negative {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* ── Topic Badge ──────────────────────────────────────────── */
+.topic-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* ── Response Time Badge ──────────────────────────────────── */
+.rt-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Empty State ──────────────────────────────────────────── */
+.ch-empty {
+  text-align: center !important;
+  padding: 48px 16px !important;
+  color: #94a3b8;
+}
+
+.ch-empty svg {
+  display: block;
+  margin: 0 auto 10px;
+  opacity: 0.4;
+}
+
+.ch-empty span {
+  display: block;
+}
+
+/* ── Footer ───────────────────────────────────────────────── */
+.ch-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ch-pagination-info {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.ch-pagination-btns {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ch-page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ch-page-btn:hover:not(:disabled) {
+  border-color: #7c3aed;
+  color: #7c3aed;
+  background: #faf5ff;
+}
+
+.ch-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Transitions ──────────────────────────────────────────── */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.2s ease;
@@ -326,5 +809,25 @@ td {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* ── Mobile ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .ch-page {
+    padding: 16px;
+  }
+  .ch-filter-grid {
+    flex-direction: column;
+  }
+  .ch-field {
+    width: 100%;
+  }
+  .ch-field-action {
+    margin-left: 0;
+  }
+  .ch-input {
+    width: 100%;
+    min-width: 0;
+  }
 }
 </style>

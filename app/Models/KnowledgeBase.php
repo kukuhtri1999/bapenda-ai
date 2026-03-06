@@ -39,6 +39,8 @@ class KnowledgeBase extends Model
         'created_by',
         'updated_by',
         'search_content',
+        'quality_score',
+        'quality_scored_at',
     ];
 
     protected $casts = [
@@ -53,6 +55,8 @@ class KnowledgeBase extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
         'images' => 'array',
+        'quality_score' => 'float',
+        'quality_scored_at' => 'datetime',
     ];
 
     protected $dates = [

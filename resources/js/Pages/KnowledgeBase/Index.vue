@@ -35,6 +35,7 @@ const headers = [
   { title: 'Status', key: 'status', sortable: true },
   { title: 'Active', key: 'is_active', sortable: true },
   // { title: "Views", key: "view_count", sortable: true },
+  { title: 'Quality', key: 'quality_score', sortable: true },
   { title: 'Created', key: 'created_at', sortable: true },
   { title: 'Actions', key: 'actions', sortable: false },
 ];
@@ -60,8 +61,91 @@ const bulkActions = [
   { title: 'Archive Selected', value: 'archive' },
 ];
 
-// New sections data
-const analysisTab = ref('overview');
+// ── Quality Score & Enhance ─────────────────────────────────────────────────
+// Track per-item loading states using item IDs
+const scoringItems = ref(new Set());
+const enhancingItems = ref(new Set());
+// Local score overrides keyed by item id (for optimistic UI update)
+const localScores = ref({});
+// Enhance result dialog
+const enhanceDialog = ref(false);
+const enhanceResult = ref(null);
+const enhanceError = ref(null);
+
+const getScore = (item) => {
+  if (localScores.value[item.id] !== undefined) return localScores.value[item.id];
+  return item.quality_score;
+};
+
+const scoreColorClass = (score) => {
+  if (score === null || score === undefined) return 'qs-none';
+  if (score >= 0.85) return 'qs-high';
+  if (score >= 0.6) return 'qs-mid';
+  return 'qs-low';
+};
+
+const computeScore = async (item) => {
+  if (scoringItems.value.has(item.id)) return;
+  scoringItems.value = new Set([...scoringItems.value, item.id]);
+  try {
+    const csrfToken = document.head.querySelector(
+      'meta[name="csrf-token"]',
+    )?.content;
+    const res = await axios.post(
+      route('knowledge-base.score', item.id),
+      {},
+      { headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' } },
+    );
+    if (res.data.success) {
+      localScores.value = { ...localScores.value, [item.id]: res.data.score };
+    }
+  } catch (err) {
+    console.error('Score error:', err);
+  } finally {
+    const s = new Set(scoringItems.value);
+    s.delete(item.id);
+    scoringItems.value = s;
+  }
+};
+
+const enhanceItem = async (item) => {
+  if (enhancingItems.value.has(item.id)) return;
+  enhanceResult.value = null;
+  enhanceError.value = null;
+  enhancingItems.value = new Set([...enhancingItems.value, item.id]);
+  try {
+    const csrfToken = document.head.querySelector(
+      'meta[name="csrf-token"]',
+    )?.content;
+    const res = await axios.post(
+      route('knowledge-base.enhance', item.id),
+      {},
+      { headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' } },
+    );
+    if (res.data.success) {
+      enhanceResult.value = res.data;
+      if (res.data.quality_score !== undefined) {
+        localScores.value = {
+          ...localScores.value,
+          [item.id]: res.data.quality_score,
+        };
+      }
+      enhanceDialog.value = true;
+      // Reload the page data to reflect KB content changes
+      router.reload({ only: ['knowledgeBases'] });
+    } else {
+      enhanceError.value = res.data.message || 'Enhancement failed';
+      enhanceDialog.value = true;
+    }
+  } catch (err) {
+    enhanceError.value = err.response?.data?.message || err.message || 'Request failed';
+    enhanceDialog.value = true;
+  } finally {
+    const s = new Set(enhancingItems.value);
+    s.delete(item.id);
+    enhancingItems.value = s;
+  }
+};
 
 const implementationSteps = ref([
   {
@@ -822,9 +906,30 @@ const startBatchUpload = async () => {
             </div>
           </template>
 
-          <!-- Actions column -->
+          <!-- Quality Score column -->
+          <template #item.quality_score="{ item }">
+            <div class="d-flex align-center gap-1">
+              <span
+                v-if="getScore(item) !== null && getScore(item) !== undefined"
+                :class="['qs-badge', scoreColorClass(getScore(item))]"
+                :title="`Score: ${getScore(item)}`"
+                >{{ (getScore(item) * 100).toFixed(0) }}%</span
+              >
+              <span v-else class="qs-badge qs-none">—</span>
+              <VBtn
+                :loading="scoringItems.has(item.id)"
+                size="x-small"
+                icon
+                variant="text"
+                color="grey"
+                @click="computeScore(item)"
+              >
+                <VIcon size="13">mdi-refresh</VIcon>
+              </VBtn>
+            </div>
+          </template>
           <template #item.actions="{ item }">
-            <div class="d-flex gap-1">
+            <div class="d-flex gap-1 align-center">
               <VBtn
                 size="x-small"
                 icon
@@ -850,6 +955,23 @@ const startBatchUpload = async () => {
                 @click="window.open(route('knowledge-base.download', item.id))"
                 ><VIcon size="16">mdi-download</VIcon></VBtn
               >
+              <!-- Enhance with AI -->
+              <VTooltip text="Enhance dengan AI GPT-4o" location="top">
+                <template #activator="{ props: tip }">
+                  <VBtn
+                    v-bind="tip"
+                    size="x-small"
+                    icon
+                    variant="text"
+                    :color="
+                      enhancingItems.has(item.id) ? 'grey' : 'deep-purple'
+                    "
+                    :loading="enhancingItems.has(item.id)"
+                    @click="enhanceItem(item)"
+                    ><VIcon size="16">mdi-auto-fix</VIcon></VBtn
+                  >
+                </template>
+              </VTooltip>
               <VBtn
                 size="x-small"
                 icon
@@ -890,7 +1012,7 @@ const startBatchUpload = async () => {
 
         <!-- Pagination -->
         <VDivider />
-        <div class="pa-3 d-flex justify-center">
+        <div class="pa-6 d-flex justify-center">
           <VPagination
             :model-value="knowledgeBases.current_page"
             :length="knowledgeBases.last_page"
@@ -1430,6 +1552,81 @@ const startBatchUpload = async () => {
           </VCardActions>
         </VCard>
       </VDialog>
+
+      <!-- ── AI Enhance Result Dialog ─────────────────────────────────────── -->
+      <VDialog v-model="enhanceDialog" max-width="520">
+        <VCard rounded="lg" border>
+          <VCardTitle class="d-flex align-center px-5 pt-5 pb-2 gap-3">
+            <div
+              class="kb-dialog-icon"
+              :style="{
+                background: enhanceError
+                  ? '#fef2f2'
+                  : 'linear-gradient(135deg,#7c3aed,#a855f7)',
+              }"
+            >
+              <VIcon :color="enhanceError ? 'error' : 'white'" size="18">
+                {{ enhanceError ? 'mdi-alert-circle' : 'mdi-auto-fix' }}
+              </VIcon>
+            </div>
+            <span
+              class="text-h6 font-weight-bold"
+              style="font-size: 1rem !important"
+            >
+              {{
+                enhanceError
+                  ? 'Enhancement Gagal'
+                  : 'Konten Berhasil Ditingkatkan!'
+              }}
+            </span>
+          </VCardTitle>
+          <VCardText class="px-5 pb-4">
+            <template v-if="enhanceError">
+              <p class="text-body-2 text-error mb-0">{{ enhanceError }}</p>
+            </template>
+            <template v-else-if="enhanceResult">
+              <div class="d-flex align-center gap-3 mb-4">
+                <div class="qs-result-score">
+                  <span class="qs-result-num"
+                    >{{
+                      enhanceResult.quality_score != null
+                        ? (enhanceResult.quality_score * 100).toFixed(0)
+                        : '—'
+                    }}%</span
+                  >
+                  <span class="qs-result-label">Quality Score</span>
+                </div>
+                <p class="text-body-2 mb-0 flex-1">
+                  {{
+                    enhanceResult.changes_summary ||
+                    'Konten berhasil ditingkatkan dengan AI dan telah disimpan ke database.'
+                  }}
+                </p>
+              </div>
+              <VAlert
+                type="success"
+                variant="tonal"
+                border="start"
+                density="compact"
+                rounded="lg"
+                class="text-caption"
+              >
+                Konten telah di-re-index ke vector database. Score baru sudah
+                terefleksi di tabel.
+              </VAlert>
+            </template>
+          </VCardText>
+          <VCardActions class="px-5 pb-4 pt-0 justify-end">
+            <VBtn
+              color="primary"
+              variant="flat"
+              rounded="lg"
+              @click="enhanceDialog = false"
+              >Tutup</VBtn
+            >
+          </VCardActions>
+        </VCard>
+      </VDialog>
     </div>
   </AppLayout>
 </template>
@@ -1611,5 +1808,62 @@ const startBatchUpload = async () => {
 }
 .min-w-0 {
   min-width: 0;
+}
+
+/* ── Quality Score Badge ─────────────────────────────────────────────── */
+.qs-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+.qs-high {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.qs-mid {
+  background: #fef9c3;
+  color: #a16207;
+  border: 1px solid #fde68a;
+}
+.qs-low {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+.qs-none {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+}
+
+/* ── Enhance Result Dialog ───────────────────────────────────────────── */
+.qs-result-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+  padding: 10px 16px;
+  min-width: 80px;
+  flex-shrink: 0;
+}
+.qs-result-num {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #7c3aed;
+  line-height: 1;
+}
+.qs-result-label {
+  font-size: 0.68rem;
+  color: #7c3aed;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-top: 3px;
 }
 </style>

@@ -21,19 +21,19 @@ class ChatHistoryController extends Controller
     $allowed = [10, 25, 50, 100];
     if (!in_array($per, $allowed, true)) $per = 10;
 
-    $q = (string) $request->query('q', '');
+    $q         = (string) $request->query('q', '');
     $sentiment = $request->query('sentiment');
-    $topic = $request->query('topic');
-    $start = $request->query('start_date'); // yyyy-mm-dd
-    $end = $request->query('end_date'); // yyyy-mm-dd
+    $topic     = $request->query('topic');
+    $start     = $request->query('start_date'); // yyyy-mm-dd
+    $end       = $request->query('end_date');   // yyyy-mm-dd
 
     $query = ChatMessage::query()
-      ->select('id', 'content', 'sentiment', 'topic', 'sent_at')
+      ->select('id', 'content', 'answer', 'sentiment', 'topic', 'response_time_seconds', 'sent_at')
       ->orderByDesc('sent_at');
 
     if ($q !== '') {
       $query->where(function ($x) use ($q) {
-        $x->where('content', 'LIKE', "%" . $q . "%");
+        $x->where('content', 'LIKE', '%' . $q . '%');
       });
     }
     if ($sentiment && in_array($sentiment, ['positive', 'neutral', 'negative'], true)) {
@@ -52,7 +52,7 @@ class ChatHistoryController extends Controller
     return $query->paginate($per);
   }
 
-  // Meta for filters (distinct topics)
+  // Meta for filters (distinct topics + avg response time)
   public function meta()
   {
     $topics = ChatMessage::query()
@@ -64,9 +64,17 @@ class ChatHistoryController extends Controller
       ->limit(200)
       ->pluck('topic');
 
+    $avgResponseTime = ChatMessage::query()
+      ->whereNotNull('response_time_seconds')
+      ->where('response_time_seconds', '>', 0)
+      ->avg('response_time_seconds');
+
     return response()->json([
-      'topics' => $topics,
-      'sentiments' => ['positive', 'neutral', 'negative'],
+      'topics'                     => $topics,
+      'sentiments'                 => ['positive', 'neutral', 'negative'],
+      'avg_response_time_seconds'  => $avgResponseTime
+        ? round((float) $avgResponseTime, 2)
+        : null,
     ]);
   }
 }

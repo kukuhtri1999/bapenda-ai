@@ -84,6 +84,12 @@ const chatTotal = animatedValue(chatAllTotal || 0, 1000);
 const analyticsTotal = animatedValue(analyticsAllTotal || 0, 1000);
 const kbTotal = animatedValue(kbAllTotal || 0, 1000);
 
+// Average AI response time (comes directly from server, not animated)
+const avgResponseTime = computed(() => {
+  const v = metrics.value?.avg_response_time;
+  return v != null ? Number(v).toFixed(2) : null;
+});
+
 const quickActions = [
   {
     title: 'Kelola Pengguna',
@@ -122,250 +128,175 @@ onMounted(() => {
 
 <template>
   <AppLayout title="Dashboard">
-    <div class="pa-10">
-      <!-- Welcome Header -->
-      <div class="mb-8">
-        <h1 class="text-h4 font-weight-bold text-grey-800 mb-2">
-          Selamat datang, {{ $page.props.auth.user.name }}!
-        </h1>
-        <p class="text-body-1 text-grey-600">
-          Berikut ringkasan data sistem Anda saat ini.
-        </p>
+    <div class="dash-page">
+      <!-- ── Hero Welcome Banner ─────────────────────────────────── -->
+      <div class="dash-hero mb-8">
+        <div class="dash-hero-content">
+          <div class="dash-hero-avatar">
+            <VIcon size="40" color="white">mdi-account-circle</VIcon>
+          </div>
+          <div>
+            <h1 class="dash-hero-title">
+              Selamat datang, {{ $page.props.auth.user.name }}!
+            </h1>
+            <p class="dash-hero-sub">
+              Berikut ringkasan data sistem SALMA AI hari ini.
+            </p>
+          </div>
+        </div>
+        <VBtn
+          variant="flat"
+          color="white"
+          class="dash-hero-btn"
+          :href="route('admin.analytics')"
+        >
+          Lihat Analitik
+        </VBtn>
       </div>
 
-      <!-- Domain Metrics (Modern Cards) -->
-      <VRow class="mb-8">
+      <!-- ── Metric Cards ──────────────────────────────────────── -->
+      <VRow class="mb-8" dense>
         <VCol cols="12" sm="6" lg="3">
-          <VCard class="metric-card h-100" elevation="0">
-            <VCardText class="pa-6">
-              <div class="d-flex align-center justify-space-between mb-4">
-                <div class="metric-icon-wrapper purple">
-                  <VIcon color="white" size="24">mdi-account-group</VIcon>
-                </div>
-                <VMenu>
-                  <template #activator="{ props }">
-                    <VBtn
-                      icon="mdi-dots-horizontal"
-                      variant="text"
-                      size="small"
-                      v-bind="props"
-                      class="text-grey-400"
-                    />
-                  </template>
-                  <VList density="compact">
-                    <VListItem>View Details</VListItem>
-                    <VListItem>Export Data</VListItem>
-                  </VList>
-                </VMenu>
-              </div>
-              <div class="mb-2">
-                <h2 class="text-h4 font-weight-bold text-grey-800 mb-1">
-                  {{ wpTotal.toLocaleString('id-ID') }}
-                </h2>
-                <p class="text-body-2 text-grey-600 mb-0">
-                  Total Wajib Pajak (Semua Waktu)
-                </p>
-              </div>
-            </VCardText>
-          </VCard>
-        </VCol>
-
-        <VCol cols="12" sm="6" lg="3">
-          <VCard class="metric-card h-100" elevation="0">
-            <VCardText class="pa-6">
-              <div class="d-flex align-center justify-space-between mb-4">
-                <div class="metric-icon-wrapper blue">
-                  <VIcon color="white" size="24">mdi-account-plus</VIcon>
-                </div>
-                <VMenu>
-                  <template #activator="{ props }">
-                    <VBtn
-                      icon="mdi-dots-horizontal"
-                      variant="text"
-                      size="small"
-                      v-bind="props"
-                      class="text-grey-400"
-                    />
-                  </template>
-                  <VList density="compact">
-                    <VListItem>View Details</VListItem>
-                    <VListItem>Export Data</VListItem>
-                  </VList>
-                </VMenu>
-              </div>
-              <div class="mb-2">
-                <h2 class="text-h4 font-weight-bold text-grey-800 mb-1">
-                  {{ chatTotal.toLocaleString('id-ID') }}
-                </h2>
-                <p class="text-body-2 text-grey-600 mb-0">
-                  Total Pesan AI (Semua Waktu)
-                </p>
-              </div>
-            </VCardText>
-          </VCard>
-        </VCol>
-
-        <VCol cols="12" sm="6" lg="3">
-          <VCard class="metric-card h-100" elevation="0">
-            <VCardText class="pa-6">
-              <div class="d-flex align-center justify-space-between mb-4">
-                <div class="metric-icon-wrapper orange">
-                  <VIcon color="white" size="24">mdi-robot</VIcon>
-                </div>
-                <VMenu>
-                  <template #activator="{ props }">
-                    <VBtn
-                      icon="mdi-dots-horizontal"
-                      variant="text"
-                      size="small"
-                      v-bind="props"
-                      class="text-grey-400"
-                    />
-                  </template>
-                  <VList density="compact">
-                    <VListItem>View Details</VListItem>
-                    <VListItem>Export Data</VListItem>
-                  </VList>
-                </VMenu>
-              </div>
-              <div class="mb-2">
-                <h2 class="text-h4 font-weight-bold text-grey-800 mb-1">
-                  {{ analyticsTotal.toLocaleString('id-ID') }}
-                </h2>
-                <p class="text-body-2 text-grey-600 mb-0">
-                  Total Laporan Analitik AI (Semua Waktu)
-                </p>
-              </div>
-            </VCardText>
-          </VCard>
-        </VCol>
-
-        <VCol cols="12" sm="6" lg="3">
-          <VCard class="metric-card h-100" elevation="0">
-            <VCardText class="pa-6">
-              <div class="d-flex align-center justify-space-between mb-4">
-                <div class="metric-icon-wrapper pink">
-                  <VIcon color="white" size="24">mdi-heart</VIcon>
-                </div>
-                <VMenu>
-                  <template #activator="{ props }">
-                    <VBtn
-                      icon="mdi-dots-horizontal"
-                      variant="text"
-                      size="small"
-                      v-bind="props"
-                      class="text-grey-400"
-                    />
-                  </template>
-                  <VList density="compact">
-                    <VListItem>View Details</VListItem>
-                    <VListItem>Export Data</VListItem>
-                  </VList>
-                </VMenu>
-              </div>
-              <div class="mb-2">
-                <h2 class="text-h4 font-weight-bold text-grey-800 mb-1">
-                  {{ kbTotal.toLocaleString('id-ID') }}
-                </h2>
-                <p class="text-body-2 text-grey-600 mb-0">
-                  Total Knowledge Base (Semua Waktu)
-                </p>
-              </div>
-            </VCardText>
-          </VCard>
-        </VCol>
-      </VRow>
-
-      <!-- Quick Actions Section -->
-      <VRow class="mb-8">
-        <VCol cols="12">
-          <div class="d-flex align-center justify-space-between mb-6">
-            <div>
-              <h2 class="text-h5 font-weight-bold text-grey-800 mb-1">
-                Quick Actions
-              </h2>
-              <p class="text-body-2 text-grey-600 mb-0">
-                Access frequently used features
-              </p>
+          <div class="metric-card">
+            <div class="metric-icon-wrap mc-purple">
+              <VIcon color="white" size="22">mdi-account-group</VIcon>
             </div>
-            <VBtn
-              variant="outlined"
-              color="primary"
-              size="small"
-              prepend-icon="mdi-plus"
-            >
-              Add Action
-            </VBtn>
+            <div class="metric-body">
+              <div class="metric-value">
+                {{ wpTotal.toLocaleString('id-ID') }}
+              </div>
+              <div class="metric-label">Wajib Pajak</div>
+            </div>
+            <div class="metric-sub">Semua waktu</div>
           </div>
+        </VCol>
 
-          <VRow>
-            <VCol
-              v-for="action in quickActions"
-              :key="action.title"
-              cols="12"
-              sm="6"
-              md="3"
-            >
-              <Link :href="route(action.route)" class="text-decoration-none">
-                <VCard class="action-card h-100" elevation="0" hover>
-                  <VCardText class="pa-6 text-center">
-                    <div class="mb-4">
-                      <div :class="`action-icon-wrapper ${action.color}`">
-                        <VIcon color="white" size="24">{{ action.icon }}</VIcon>
-                      </div>
-                    </div>
-                    <h3 class="text-h6 font-weight-bold text-grey-800 mb-2">
-                      {{ action.title }}
-                    </h3>
-                    <p class="text-body-2 text-grey-600 mb-0">
-                      {{ action.description }}
-                    </p>
-                  </VCardText>
-                </VCard>
-              </Link>
-            </VCol>
-          </VRow>
+        <VCol cols="12" sm="6" lg="3">
+          <div class="metric-card">
+            <div class="metric-icon-wrap mc-blue">
+              <VIcon color="white" size="22">mdi-message-text</VIcon>
+            </div>
+            <div class="metric-body">
+              <div class="metric-value">
+                {{ chatTotal.toLocaleString('id-ID') }}
+              </div>
+              <div class="metric-label">Pesan AI</div>
+            </div>
+            <div class="metric-sub">Semua waktu</div>
+          </div>
+        </VCol>
+
+        <VCol cols="12" sm="6" lg="3">
+          <div class="metric-card">
+            <div class="metric-icon-wrap mc-orange">
+              <VIcon color="white" size="22">mdi-chart-areaspline</VIcon>
+            </div>
+            <div class="metric-body">
+              <div class="metric-value">
+                {{ analyticsTotal.toLocaleString('id-ID') }}
+              </div>
+              <div class="metric-label">Laporan Analitik</div>
+            </div>
+            <div class="metric-sub">Semua waktu</div>
+          </div>
+        </VCol>
+
+        <VCol cols="12" sm="6" lg="3">
+          <div class="metric-card">
+            <div class="metric-icon-wrap mc-pink">
+              <VIcon color="white" size="22">mdi-book-open-variant</VIcon>
+            </div>
+            <div class="metric-body">
+              <div class="metric-value">
+                {{ kbTotal.toLocaleString('id-ID') }}
+              </div>
+              <div class="metric-label">Knowledge Base</div>
+            </div>
+            <div class="metric-sub">Semua waktu</div>
+          </div>
+        </VCol>
+
+        <VCol cols="12" sm="6" lg="3">
+          <div class="metric-card">
+            <div class="metric-icon-wrap mc-teal">
+              <VIcon color="white" size="22">mdi-timer-outline</VIcon>
+            </div>
+            <div class="metric-body">
+              <div class="metric-value">
+                <template v-if="avgResponseTime !== null">
+                  {{ avgResponseTime }}<span class="metric-unit">s</span>
+                </template>
+                <template v-else>
+                  <span class="metric-na">—</span>
+                </template>
+              </div>
+              <div class="metric-label">Rata-rata Waktu Jawab AI</div>
+            </div>
+            <div class="metric-sub">Semua riwayat chat</div>
+          </div>
         </VCol>
       </VRow>
 
-      <!-- Recent Activity Section -->
+      <!-- ── Quick Actions ─────────────────────────────────────── -->
+      <div class="section-header mb-4">
+        <div>
+          <h2 class="section-title">Quick Actions</h2>
+          <p class="section-sub">Akses fitur yang sering digunakan</p>
+        </div>
+      </div>
+
+      <VRow class="mb-8" dense>
+        <VCol
+          v-for="action in quickActions"
+          :key="action.title"
+          cols="12"
+          sm="6"
+          md="3"
+        >
+          <Link :href="route(action.route)" class="text-decoration-none">
+            <div class="action-card">
+              <div :class="`action-icon-wrap ac-${action.color}`">
+                <VIcon color="white" size="24">{{ action.icon }}</VIcon>
+              </div>
+              <h3 class="action-title">{{ action.title }}</h3>
+              <p class="action-desc">{{ action.description }}</p>
+            </div>
+          </Link>
+        </VCol>
+      </VRow>
+
+      <!-- ── Bottom Row ────────────────────────────────────────── -->
       <VRow>
         <VCol cols="12" md="8">
-          <VCard class="activity-card" elevation="0">
-            <VCardTitle class="pa-6 pb-0">
-              <div class="d-flex align-center justify-space-between w-100">
-                <div>
-                  <h3 class="text-h6 font-weight-bold text-grey-800">
-                    Recent Activity
-                  </h3>
-                  <p class="text-body-2 text-grey-600 mb-0">
-                    Latest system interactions
-                  </p>
-                </div>
-                <VBtn variant="text" size="small" color="primary">
-                  View All
-                </VBtn>
+          <div class="info-card">
+            <div class="info-card-header">
+              <div>
+                <h3 class="info-card-title">Recent Activity</h3>
+                <p class="info-card-sub">Interaksi sistem terbaru</p>
               </div>
-            </VCardTitle>
-            <VCardText class="pa-6 pt-4">
+              <Link :href="route('admin.analytics')" class="info-card-link">
+                View All
+              </Link>
+            </div>
+            <div class="info-card-body">
               <VAlert
-                :type="metrics.insights.available ? 'success' : 'info'"
+                :type="metrics.insights?.available ? 'success' : 'info'"
                 variant="tonal"
                 border="start"
-                class="mb-0"
+                class="mb-0 rounded-lg"
               >
                 <template #prepend>
                   <VIcon>{{
-                    metrics.insights.available
+                    metrics.insights?.available
                       ? 'mdi-check-decagram'
                       : 'mdi-lightbulb-on-outline'
                   }}</VIcon>
                 </template>
                 <div class="text-body-2">
-                  <template v-if="metrics.insights.available">
-                    Latest AI insight report is available
+                  <template v-if="metrics.insights?.available">
+                    Laporan AI insight tersedia
                     <span
-                      v-if="metrics.insights.period"
+                      v-if="metrics.insights?.period"
                       class="text-medium-emphasis"
                     >
                       ({{ metrics.insights.period[0] }} →
@@ -373,65 +304,52 @@ onMounted(() => {
                     >.
                     <Link
                       :href="route('admin.analytics')"
-                      class="text-primary ml-1"
-                      >View analytics</Link
+                      class="text-primary ms-1"
+                      >Lihat analitik</Link
                     >
                   </template>
                   <template v-else>
-                    No completed AI insight reports yet. Generate from Analytics
-                    page.
+                    Belum ada laporan AI insight. Generate dari halaman
+                    Analytics.
                   </template>
                 </div>
               </VAlert>
-            </VCardText>
-          </VCard>
+            </div>
+          </div>
         </VCol>
 
         <VCol cols="12" md="4">
-          <VCard class="status-card" elevation="0">
-            <VCardText class="pa-6">
-              <div class="d-flex align-center justify-space-between mb-4">
-                <h3 class="text-h6 font-weight-bold text-grey-800">
-                  System Status
-                </h3>
-                <VChip color="success" size="small" variant="tonal">
-                  <VIcon start>mdi-check</VIcon>
-                  Online
-                </VChip>
-              </div>
-
-              <div class="status-items">
-                <div class="status-item">
-                  <div class="d-flex align-center justify-space-between mb-2">
-                    <span class="text-body-2 text-grey-600">API Status</span>
-                    <VIcon color="success" size="16">mdi-circle</VIcon>
-                  </div>
+          <div class="info-card h-100">
+            <div class="info-card-header">
+              <h3 class="info-card-title">System Status</h3>
+              <span class="status-badge-online">
+                <span class="status-dot"></span>
+                Online
+              </span>
+            </div>
+            <div class="info-card-body">
+              <div class="status-list">
+                <div class="status-row">
+                  <span class="status-row-label">API Status</span>
+                  <span class="status-row-val ok">
+                    <VIcon size="14">mdi-circle</VIcon> Aktif
+                  </span>
                 </div>
-                <div class="status-item">
-                  <div class="d-flex align-center justify-space-between mb-2">
-                    <span class="text-body-2 text-grey-600">Database</span>
-                    <VIcon color="success" size="16">mdi-circle</VIcon>
-                  </div>
+                <div class="status-row">
+                  <span class="status-row-label">Database</span>
+                  <span class="status-row-val ok">
+                    <VIcon size="14">mdi-circle</VIcon> Aktif
+                  </span>
                 </div>
-                <div class="status-item">
-                  <div class="d-flex align-center justify-space-between mb-2">
-                    <span class="text-body-2 text-grey-600">AI Service</span>
-                    <VIcon color="success" size="16">mdi-circle</VIcon>
-                  </div>
+                <div class="status-row">
+                  <span class="status-row-label">AI Service</span>
+                  <span class="status-row-val ok">
+                    <VIcon size="14">mdi-circle</VIcon> Aktif
+                  </span>
                 </div>
               </div>
-
-              <VBtn
-                block
-                variant="outlined"
-                color="primary"
-                size="small"
-                class="mt-4"
-              >
-                View Details
-              </VBtn>
-            </VCardText>
-          </VCard>
+            </div>
+          </div>
         </VCol>
       </VRow>
     </div>
@@ -439,120 +357,357 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Modern Card Styles */
-.metric-card {
-  background: white;
-  border: 1px solid #f1f5f9;
+/* ── Page ─────────────────────────────────────────────────── */
+.dash-page {
+  padding: 28px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ── Hero Banner ──────────────────────────────────────────── */
+.dash-hero {
+  background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 50%, #9333ea 100%);
   border-radius: 16px;
-  transition: all 0.2s ease;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.dash-hero-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.dash-hero-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dash-hero-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 4px;
+  line-height: 1.3;
+}
+
+.dash-hero-sub {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+}
+
+.dash-hero-btn {
+  font-weight: 600 !important;
+  text-transform: none !important;
+  border-radius: 8px !important;
+  color: #7c3aed !important;
+  white-space: nowrap;
+}
+
+/* ── Metric Cards ─────────────────────────────────────────── */
+.metric-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  grid-template-rows: auto auto;
+  gap: 0 14px;
+  align-items: center;
+  transition:
+    box-shadow 0.2s,
+    transform 0.2s;
 }
 
 .metric-card:hover {
-  border-color: #e2e8f0;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.07);
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
 }
 
-.action-card {
-  background: white;
-  border: 1px solid #f1f5f9;
-  border-radius: 16px;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.action-card:hover {
-  border-color: #e2e8f0;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-}
-
-.activity-card {
-  background: white;
-  border: 1px solid #f1f5f9;
-  border-radius: 16px;
-}
-
-.status-card {
-  background: white;
-  border: 1px solid #f1f5f9;
-  border-radius: 16px;
-}
-
-/* Icon Wrappers */
-.metric-icon-wrapper {
+.metric-icon-wrap {
   width: 48px;
   height: 48px;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  grid-row: 1 / 3;
 }
 
-.action-icon-wrapper {
-  width: 56px;
-  height: 56px;
+.metric-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1.1;
+}
+
+.metric-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.metric-sub {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  grid-column: 2;
+  margin-top: 4px;
+}
+
+/* ── Icon Color Variants ──────────────────────────────────── */
+.mc-purple {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+}
+.mc-blue {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+}
+.mc-orange {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+}
+.mc-pink {
+  background: linear-gradient(135deg, #db2777, #ec4899);
+}
+.mc-teal {
+  background: linear-gradient(135deg, #0d9488, #14b8a6);
+}
+
+.metric-unit {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-left: 2px;
+}
+
+.metric-na {
+  font-size: 1.5rem;
+  color: #94a3b8;
+}
+
+/* ── Section Header ───────────────────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.section-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 2px;
+}
+
+.section-sub {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ── Action Cards ─────────────────────────────────────────── */
+.action-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 24px 20px;
+  text-align: center;
+  transition:
+    box-shadow 0.2s,
+    border-color 0.2s,
+    transform 0.2s;
+  cursor: pointer;
+  height: 100%;
+}
+
+.action-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border-color: #c4b5fd;
+  transform: translateY(-3px);
+}
+
+.action-icon-wrap {
+  width: 52px;
+  height: 52px;
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto;
+  margin: 0 auto 14px;
 }
 
-/* Color Variants */
-.purple {
-  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+.ac-primary,
+.ac-green {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+}
+.ac-blue {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+}
+.ac-orange {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+}
+.ac-pink {
+  background: linear-gradient(135deg, #db2777, #ec4899);
 }
 
-.blue {
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
+.action-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 6px;
 }
 
-.orange {
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+.action-desc {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
 }
 
-.pink {
-  background: linear-gradient(135deg, #ec4899, #f43f5e);
+/* ── Info Cards ────────────────────────────────────────────── */
+.info-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
 }
 
-.primary {
-  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+.info-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.success {
-  background: linear-gradient(135deg, #10b981, #059669);
+.info-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 2px;
 }
 
-/* Status Items */
-.status-item {
-  padding: 8px 0;
+.info-card-sub {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0;
 }
 
-.status-item:not(:last-child) {
+.info-card-link {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #7c3aed;
+  text-decoration: none;
+}
+
+.info-card-link:hover {
+  text-decoration: underline;
+}
+
+.info-card-body {
+  padding: 16px 20px 20px;
+}
+
+/* ── Status Badge ─────────────────────────────────────────── */
+.status-badge-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: #dcfce7;
+  color: #16a34a;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16a34a;
+  animation: pulse-green 2s ease-in-out infinite;
+}
+
+@keyframes pulse-green {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ── Status List ──────────────────────────────────────────── */
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
   border-bottom: 1px solid #f1f5f9;
 }
 
-/* Text Colors */
-.text-grey-800 {
-  color: #1f2937 !important;
+.status-row:last-child {
+  border-bottom: none;
 }
 
-.text-grey-600 {
-  color: #6b7280 !important;
+.status-row-label {
+  font-size: 0.875rem;
+  color: #64748b;
 }
 
-.text-grey-400 {
-  color: #9ca3af !important;
+.status-row-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
-/* Responsive adjustments */
+.status-row-val.ok {
+  color: #16a34a;
+}
+
+/* ── Mobile ───────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .metric-card,
-  .action-card,
-  .activity-card,
-  .status-card {
-    margin-bottom: 16px;
+  .dash-page {
+    padding: 16px;
+  }
+  .dash-hero {
+    padding: 20px;
+  }
+  .dash-hero-title {
+    font-size: 1.15rem;
+  }
+  .metric-value {
+    font-size: 1.5rem;
   }
 }
 </style>

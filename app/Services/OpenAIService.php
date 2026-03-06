@@ -1535,4 +1535,142 @@ LARANGAN:
     {
         return "Halo! Saya Salma AI. ada yang bisa saya bantu ?";
     }
+
+    /**
+     * Score a KnowledgeBase entry using AI (0.00 – 1.00).
+     * Returns: ['success' => bool, 'score' => float, 'breakdown' => [...], 'reasoning' => string]
+     */
+    public function scoreKnowledgeBase(\App\Models\KnowledgeBase $kb): array
+    {
+        try {
+            $contentSample = mb_substr((string) ($kb->search_content ?: $kb->content ?: $kb->answer ?: ''), 0, 2000);
+            $answerSample  = mb_substr((string) ($kb->answer ?: ''), 0, 1500);
+            $title         = (string) ($kb->title ?: '');
+            $question      = (string) ($kb->question ?: '');
+
+            $systemPrompt = <<<PROMPT
+You are an expert knowledge base quality evaluator. Score the entry across 5 dimensions (each 0–20):
+1. Content Completeness – Does the answer/content fully address the question?
+2. Clarity & Readability – Is the text clear, well-structured, and easy to understand?
+3. Accuracy & Depth – Is information accurate, specific, and sufficiently detailed?
+4. Practical Usefulness – Can a user immediately act on this information?
+5. Keyword Relevance – Are important terms and context well represented?
+Sum all scores (0–100), then divide by 100 to produce a float score 0.00–1.00.
+Return ONLY valid JSON with this shape:
+{"score":0.82,"breakdown":{"completeness":17,"clarity":16,"accuracy":16,"usefulness":17,"keywords":16},"reasoning":"One sentence summary."}
+PROMPT;
+
+            $userContent = "Title: {$title}\nQuestion: {$question}\nAnswer (excerpt): {$answerSample}\nContent (excerpt): {$contentSample}";
+
+            $response = $this->retryRequest(function () use ($systemPrompt, $userContent) {
+                return $this->client->chat()->create([
+                    'model'                  => 'gpt-4o-mini',
+                    'messages'               => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user',   'content' => $userContent],
+                    ],
+                    'max_completion_tokens'  => 400,
+                    'temperature'            => 0.2,
+                ]);
+            });
+
+            $text = trim($response->choices[0]->message->content ?? '');
+            // Strip markdown code fences if any
+            $text = preg_replace('/^```(?:json)?\s*/i', '', $text);
+            $text = preg_replace('/\s*```$/', '', $text);
+
+            $parsed = json_decode($text, true);
+            if (!is_array($parsed) || !isset($parsed['score'])) {
+                return ['success' => false, 'error' => 'Failed to parse AI scoring response: ' . $text];
+            }
+
+            $score = max(0.0, min(1.0, (float) $parsed['score']));
+
+            return [
+                'success'   => true,
+                'score'     => round($score, 2),
+                'breakdown' => $parsed['breakdown'] ?? null,
+                'reasoning' => $parsed['reasoning'] ?? null,
+            ];
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('OpenAIService::scoreKnowledgeBase error', ['id' => $kb->id, 'error' => $e->getMessage()]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Enhance a KnowledgeBase entry's content using GPT-4o.
+     * Improves quality while preserving all facts. Aims for score 0.85–0.99.
+     * Returns: ['success' => bool, 'title' => string, 'question' => string, 'answer' => string, 'content' => string, 'keywords' => array, 'changes_summary' => string]
+     */
+    public function enhanceKnowledgeBase(\App\Models\KnowledgeBase $kb): array
+    {
+        try {
+            $systemPrompt = <<<PROMPT
+You are an expert knowledge base content enhancer for an Indonesian government tax service (Bapenda/Samsat).
+Your task: improve the provided KB entry to achieve a quality score of 0.85–0.99.
+
+Rules:
+- PRESERVE all factual information, dates, times, locations, prices, schedules
+- Improve clarity, structure, completeness, and practical usefulness
+- Write in clear, professional Indonesian (Bahasa Indonesia)
+- Expand thin or vague answers into comprehensive, actionable responses
+- Add useful context where appropriate (without hallucinating facts)
+- Return ONLY valid JSON with this exact shape:
+
+{
+  "title": "improved title",
+  "question": "improved/clarified question",
+  "answer": "enhanced answer text",
+  "content": "enhanced full content (can be same as answer if redundant)",
+  "keywords": ["keyword1", "keyword2"],
+  "changes_summary": "Brief description of what was improved (one sentence, in Indonesian)"
+}
+PROMPT;
+
+            $payload = json_encode([
+                'title'    => $kb->title,
+                'question' => $kb->question,
+                'answer'   => mb_substr((string) ($kb->answer ?: ''), 0, 3000),
+                'content'  => mb_substr((string) ($kb->content ?: ''), 0, 3000),
+                'category' => $kb->category,
+                'type'     => $kb->type,
+                'keywords' => $kb->keywords,
+            ], JSON_UNESCAPED_UNICODE);
+
+            $response = $this->retryRequest(function () use ($systemPrompt, $payload) {
+                return $this->client->chat()->create([
+                    'model'                 => 'gpt-4o',
+                    'messages'              => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user',   'content' => $payload],
+                    ],
+                    'max_completion_tokens' => 2000,
+                    'temperature'           => 0.3,
+                ]);
+            });
+
+            $text = trim($response->choices[0]->message->content ?? '');
+            $text = preg_replace('/^```(?:json)?\s*/i', '', $text);
+            $text = preg_replace('/\s*```$/', '', $text);
+
+            $parsed = json_decode($text, true);
+            if (!is_array($parsed)) {
+                return ['success' => false, 'error' => 'Failed to parse AI enhancement response: ' . mb_substr($text, 0, 300)];
+            }
+
+            return [
+                'success'         => true,
+                'title'           => $parsed['title']           ?? null,
+                'question'        => $parsed['question']        ?? null,
+                'answer'          => $parsed['answer']          ?? null,
+                'content'         => $parsed['content']         ?? null,
+                'keywords'        => $parsed['keywords']        ?? null,
+                'changes_summary' => $parsed['changes_summary'] ?? null,
+            ];
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('OpenAIService::enhanceKnowledgeBase error', ['id' => $kb->id, 'error' => $e->getMessage()]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
 }

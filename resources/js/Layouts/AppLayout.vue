@@ -123,20 +123,20 @@ const logout = () => {
         </div>
         <VDivider></VDivider>
         <VList density="compact" nav class="py-2">
-          <template v-for="item in navLinks" :key="item.value">
-            <NavLink
-              :href="item.href"
+          <NavLink
+            v-for="item in navLinks"
+            :key="item.value"
+            :href="item.href"
+            class="w-full"
+            :active="route().current(item.value)"
+          >
+            <VListItem
+              :prepend-icon="item.icon"
+              :title="item.title"
+              :value="item.value"
               class="w-full"
-              :active="route().current(item.value)"
-            >
-              <VListItem
-                :prepend-icon="item.icon"
-                :title="item.title"
-                :value="item.value"
-                class="w-full"
-              />
-            </NavLink>
-          </template>
+            />
+          </NavLink>
         </VList>
       </VNavigationDrawer>
 
@@ -202,12 +202,7 @@ const logout = () => {
 
         <!-- Page Content Container -->
         <div class="w-full px-4 sm:px-6 lg:px-8 py-6 min-h-[calc(100vh-72px)]">
-          <VCard
-            class="pa-3 w-full rounded-xl"
-            variant="flat"
-            elevation="0"
-            :title="title"
-          >
+          <VCard class="pa-8 w-full rounded-xl" variant="flat" elevation="0">
             <slot />
           </VCard>
         </div>
@@ -254,5 +249,9 @@ const logout = () => {
 
 .app-layout .flex.items-center.align-middle img {
   border-radius: 6px;
+}
+/* deep of v-list-item__spacer */
+.app-layout :deep(.v-list-item__spacer) {
+  width: 16px !important;
 }
 </style>

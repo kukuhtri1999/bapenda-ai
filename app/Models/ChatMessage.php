@@ -16,6 +16,7 @@ class ChatMessage extends Model
         'answer',
         'topic',
         'sentiment',
+        'response_time_seconds',
         'metadata',
         'sent_at',
     ];

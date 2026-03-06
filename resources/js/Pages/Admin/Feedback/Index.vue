@@ -1,263 +1,232 @@
 <template>
-  <Head title="Feedback Management" />
+  <!-- <Head title="Feedback Management" /> -->
   <AppLayout title="Feedback Management">
-    <!-- Header Section -->
-    <VRow class="mb-4">
-      <VCol cols="12">
-        <div class="d-flex justify-space-between align-center">
-          <div>
-            <h1 class="text-h4 font-weight-bold text-grey-800 mb-1">
-              📝 Feedback Management
-            </h1>
-            <p class="text-body-2 text-grey-600">
-              Monitor and analyze user feedback from SALMA AI chat sessions
-            </p>
-          </div>
-          <VBtn
-            @click="exportFeedback"
-            :loading="isExporting"
-            color="primary"
-            variant="outlined"
-            prepend-icon="mdi-download"
-          >
-            Export CSV
-          </VBtn>
+    <div class="fb-page">
+      <!-- ── Page Header ─────────────────────────────────────── -->
+      <div class="fb-header mb-6">
+        <div>
+          <h1 class="fb-title">Feedback Management</h1>
+          <p class="fb-sub">
+            Monitor dan analisis feedback pengguna dari sesi chat SALMA AI
+          </p>
         </div>
-      </VCol>
-    </VRow>
+        <VBtn
+          @click="exportFeedback"
+          :loading="isExporting"
+          variant="flat"
+          color="primary"
+          prepend-icon="mdi-download"
+          class="fb-export-btn"
+        >
+          Export CSV
+        </VBtn>
+      </div>
 
-    <!-- Statistics Cards -->
-    <VRow class="mb-6">
-      <VCol
-        v-for="(stat, index) in statisticsCards"
-        :key="index"
-        cols="12"
-        sm="6"
-        lg="3"
-      >
-        <VCard class="pa-4 h-100" :color="stat.color" variant="flat">
-          <div class="d-flex align-center">
-            <VIcon :color="stat.iconColor" size="40" class="me-3">
-              {{ stat.icon }}
-            </VIcon>
-            <div>
-              <div class="text-h5 font-weight-bold" :class="stat.textColor">
-                {{ stat.value }}
-              </div>
-              <div class="text-caption" :class="stat.subtitleColor">
-                {{ stat.title }}
-              </div>
+      <!-- ── Metric Cards ──────────────────────────────────── -->
+      <VRow class="mb-6" dense>
+        <VCol
+          v-for="(stat, index) in statisticsCards"
+          :key="index"
+          cols="12"
+          sm="6"
+          lg="3"
+        >
+          <div class="fb-metric-card">
+            <div :class="`fb-metric-icon fi-${index}`">
+              <VIcon color="white" size="22">{{ stat.icon }}</VIcon>
+            </div>
+            <div class="fb-metric-body">
+              <div class="fb-metric-value">{{ stat.value }}</div>
+              <div class="fb-metric-label">{{ stat.title }}</div>
             </div>
           </div>
-        </VCard>
-      </VCol>
-    </VRow>
+        </VCol>
+      </VRow>
 
-    <!-- Rating Distribution Chart -->
-    <VRow class="mb-6">
-      <VCol cols="12" md="6">
-        <VCard class="pa-4">
-          <VCardTitle class="pb-2">
-            <VIcon class="me-2">mdi-chart-bar</VIcon>
-            Rating Distribution
-          </VCardTitle>
-          <div class="rating-chart">
-            <div
-              v-for="rating in [5, 4, 3, 2, 1]"
-              :key="rating"
-              class="rating-bar mb-2"
-            >
-              <div class="d-flex align-center">
-                <span class="rating-label me-2">{{ rating }}⭐</span>
-                <VProgressLinear
-                  :model-value="getRatingPercentage(rating)"
-                  :color="getRatingColor(rating)"
-                  height="20"
-                  class="flex-grow-1 me-2"
-                  rounded
-                >
-                  <template v-slot:default="{ value }">
-                    <small class="text-white font-weight-bold">
-                      {{ Math.ceil(value) }}%
-                    </small>
-                  </template>
-                </VProgressLinear>
-                <span class="text-caption text-grey-600">
-                  ({{ stats.rating_distribution[rating] || 0 }})
-                </span>
-              </div>
-            </div>
-          </div>
-        </VCard>
-      </VCol>
-      <VCol cols="12" md="6">
-        <VCard class="pa-4 h-100">
-          <VCardTitle class="pb-2">
-            <VIcon class="me-2">mdi-information</VIcon>
-            Recent Activity
-          </VCardTitle>
-          <VCardText>
-            <div class="text-center py-4">
-              <VIcon size="48" color="primary" class="mb-2"
-                >mdi-chart-timeline-variant</VIcon
+      <!-- ── Charts Row ────────────────────────────────────── -->
+      <VRow class="mb-6" dense>
+        <VCol cols="12" md="6">
+          <div class="fb-card">
+            <div class="fb-card-header">
+              <VIcon size="18" class="me-2" color="#7c3aed"
+                >mdi-chart-bar</VIcon
               >
-              <div class="text-h6 mb-1">{{ stats.recent_feedbacks }}</div>
-              <div class="text-caption text-grey-600">
-                Feedback in last 7 days
+              <span class="fb-card-title">Rating Distribution</span>
+            </div>
+            <div class="fb-card-body">
+              <div
+                v-for="rating in [5, 4, 3, 2, 1]"
+                :key="rating"
+                class="rating-bar-row mb-3"
+              >
+                <div class="d-flex align-center gap-2">
+                  <span class="rb-star">{{ rating }}⭐</span>
+                  <div class="rb-track">
+                    <div
+                      class="rb-fill"
+                      :style="`width: ${getRatingPercentage(rating)}%`"
+                      :class="`rb-${rating}`"
+                    ></div>
+                  </div>
+                  <span class="rb-count"
+                    >({{ stats.rating_distribution[rating] || 0 }})</span
+                  >
+                </div>
               </div>
             </div>
-          </VCardText>
-        </VCard>
-      </VCol>
-    </VRow>
-
-    <!-- Filters -->
-    <VRow class="mb-4">
-      <VCol cols="12" md="3">
-        <VTextField
-          v-model="filters.search"
-          placeholder="Search feedback, session ID..."
-          prepend-inner-icon="mdi-magnify"
-          variant="outlined"
-          density="compact"
-          clearable
-          @input="debouncedSearch"
-        />
-      </VCol>
-      <VCol cols="12" md="2">
-        <VSelect
-          v-model="filters.rating"
-          :items="ratingOptions"
-          placeholder="All Ratings"
-          variant="outlined"
-          density="compact"
-          clearable
-        />
-      </VCol>
-      <VCol cols="12" md="2">
-        <VTextField
-          v-model="filters.date_from"
-          type="date"
-          label="From Date"
-          variant="outlined"
-          density="compact"
-        />
-      </VCol>
-      <VCol cols="12" md="2">
-        <VTextField
-          v-model="filters.date_to"
-          type="date"
-          label="To Date"
-          variant="outlined"
-          density="compact"
-        />
-      </VCol>
-      <VCol cols="12" md="3">
-        <div class="d-flex gap-2">
-          <VBtn @click="applyFilters" color="primary" variant="flat">
-            <VIcon left>mdi-filter</VIcon>
-            Apply Filters
-          </VBtn>
-          <VBtn @click="clearFilters" variant="outlined">
-            <VIcon left>mdi-filter-off</VIcon>
-            Clear
-          </VBtn>
-        </div>
-      </VCol>
-    </VRow>
-
-    <!-- Feedback Table -->
-    <VCard>
-      <VCardTitle class="pa-4 pb-2">
-        <div class="d-flex justify-space-between align-center w-100">
-          <div class="d-flex align-center">
-            <VIcon class="me-2">mdi-format-list-bulleted</VIcon>
-            Feedback List
           </div>
-          <VChip color="primary" variant="flat" size="small">
-            {{ feedbacks.total }} Total
-          </VChip>
-        </div>
-      </VCardTitle>
+        </VCol>
 
-      <VDataTable
-        :headers="headers"
-        :items="feedbacks.data"
-        :loading="loading"
-        item-key="id"
-        class="elevation-0"
-        :items-per-page="-1"
-        hide-default-footer
-      >
-        <!-- Session ID Column -->
-        <template v-slot:item.session_id="{ item }">
-          <VChip color="blue-grey" variant="outlined" size="small">
-            {{ item.session_id.substring(0, 12) }}...
-          </VChip>
-        </template>
-
-        <!-- Rating Column -->
-        <template v-slot:item.rating="{ item }">
-          <div class="d-flex align-center">
-            <div class="rating-display">
-              <span v-for="i in 5" :key="i" class="star">
-                {{ i <= item.rating ? '⭐' : '⭐' }}
-              </span>
+        <VCol cols="12" md="6">
+          <div class="fb-card h-100">
+            <div class="fb-card-header">
+              <VIcon size="18" class="me-2" color="#7c3aed"
+                >mdi-clock-outline</VIcon
+              >
+              <span class="fb-card-title">Aktivitas Terkini</span>
             </div>
-            <VChip
-              :color="getRatingColor(item.rating)"
+            <div
+              class="fb-card-body d-flex flex-column align-center justify-center text-center py-6"
+            >
+              <div class="fb-recent-num">{{ stats.recent_feedbacks }}</div>
+              <div class="fb-recent-label">Feedback 7 hari terakhir</div>
+            </div>
+          </div>
+        </VCol>
+      </VRow>
+
+      <!-- ── Filter Bar ────────────────────────────────────── -->
+      <div class="fb-filter-card mb-5">
+        <div class="fb-filter-grid">
+          <div class="fb-field fb-field-wide">
+            <label class="fb-label">Cari</label>
+            <div class="fb-input-wrap">
+              <VIcon size="16" class="fb-input-icon">mdi-magnify</VIcon>
+              <input
+                v-model="filters.search"
+                placeholder="Cari feedback, session ID..."
+                class="fb-input fb-input-padded"
+                @input="debouncedSearch"
+              />
+            </div>
+          </div>
+
+          <div class="fb-field">
+            <label class="fb-label">Rating</label>
+            <select
+              v-model="filters.rating"
+              @change="applyFilters"
+              class="fb-input"
+            >
+              <option :value="null">Semua Rating</option>
+              <option
+                v-for="r in ratingOptions"
+                :key="r.value"
+                :value="r.value"
+              >
+                {{ r.title }}
+              </option>
+            </select>
+          </div>
+
+          <div class="fb-field">
+            <label class="fb-label">Dari Tanggal</label>
+            <input v-model="filters.date_from" type="date" class="fb-input" />
+          </div>
+
+          <div class="fb-field">
+            <label class="fb-label">Sampai Tanggal</label>
+            <input v-model="filters.date_to" type="date" class="fb-input" />
+          </div>
+
+          <div class="fb-field fb-field-actions">
+            <VBtn
+              @click="applyFilters"
+              color="primary"
               variant="flat"
               size="small"
-              class="ms-2"
+              prepend-icon="mdi-filter"
+              class="fb-apply-btn"
             >
-              {{ item.rating }}/5
-            </VChip>
+              Terapkan
+            </VBtn>
+            <VBtn
+              @click="clearFilters"
+              variant="outlined"
+              size="small"
+              prepend-icon="mdi-filter-off"
+            >
+              Reset
+            </VBtn>
           </div>
-        </template>
+        </div>
+      </div>
 
-        <!-- Feedback Text Column -->
-        <template v-slot:item.feedback_text="{ item }">
-          <div v-if="item.feedback_text" class="feedback-text">
-            {{
-              item.feedback_text.length > 100
-                ? item.feedback_text.substring(0, 100) + '...'
-                : item.feedback_text
-            }}
+      <!-- ── Feedback Table ────────────────────────────────── -->
+      <div class="fb-table-card">
+        <div class="fb-table-header">
+          <div class="d-flex align-center gap-2">
+            <VIcon size="18" color="#7c3aed">mdi-format-list-bulleted</VIcon>
+            <span class="fb-card-title">Daftar Feedback</span>
           </div>
-          <VChip v-else color="grey" variant="outlined" size="small">
-            No text provided
-          </VChip>
-        </template>
+          <span class="fb-count-badge">{{ feedbacks.total }} Total</span>
+        </div>
 
-        <!-- Created At Column -->
-        <template v-slot:item.created_at="{ item }">
-          <div class="text-caption">
-            {{ formatDate(item.created_at) }}
-          </div>
-        </template>
+        <VDataTable
+          :headers="headers"
+          :items="feedbacks.data"
+          :loading="loading"
+          item-key="id"
+          class="fb-dt elevation-0"
+          :items-per-page="-1"
+          hide-default-footer
+        >
+          <template v-slot:item.session_id="{ item }">
+            <span class="fb-session-id"
+              >{{ item.session_id.substring(0, 12) }}…</span
+            >
+          </template>
 
-        <!-- Actions Column -->
-        <template v-slot:item.actions="{ item }">
-          <VBtn
-            @click="viewDetail(item.id)"
-            color="primary"
-            variant="text"
-            size="small"
-            icon
-          >
-            <VIcon>mdi-eye</VIcon>
-          </VBtn>
-        </template>
-      </VDataTable>
+          <template v-slot:item.rating="{ item }">
+            <div class="d-flex align-center gap-2">
+              <span class="fb-stars"
+                >{{ '★'.repeat(item.rating)
+                }}{{ '☆'.repeat(5 - item.rating) }}</span
+              >
+              <span :class="`fb-rating-chip fb-r${item.rating}`"
+                >{{ item.rating }}/5</span
+              >
+            </div>
+          </template>
 
-      <!-- Pagination -->
-      <VDivider />
-      <div class="pa-4">
-        <div class="d-flex justify-space-between align-center">
-          <div class="text-caption text-grey-600">
-            Showing {{ feedbacks.from || 0 }} to {{ feedbacks.to || 0 }} of
-            {{ feedbacks.total }} entries
-          </div>
+          <template v-slot:item.feedback_text="{ item }">
+            <div v-if="item.feedback_text" class="fb-text-cell">
+              {{
+                item.feedback_text.length > 100
+                  ? item.feedback_text.substring(0, 100) + '…'
+                  : item.feedback_text
+              }}
+            </div>
+            <span v-else class="fb-no-text">—</span>
+          </template>
+
+          <template v-slot:item.created_at="{ item }">
+            <span class="fb-date-cell">{{ formatDate(item.created_at) }}</span>
+          </template>
+
+          <template v-slot:item.actions="{ item }">
+            <button class="fb-view-btn" @click="viewDetail(item.id)">
+              <VIcon size="16">mdi-eye</VIcon>
+            </button>
+          </template>
+        </VDataTable>
+
+        <VDivider />
+        <div class="fb-table-footer">
+          <span class="fb-footer-info">
+            Menampilkan {{ feedbacks.from || 0 }}–{{ feedbacks.to || 0 }} dari
+            {{ feedbacks.total }} entri
+          </span>
           <VPagination
             v-if="feedbacks.last_page > 1"
             v-model="currentPage"
@@ -265,15 +234,11 @@
             @update:model-value="changePage"
             total-visible="7"
             size="small"
+            color="primary"
           />
         </div>
       </div>
-    </VCard>
-
-    <!-- Loading Overlay -->
-    <VOverlay v-model="loading" class="align-center justify-center">
-      <VProgressCircular color="primary" indeterminate size="64" />
-    </VOverlay>
+    </div>
   </AppLayout>
 </template>
 
@@ -459,39 +424,425 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.rating-chart {
-  max-width: 100%;
+/* ── Gap utility ──────────────────────────────────────────── */
+.gap-2 > * + * {
+  margin-left: 8px;
 }
 
-.rating-label {
-  min-width: 40px;
-  font-size: 12px;
+/* ── Page ─────────────────────────────────────────────────── */
+.fb-page {
+  padding: 24px;
+  max-width: 1280px;
+  margin: 0 auto;
 }
 
-.rating-display .star {
-  font-size: 16px;
-  color: #ffc107;
+/* ── Header ───────────────────────────────────────────────── */
+.fb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.rating-display .star:nth-child(n + 6) {
-  color: #e0e0e0;
+.fb-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 3px;
 }
 
-.feedback-text {
-  max-width: 300px;
-  word-wrap: break-word;
-  line-height: 1.4;
+.fb-sub {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin: 0;
 }
 
-.v-data-table >>> .v-data-table__wrapper {
-  border-radius: 0;
+.fb-export-btn {
+  text-transform: none !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
 }
 
-.v-card {
-  border-radius: 12px !important;
+/* ── Metric Cards ─────────────────────────────────────────── */
+.fb-metric-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition:
+    box-shadow 0.2s,
+    transform 0.2s;
 }
 
-.v-chip {
-  font-size: 11px;
+.fb-metric-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
+  transform: translateY(-2px);
+}
+
+.fb-metric-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.fi-0 {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+}
+.fi-1 {
+  background: linear-gradient(135deg, #b45309, #f59e0b);
+}
+.fi-2 {
+  background: linear-gradient(135deg, #15803d, #22c55e);
+}
+.fi-3 {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+}
+
+.fb-metric-value {
+  font-size: 1.625rem;
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1.1;
+}
+
+.fb-metric-label {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+/* ── Info Cards ───────────────────────────────────────────── */
+.fb-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.fb-card-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.fb-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.fb-card-body {
+  padding: 16px 18px;
+}
+
+/* ── Rating Bars ──────────────────────────────────────────── */
+.rb-star {
+  font-size: 0.8rem;
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.rb-track {
+  flex: 1;
+  height: 10px;
+  background: #f1f5f9;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.rb-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.6s ease;
+}
+
+.rb-5 {
+  background: #22c55e;
+}
+.rb-4 {
+  background: #86efac;
+}
+.rb-3 {
+  background: #fbbf24;
+}
+.rb-2 {
+  background: #f97316;
+}
+.rb-1 {
+  background: #ef4444;
+}
+
+.rb-count {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ── Recent Activity ──────────────────────────────────────── */
+.fb-recent-num {
+  font-size: 3rem;
+  font-weight: 800;
+  color: #7c3aed;
+  line-height: 1;
+}
+
+.fb-recent-label {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-top: 8px;
+}
+
+/* ── Filter Bar ───────────────────────────────────────────── */
+.fb-filter-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.fb-filter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.fb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.fb-field-wide {
+  flex: 2;
+  min-width: 200px;
+}
+.fb-field-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-left: auto;
+}
+
+.fb-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fb-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.fb-input-icon {
+  position: absolute;
+  left: 9px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.fb-input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: #1e293b;
+  background: #fff;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s;
+  appearance: auto;
+}
+
+.fb-input-padded {
+  padding-left: 32px;
+}
+
+.fb-input:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.08);
+}
+
+.fb-apply-btn {
+  text-transform: none !important;
+  border-radius: 8px !important;
+}
+
+/* ── Table Card ───────────────────────────────────────────── */
+.fb-table-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.fb-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fb-count-badge {
+  background: #ede9fe;
+  color: #5b21b6;
+  border-radius: 20px;
+  padding: 3px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* VDataTable override to match design */
+.fb-dt :deep(.v-data-table__thead th) {
+  background: #f8fafc !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: #64748b !important;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+.fb-dt :deep(.v-data-table__tbody tr) {
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.fb-dt :deep(.v-data-table__tbody tr:hover > td) {
+  background: #faf5ff !important;
+}
+
+.fb-dt :deep(.v-data-table__tbody td) {
+  padding: 10px 14px !important;
+  font-size: 0.875rem !important;
+}
+
+/* ── Cell Styles ──────────────────────────────────────────── */
+.fb-session-id {
+  font-family: monospace;
+  font-size: 0.8rem;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.fb-stars {
+  font-size: 1rem;
+  letter-spacing: 1px;
+  color: #f59e0b;
+}
+
+.fb-rating-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.fb-r5,
+.fb-r4 {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.fb-r3 {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.fb-r1,
+.fb-r2 {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.fb-text-cell {
+  max-width: 280px;
+  line-height: 1.5;
+  word-break: break-word;
+  font-size: 0.85rem;
+}
+
+.fb-no-text {
+  color: #cbd5e1;
+}
+
+.fb-date-cell {
+  font-size: 0.8rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.fb-view-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #7c3aed;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fb-view-btn:hover {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+}
+
+/* ── Footer ───────────────────────────────────────────────── */
+.fb-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fb-footer-info {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* ── Mobile ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .fb-page {
+    padding: 16px;
+  }
+  .fb-filter-grid {
+    flex-direction: column;
+  }
+  .fb-field,
+  .fb-field-wide {
+    width: 100%;
+  }
+  .fb-field-actions {
+    margin-left: 0;
+  }
 }
 </style>
