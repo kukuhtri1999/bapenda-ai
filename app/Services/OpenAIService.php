@@ -793,88 +793,24 @@ REQUIREMENTS:
                 Log::info('Vector search results', ['count' => count($relevantKnowledge)]);
             }
 
-            // ── System prompt ─────────────────────────────────────────────────
-            $systemPrompt = <<<'PROMPT'
-Anda adalah SALMA AI — Asisten resmi Samsat Lamongan yang bertugas membantu masyarakat memahami prosedur, tarif, syarat, dan layanan perpajakan kendaraan bermotor di wilayah Lamongan.
+            // ── Build structured system prompt via SalmaPromptService ─────────
+            /** @var \App\Services\SalmaPromptService $salmaPrompt */
+            $salmaPrompt  = app(\App\Services\SalmaPromptService::class);
+            $kbChunks     = $salmaPrompt->formatKbChunks($relevantKnowledge);
+            $detectedIntent = $salmaPrompt->detectIntent($userQuery);
+            $systemPrompt = $salmaPrompt->buildPrompt($kbChunks, $context);
 
-⚠️ ATURAN WAJIB — ANTI-HALUSINASI:
-- JANGAN PERNAH mengarang, mengira-ngira, atau menyebutkan angka/tarif/persentase/biaya yang TIDAK ADA dalam teks Knowledge Base di bawah ini
-- SEMUA angka dan tarif yang Anda sebutkan HARUS diambil KATA PER KATA dari isi Knowledge Base
-- Jika Knowledge Base tidak menyebutkan angka spesifik untuk suatu hal, KATAKAN "Informasi tarif spesifik tidak tersedia dalam data kami, silakan konfirmasi ke Samsat Lamongan"
-- JANGAN gunakan pengetahuan umum atau training data Anda untuk mengisi angka yang tidak ada di KB
-
-PRINSIP MENJAWAB:
-1. Jawaban harus LENGKAP dan RINCI — kutip langsung dari Knowledge Base, jangan ringkas berlebihan
-2. Sertakan SEMUA angka, tarif, persentase, dan biaya yang ADA di Knowledge Base
-3. Jika ada beberapa kategori/jenis kendaraan, jelaskan SETIAP kategori secara terperinci sesuai KB
-4. Gunakan format terstruktur: heading, sub-poin agar mudah dibaca
-5. Sertakan syarat/dokumen jika pertanyaan terkait pengurusan administrasi
-6. Jika ada contoh perhitungan di KB, tampilkan; jika tidak ada, jangan karang contoh dengan angka fiktif
-7. Di akhir jawaban, sebutkan sumber dokumen KB yang digunakan (judulnya)
-8. Gunakan Bahasa Indonesia yang ramah, profesional, dan mudah dipahami
-
-Aturan KHUSUS untuk pertanyaan BESARAN PAJAK KENDARAAN PRIBADI:
-- Jika pengguna bertanya seperti:
-  "berapa pajak motor saya?", "berapa pajak Honda Supra saya?",
-  "berapa pajak Toyota Avanza 2015 saya?", "pajak tahunan mobil saya berapa?"
-  atau pertanyaan serupa yang menanyakan NOMINAL PAJAK kendaraan MILIK MEREKA,
-  JANGAN mengarang angka — karena besaran PKB setiap kendaraan dihitung dari
-  NJKB dan bobot relatif yang berbeda-beda per kendaraan.
-- Untuk pertanyaan demikian, SELALU arahkan pengguna untuk CEK MANDIRI SECARA ONLINE
-  menggunakan panduan cara cek pajak kendaraan online yang tersedia di Knowledge Base kami.
-  Jelaskan langkah-langkahnya secara ringkas dan serta berikan link jika ada.
-- Contoh jawaban yang benar: "Untuk mengetahui besaran pajak kendaraan Anda secara
-  akurat, silakan cek secara online. Berikut caranya: [langkah dari KB]"
-PROMPT;
+            if ($this->debug) {
+                Log::info('SalmaPrompt built', [
+                    'intent'    => $detectedIntent,
+                    'kb_chunks' => count($kbChunks),
+                    'prompt_len' => mb_strlen($systemPrompt),
+                ]);
+            }
 
             $apiMessages = [
                 ['role' => 'system', 'content' => $systemPrompt]
             ];
-
-            // ── Build KB context — top 6 chunks, 1500 chars each (detailed answers) ─
-            if (!empty($relevantKnowledge)) {
-                // Group chunks by their source document title
-                $byDocument = [];
-                $globalSeen = [];
-
-                foreach (array_slice($relevantKnowledge, 0, 6) as $kb) {
-                    $rawText = $kb['content'] ?? $kb['answer'] ?? '';
-                    // 1500 chars per chunk — preserve full context for detailed responses
-                    $snippet = mb_substr(strip_tags($rawText), 0, 1500);
-
-                    if (!$snippet) continue;
-                    if (in_array(trim($snippet), $globalSeen, true)) continue;
-                    $globalSeen[] = trim($snippet);
-
-                    $docTitle = $kb['title'] ?? 'Sumber Tidak Diketahui';
-                    $byDocument[$docTitle][] = [
-                        'snippet' => $snippet,
-                        'score'   => round($kb['score'] ?? 0, 3),
-                        'source'  => $kb['_source'] ?? 'vector',
-                    ];
-                }
-
-                if (!empty($byDocument)) {
-                    $contextParts = [];
-                    $docIndex = 1;
-                    foreach ($byDocument as $docTitle => $chunks) {
-                        $header       = "===== DOKUMEN {$docIndex}: {$docTitle} =====";
-                        $chunkTexts   = [];
-                        foreach ($chunks as $ci => $c) {
-                            $chunkTexts[] = "[Bagian " . ($ci + 1) . " | skor: {$c['score']}]\n{$c['snippet']}";
-                        }
-                        $contextParts[] = $header . "\n" . implode("\n\n", $chunkTexts);
-                        $docIndex++;
-                    }
-
-                    $docCount = count($byDocument);
-                    $apiMessages[] = [
-                        'role'    => 'system',
-                        'content' => "⚠️ KNOWLEDGE BASE — GUNAKAN HANYA DATA INI. JANGAN mengarang angka di luar teks berikut ({$docCount} dokumen relevan):\n\n"
-                            . implode("\n\n", $contextParts),
-                    ];
-                }
-            }
 
             // Include recent conversation history (last 6 turns for context)
             $historyMessages = array_filter($messages, fn($m) => isset($m['role'], $m['content']));
