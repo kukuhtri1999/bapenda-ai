@@ -15,7 +15,9 @@
     "eslint-plugin-n": "^17.5.1",
     "eslint-plugin-vue": "^9.26.0",
     "globals": "^15.2.0",
-    "postcss": "^8.4.32"
+    "postcss": "^8.4.32",
+    "vite-plugin-pwa": "^1.2.0",
+    "workbox-window": "^7.4.0"
   },
   "dependencies": {
     "@headlessui/vue": "^1.7.23",

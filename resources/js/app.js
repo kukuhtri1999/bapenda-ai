@@ -1,6 +1,11 @@
 import './bootstrap';
 import '../css/app.css';
 
+// ── PWA Service Worker registration ────────────────────────────────────────
+// Uses workbox-generated SW from vite-plugin-pwa; registers on first load
+// and auto-updates in the background via 'autoUpdate' strategy.
+import { registerSW } from 'virtual:pwa-register';
+
 import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
@@ -12,6 +17,22 @@ import 'vue3-toastify/dist/index.css';
 // Vuetify
 import 'vuetify/styles';
 import '@mdi/font/css/materialdesignicons.css';
+
+if (typeof window !== 'undefined') {
+  registerSW({
+    immediate: true,
+    onNeedRefresh() {
+      // New content available — silent auto-update (skipWaiting + clientsClaim)
+    },
+    onOfflineReady() {
+      console.info('[PWA] Offline ready.');
+    },
+    onRegistered(r) {
+      // Periodically check for SW updates (every 60 min)
+      r && setInterval(() => r.update(), 60 * 60 * 1000);
+    },
+  });
+}
 
 const vuetify = createVuetify({
   ssr: true,

@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { router, Head } from '@inertiajs/vue3';
 import FloatingChat from '@/Components/FloatingChat.vue';
+import PwaInstallButton from '@/Components/PwaInstallButton.vue';
 
 defineProps({
   canLogin: {
@@ -618,6 +619,9 @@ function handleImageError() {
         </VRow>
       </VContainer>
     </VFooter>
+
+    <!-- PWA Install Button -->
+    <PwaInstallButton />
 
     <!-- Floating Chat Component -->
     <FloatingChat v-if="!isChatPageOpen" />
