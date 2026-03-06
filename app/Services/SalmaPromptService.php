@@ -27,7 +27,13 @@ class SalmaPromptService
    * @param  string|null $additionalCtx Extra session context string
    * @return string                     Complete system prompt
    */
-  public function buildPrompt(array $kbChunks = [], ?string $additionalCtx = null): string
+  /**
+   * @param  array       $kbChunks    Formatted KB context blocks
+   * @param  string|null $additionalCtx Extra session context string
+   * @param  array       $corrections Always-on AI correction/override facts
+   * @return string Complete system prompt
+   */
+  public function buildPrompt(array $kbChunks = [], ?string $additionalCtx = null, array $corrections = []): string
   {
     $identity       = $this->identity();
     $thinkingChain  = $this->thinkingChain();
@@ -36,6 +42,7 @@ class SalmaPromptService
     $antiHalluc     = $this->antiHallucinationRules();
     $toneGuide      = $this->toneGuidelines();
     $formatGuide    = $this->formatGuidelines();
+    $corrSection    = $this->buildCorrectionSection($corrections);
     $kbSection      = $this->buildKbSection($kbChunks);
     $extras         = $additionalCtx ? "\n\n## KONTEKS SESI\n{$additionalCtx}" : '';
 
@@ -53,6 +60,7 @@ class SalmaPromptService
 {$toneGuide}
 
 {$formatGuide}
+{$corrSection}
 {$kbSection}{$extras}
 PROMPT;
   }
@@ -230,13 +238,23 @@ INTENT;
     return <<<'RULES'
 ## ATURAN UMUM MENJAWAB
 
-1. **KB-First** — Semua fakta harus bersumber dari Knowledge Base. Pengetahuan umum hanya boleh digunakan untuk menjelaskan konsep, BUKAN untuk angka/tarif/jadwal/lokasi spesifik.
-2. **Konkret, bukan kabur** — Hindari jawaban seperti "mungkin bisa ke samsat terdekat". Sebutkan nama, lokasi, jam secara spesifik jika KB memilikinya.
-3. **Lengkap dalam satu respons** — Jangan memotong jawaban dengan "ada pertanyaan lain?" sebelum pertanyaan utama terjawab sepenuhnya.
-4. **Terstruktur** — Gunakan heading, daftar, dan bold untuk informasi yang kompleks. Jawaban panjang harus mudah di-scan.
-5. **Sebutkan sumber KB** — Di akhir jawaban yang mengandung informasi spesifik dari KB, sebutkan judul dokumen sumber (cukup satu baris ringkas seperti "📚 Sumber: [judul dokumen]").
-6. **Selalu tawarkan bantuan lanjutan** — Akhiri dengan satu kalimat tawaran: "Ada hal lain yang ingin Anda tanyakan tentang layanan Samsat Lamongan?"
-7. **Panjang proporsional** — Pertanyaan sederhana → 100-200 kata. Pertanyaan prosedural kompleks → boleh hingga 500 kata. Apresiasi → 2-4 kalimat.
+1. **Akurasi Data** — Semua fakta (angka, tarif, jadwal, lokasi) hanya boleh berasal dari data referensi yang diberikan. Pengetahuan umum hanya untuk menjelaskan konsep.
+2. **Konkret, bukan kabur** — Hindari jawaban seperti "mungkin bisa ke samsat terdekat". Sebutkan nama, lokasi, jam secara spesifik jika tersedia.
+3. **Lengkap dalam satu respons** — Jangan memotong jawaban sebelum pertanyaan utama terjawab sepenuhnya.
+4. **Terstruktur tapi ringkas** — Gunakan daftar dan bold untuk info kompleks. Hindari paragraf panjang jika daftar lebih jelas.
+5. **DILARANG KERAS — Jangan tampilkan internal backend ke pengguna:**
+   - ❌ Jangan tulis baris "📚 Sumber:", "Sumber:", atau nama dokumen internal di akhir jawaban.
+   - ❌ Jangan sebut "KB", "Knowledge Base", "basis data", "blok data", atau istilah teknis internal apapun kepada pengguna.
+   - ❌ Jangan tulis "berdasarkan KB", "menurut KB", "KB tidak memuat", "tidak ada di KB", "KB menyebutkan", "(KB mensyaratkan...)", "(KB menyebut...)", "fakta wajib", atau variasi serupa.
+   - ❌ Jangan eksposes proses berpikir internal atau framework kepada pengguna.
+6. **Penutup singkat** — Akhiri hanya dengan satu kalimat pendek tawaran bantuan jika relevan.
+7. **PANJANG PROPORSIONAL (WAJIB):**
+   - Pertanyaan lokasi/jadwal/informasi sederhana → **maksimal 80 kata**.
+   - Pertanyaan prosedural/persyaratan → **maksimal 250 kata**.
+   - Pertanyaan tarif/angka → **maksimal 150 kata**.
+   - Apresiasi/feedback → **1-2 kalimat saja**.
+   - Kasus khusus/kompleks → **maksimal 300 kata**.
+   - **JANGAN menulis lebih dari batas ini kecuali terdapat data jadwal/tabel yang memang panjang.**
 RULES;
   }
 
@@ -249,11 +267,12 @@ RULES;
     return <<<'ANTIHALLUC'
 ## ATURAN ANTI-HALUSINASI (WAJIB DITAATI)
 
-- ❌ **DILARANG**: Menyebutkan tarif, persentase, biaya, tanggal, jam operasional, atau alamat yang TIDAK TERSEDIA di Knowledge Base di bawah.
-- ❌ **DILARANG**: Menggunakan angka dari pelatihan model untuk mengisi celah informasi di KB.
-- ❌ **DILARANG**: Mengonfirmasi atau menolak status operasional layanan tanpa data KB yang valid.
-- ✅ **DIWAJIBKAN**: Jika KB tidak memuat informasi spesifik → katakan: *"Untuk informasi terkini mengenai [X], silakan konfirmasi langsung ke Samsat Lamongan melalui [kontak dari KB jika ada]."*
-- ✅ **DIWAJIBKAN**: Setiap angka yang Anda tulis HARUS ada kata per kata di salah satu blok Knowledge Base yang diberikan.
+- ❌ **DILARANG**: Menyebutkan tarif, persentase, biaya, tanggal, jam operasional, atau alamat yang tidak tersedia di data referensi.
+- ❌ **DILARANG**: Mengarang angka atau informasi spesifik yang tidak ada di data referensi yang diberikan.
+- ❌ **DILARANG**: Mengonfirmasi atau menolak status operasional layanan tanpa data yang valid.
+- ❌ **DILARANG**: Menyebut "KB", "Knowledge Base", "📚 Sumber:", nama dokumen internal, atau kata-kata yang mengekspos sistem backend kepada pengguna.
+- ✅ **DIWAJIBKAN**: Jika tidak ada informasi spesifik yang tersedia → katakan dengan natural: *"Untuk informasi terkini mengenai [X], silakan konfirmasi langsung ke Samsat Lamongan."* — tanpa menyebut alasan teknisnya.
+- ✅ **DIWAJIBKAN**: Setiap angka yang Anda tulis HARUS ada di data referensi yang diberikan.
 ANTIHALLUC;
   }
 
@@ -288,14 +307,44 @@ TONE;
     return <<<'FORMAT'
 ## PANDUAN FORMAT OUTPUT
 
-- Gunakan **heading level 3** (`###`) untuk membagi jawaban panjang menjadi bagian (mis. `### Dokumen yang Dibutuhkan`, `### Langkah-Langkah`).
+- Gunakan **heading level 3** (`###`) HANYA untuk jawaban prosedural panjang (>3 langkah atau >2 kategori). Untuk jawaban pendek/informasi sederhana, JANGAN gunakan heading — langsung jawab.
 - Gunakan **daftar urut** (`1. 2. 3.`) untuk langkah prosedur/alur.
-- Gunakan **daftar tak urut** (`-`) untuk daftar dokumen, opsi, atau item tanpa urutan.
-- Gunakan **bold** (`**teks**`) untuk nama dokumen, nama layanan, dan data penting.
+- Gunakan **daftar tak urut** (`-`) untuk daftar dokumen atau opsi tanpa urutan.
+- Gunakan **bold** (`**teks**`) hanya untuk nama dokumen, nama layanan, dan angka/data penting.
 - Jika KB mengandung gambar/link, sertakan menggunakan Markdown: `![deskripsi](url)` atau `[teks link](url)`.
-- Untuk informasi berulang (mis. tabel tarif), gunakan format tabel Markdown jika data tersusun.
-- **Emoji** boleh digunakan secukupnya untuk meningkatkan keterbacaan (📍 lokasi, 📋 dokumen, 💰 biaya, ⏰ jam, ✅ oke, ❌ tidak bisa).
+- Untuk tabel tarif/jadwal dari KB, gunakan tabel Markdown.
+- **Emoji** boleh digunakan secukupnya: 📍 lokasi, 📋 dokumen, 💰 biaya, ⏰ jam, ✅ bisa, ❌ tidak bisa.
+- **JANGAN** ulangi pertanyaan user dalam jawaban. Langsung ke inti jawaban.
 FORMAT;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CORRECTION SECTION BUILDER
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Renders always-on AI correction/override facts above the KB section.
+   * These are injected from TAMBAHAN_KB_PENGETAHUAN_AI.md via kb:sync-corrections.
+   * Priority is HIGH — AI must follow these even if KB says otherwise.
+   *
+   * @param  array $corrections  Array of plain-text correction strings
+   * @return string
+   */
+  private function buildCorrectionSection(array $corrections): string
+  {
+    if (empty($corrections)) return '';
+
+    $items = implode("\n", array_map(fn($c) => "- {$c}", $corrections));
+
+    return <<<CORR
+
+
+## ⚠️ FAKTA WAJIB — KOREKSI & OVERRIDE PRIORITAS TINGGI
+
+> Aturan-aturan berikut **SELALU berlaku** dan **TIDAK DAPAT diabaikan**, bahkan jika Knowledge Base di bawah tampaknya kontradiktif. Ini adalah koreksi resmi yang harus diterapkan ke SEMUA jawaban yang relevan.
+
+{$items}
+CORR;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -341,13 +390,22 @@ FORMAT;
     $byDocument = [];
     $globalSeen = [];
 
-    foreach (array_slice($rawResults, 0, 8) as $kb) {
-      $rawText  = $kb['content'] ?? $kb['answer'] ?? '';
-      // 1800 chars keeps full procedural detail
-      $snippet  = mb_substr(strip_tags($rawText), 0, 1800);
+    foreach (array_slice($rawResults, 0, 12) as $kb) {
+      // Prefer search_content (already clean plain text) over raw HTML content
+      $rawText = $kb['search_content'] ?? $kb['content'] ?? $kb['answer'] ?? '';
+
+      // Deep-clean: strip XML processing instructions → strip HTML tags → decode entities
+      $rawText = preg_replace('/<\?[^>]*\?>?/', ' ', (string) $rawText);
+      $rawText = strip_tags($rawText);
+      $rawText = html_entity_decode($rawText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+      $rawText = trim(preg_replace('/\s+/u', ' ', $rawText));
+
+      // 2000 chars — enough for full procedural blocks including schedules
+      $snippet = mb_substr($rawText, 0, 2000);
 
       if (!$snippet) continue;
 
+      // Deduplication on normalised snippet
       $normalised = trim(preg_replace('/\s+/', ' ', $snippet));
       if (in_array($normalised, $globalSeen, true)) continue;
       $globalSeen[] = $normalised;
@@ -374,7 +432,7 @@ FORMAT;
 
       $chunkLines = [];
       foreach ($chunks as $ci => $c) {
-        $part        = count($chunks) > 1 ? " — Bagian " . ($ci + 1) : '';
+        $part         = count($chunks) > 1 ? " — Bagian " . ($ci + 1) : '';
         $chunkLines[] = "**[skor relevansi: {$c['score']} | sumber: {$c['source']}]**{$part}\n\n{$c['snippet']}";
       }
 

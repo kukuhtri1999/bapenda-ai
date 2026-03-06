@@ -99,24 +99,45 @@ class KnowledgeBase extends Model
     }
 
     /**
-     * Generate searchable content from title, excerpt, and content
+     * Convert raw HTML/XML field value to clean plain text for indexing and AI context.
+     * - Removes <?xml ...?> / <?...?> processing instructions (strip_tags misses these)
+     * - Strips all remaining HTML tags
+     * - Decodes HTML entities (&middot; &amp; &lt; &#8203; etc.)
+     * - Collapses whitespace
      */
-    public function generateSearchContent()
+    public static function cleanHtml(string $html): string
+    {
+        // Remove XML / HTML processing instructions like <?xml encoding="UTF-8">
+        $text = preg_replace('/<\?[^>]*\?>?/', ' ', $html);
+        // Strip remaining HTML tags
+        $text = strip_tags($text);
+        // Decode all HTML entities to real UTF-8 characters
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        // Collapse multiple whitespace / newlines into single space
+        return trim(preg_replace('/\s+/u', ' ', $text));
+    }
+
+    /**
+     * Generate searchable content from all text fields.
+     * Stored in search_content which is covered by a FULLTEXT index on (title, search_content).
+     * Called automatically by Eloquent boot events on creating/updating.
+     */
+    public function generateSearchContent(): void
     {
         $searchContent = collect([
             $this->title,
             // prefer explicit excerpt if present
             $this->attributes['excerpt'] ?? null,
-            // include both new and legacy body fields
-            strip_tags((string)$this->content),
-            strip_tags((string)$this->answer),
-            // include legacy question/title variant
+            // clean both body fields — strip HTML tags AND decode entities
+            static::cleanHtml((string)($this->content ?? '')),
+            static::cleanHtml((string)($this->answer ?? '')),
+            // structured metadata
             $this->question,
             $this->category,
-            is_array($this->keywords) ? implode(' ', $this->keywords) : '',
+            is_array($this->keywords) ? implode(' ', $this->keywords) : ($this->keywords ?? ''),
             // tags may be an array (JSON column) or string
             is_array($this->tags) ? implode(' ', $this->tags) : ($this->tags ?? ''),
-        ])->filter()->implode(' ');
+        ])->map(fn($v) => trim((string) $v))->filter()->implode(' ');
 
         $this->search_content = $searchContent;
     }
@@ -248,6 +269,7 @@ class KnowledgeBase extends Model
             'regulation' => 'Peraturan & Kebijakan',
             'guide' => 'Panduan & Tutorial',
             'announcement' => 'Pengumuman',
+            'tambahan_sistem' => 'Koreksi & Override AI',
         ];
     }
 
@@ -411,19 +433,11 @@ class KnowledgeBase extends Model
      */
     private function getContentForEmbedding(): string
     {
-        // Prefer search_content — it is already stored as clean plain text (no HTML/XML).
-        // Fall back to stripping the raw content/answer HTML if search_content is absent.
-        $cleanText = '';
-
-        if (!empty($this->search_content)) {
-            $cleanText = $this->search_content;
-        } else {
-            $raw = (string) ($this->content ?: $this->answer ?? '');
-            // PHP's strip_tags() silently drops everything after an unclosed <?...>
-            // processing instruction (e.g. <?xml encoding="UTF-8">). Remove those first.
-            $raw = preg_replace('/<\?[^>]*>/', '', $raw);
-            $cleanText = trim(strip_tags($raw));
-        }
+        // Use the already-clean search_content when available.
+        // If absent, fall back to cleaning content/answer on the fly.
+        $cleanText = !empty($this->search_content)
+            ? $this->search_content
+            : static::cleanHtml((string) ($this->content ?: $this->answer ?? ''));
 
         $parts = array_filter([
             $this->title,

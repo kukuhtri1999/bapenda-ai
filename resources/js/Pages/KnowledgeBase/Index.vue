@@ -867,11 +867,22 @@ const startBatchUpload = async () => {
                   ? 'orange'
                   : item.type === 'sop'
                     ? 'purple'
-                    : 'blue-grey'
+                    : item.type === 'tambahan_sistem'
+                      ? 'deep-orange'
+                      : 'blue-grey'
               "
               variant="tonal"
               class="font-weight-medium"
               >{{ types[item.type] || item.type }}</VChip
+            >
+            <VChip
+              v-if="item.type === 'tambahan_sistem'"
+              size="x-small"
+              color="red"
+              variant="flat"
+              label
+              class="ml-1 font-weight-bold"
+              >Koreksi AI</VChip
             >
           </template>
 

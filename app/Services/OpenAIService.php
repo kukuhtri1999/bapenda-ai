@@ -24,7 +24,7 @@ class OpenAIService
     public function __construct()
     {
         $this->client = \OpenAI::client((string) config('services.openai.api_key'));
-        $this->model = config('services.openai.model', 'gpt-4o-mini');
+        $this->model = config('services.openai.model', 'gpt-5-mini');
         $this->maxTokens = config('services.openai.max_tokens', 1500);
         $this->temperature = config('services.openai.temperature', 0.7);
         $this->defaultTimeout = 30;
@@ -67,7 +67,7 @@ class OpenAIService
         if (is_string($m) && strlen($m) > 0) {
             return $m;
         }
-        return 'gpt-4o-mini';
+        return 'gpt-5-mini';
     }
 
     /**
@@ -150,8 +150,7 @@ Gunakan bahasa Indonesia profesional, maksimal 200 kata.";
                     ['role' => 'system', 'content' => 'Anda adalah analis data profesional yang membuat insight ringkas dan akurat.'],
                     ['role' => 'user', 'content' => $prompt]
                 ],
-                'max_tokens' => 300,
-                'temperature' => 0.3,
+                'max_completion_tokens' => 300,
             ]);
 
             return trim($response->choices[0]->message->content ?? '');
@@ -220,8 +219,7 @@ Gunakan data aktual, berikan insight yang mendalam dan profesional.";
                     ['role' => 'system', 'content' => 'Anda adalah Senior Data Analyst profesional yang membuat laporan analisis mendalam dengan format yang rapi dan insight yang bermakna.'],
                     ['role' => 'user', 'content' => $prompt]
                 ],
-                'max_tokens' => 1500,
-                'temperature' => 0.4,
+                'max_completion_tokens' => 1500,
             ]);
 
             return trim($response->choices[0]->message->content ?? '');
@@ -291,8 +289,7 @@ Fokus pada 3-5 rekomendasi paling impactful berdasarkan volume dan prioritas.";
                     ['role' => 'system', 'content' => 'Anda adalah konsultan manajemen yang membuat rekomendasi strategis berdasarkan data analytics. Selalu berikan output dalam format JSON yang valid.'],
                     ['role' => 'user', 'content' => $prompt]
                 ],
-                'max_tokens' => 1000,
-                'temperature' => 0.3,
+                'max_completion_tokens' => 1000,
             ]);
 
             $content = trim($response->choices[0]->message->content ?? '');
@@ -380,8 +377,7 @@ PENTING:
                     ['role' => 'system', 'content' => 'Anda adalah Senior Data Analyst yang membuat laporan analitis profesional. Selalu berikan output JSON yang valid dan lengkap.'],
                     ['role' => 'user', 'content' => $prompt]
                 ],
-                'max_tokens' => 2000,
-                'temperature' => 0.4,
+                'max_completion_tokens' => 2000,
             ]);
 
             $content = trim($response->choices[0]->message->content ?? '');
@@ -442,8 +438,7 @@ Format JSON:
                     ['role' => 'system', 'content' => 'Buat analisis dan rekomendasi dalam format JSON yang valid.'],
                     ['role' => 'user', 'content' => $prompt]
                 ],
-                'max_tokens' => 1500,
-                'temperature' => 0.4,
+                'max_completion_tokens' => 1500,
             ]);
 
             $content = trim($response->choices[0]->message->content ?? '');
@@ -536,8 +531,7 @@ REQUIREMENTS:
                         ['role' => 'system', 'content' => 'Anda adalah Strategic Business Consultant yang membuat roadmap implementasi detail dengan analisis mendalam. Selalu berikan tepat 5 langkah yang actionable, 5 pertanyaan teratas, dan 7 contoh chat messages.'],
                         ['role' => 'user', 'content' => $prompt]
                     ],
-                    'max_tokens' => 2000,
-                    'temperature' => 0.3,
+                    'max_completion_tokens' => 2000,
                 ]);
 
                 $content = trim($response->choices[0]->message->content ?? '');
@@ -748,8 +742,7 @@ REQUIREMENTS:
                     ['role' => 'system', 'content' => 'Anda adalah Senior Data Analyst yang membuat dokumen insight profesional dengan format Markdown yang rapi dan insight yang bermakna. Buat dokumen yang efisien dan to-the-point.'],
                     ['role' => 'user', 'content' => $prompt]
                 ],
-                'max_tokens' => 1000,
-                'temperature' => 0.3,
+                'max_completion_tokens' => 1000,
             ]);
 
             return trim($response->choices[0]->message->content ?? '');
@@ -798,7 +791,18 @@ REQUIREMENTS:
             $salmaPrompt  = app(\App\Services\SalmaPromptService::class);
             $kbChunks     = $salmaPrompt->formatKbChunks($relevantKnowledge);
             $detectedIntent = $salmaPrompt->detectIntent($userQuery);
-            $systemPrompt = $salmaPrompt->buildPrompt($kbChunks, $context);
+
+            // ── Fetch always-on correction/override facts (tambahan_sistem) ───
+            $corrections = \App\Models\KnowledgeBase::active()->published()
+                ->where('type', 'tambahan_sistem')
+                ->orderByDesc('priority')
+                ->pluck('content')
+                ->map(fn($c) => \App\Models\KnowledgeBase::cleanHtml($c))
+                ->filter()
+                ->values()
+                ->toArray();
+
+            $systemPrompt = $salmaPrompt->buildPrompt($kbChunks, $context, $corrections);
 
             if ($this->debug) {
                 Log::info('SalmaPrompt built', [
@@ -823,14 +827,39 @@ REQUIREMENTS:
             $response = $this->client->chat()->create([
                 'model'       => $this->model,
                 'messages'    => $apiMessages,
-                'max_tokens'  => $this->maxTokens,
-                'temperature' => $this->temperature,
+                'max_completion_tokens' => $this->maxTokens,
             ]);
 
-            $answerText = trim($response->choices[0]->message->content);
-            $normUsage  = $this->normalizeUsage($response->usage ?? null);
+            $choice       = $response->choices[0] ?? null;
+            $finishReason = $choice?->finishReason ?? 'unknown';
+            $answerText   = $this->cleanAiResponse(trim($choice?->message?->content ?? ''));
+            $normUsage    = $this->normalizeUsage($response->usage ?? null);
 
-            if ($this->debug) Log::info('Response generated', ['usage' => $normUsage]);
+            // Log finish_reason so we can detect future truncation issues
+            if ($this->debug || $finishReason === 'length' || $answerText === '') {
+                Log::warning('OpenAI generateCustomerServiceResponse', [
+                    'finish_reason' => $finishReason,
+                    'content_empty' => $answerText === '',
+                    'usage'         => $normUsage,
+                    'intent'        => $detectedIntent,
+                ]);
+            }
+
+            // Guard: empty content with successful API call means truncation or refusal
+            if ($answerText === '') {
+                Log::error('OpenAI returned empty content', [
+                    'finish_reason' => $finishReason,
+                    'usage'         => $normUsage,
+                    'query_snippet' => mb_substr($userQuery, 0, 100),
+                ]);
+                return [
+                    'success'        => false,
+                    'message'        => 'Maaf, SALMA sedang tidak bisa menyusun jawaban saat ini. Silakan coba ajukan pertanyaan kembali, atau hubungi petugas Samsat Lamongan secara langsung.',
+                    'usage'          => $normUsage,
+                    'knowledge_used' => count($relevantKnowledge),
+                    'error'          => 'empty_response:' . $finishReason,
+                ];
+            }
 
             return [
                 'success'        => true,
@@ -942,18 +971,108 @@ REQUIREMENTS:
 
     private function getDatabaseKnowledge(string $userQuery): array
     {
-        // Simple database search with basic scoring
         $query = strtolower($userQuery);
-        $keywords = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
-        $keywords = array_slice($keywords, 0, 5); // Limit keywords for speed
 
+        // ── Smarter keyword extraction ────────────────────────────────────────
+        // Skip common Indonesian function/stop words so we keep semantic terms.
+        $stopWords = [
+            'saya',
+            'anda',
+            'kamu',
+            'dia',
+            'kami',
+            'kita',
+            'mereka',
+            'ini',
+            'itu',
+            'yang',
+            'di',
+            'ke',
+            'dari',
+            'dan',
+            'atau',
+            'dengan',
+            'untuk',
+            'pada',
+            'bisa',
+            'akan',
+            'ada',
+            'tidak',
+            'ya',
+            'juga',
+            'sudah',
+            'mau',
+            'maka',
+            'apa',
+            'bagaimana',
+            'kenapa',
+            'apakah',
+            'kalau',
+            'jika',
+            'saja',
+            'hanya',
+            'paling',
+            'enaknya',
+            'ingin',
+            'boleh',
+            'bagi',
+            'sama',
+            'sini',
+            'sana',
+            'situ',
+            'gimana',
+            'dong',
+            'bantu',
+            'tolong',
+            'mohon',
+            'info',
+            'tanya',
+            'tentang',
+            'soal',
+            'mengenai',
+            'gimana',
+            'gitu',
+            'gini',
+            'nih',
+            'tuh',
+            'deh',
+            'lah',
+            'dong',
+            'kak',
+            'pak',
+            'bu',
+            'mas',
+            'mbak',
+            'bang',
+            'om',
+            'gan',
+            'bro',
+            'sis',
+            'min',
+            'admin',
+            'halo',
+            'hai',
+        ];
+
+        $allWords = preg_split('/[\s,.\-!?:;]+/u', $query, -1, PREG_SPLIT_NO_EMPTY);
+        $keywords = array_values(array_filter(
+            $allWords,
+            fn($w) => mb_strlen($w) > 2 && !in_array($w, $stopWords, true)
+        ));
+        // Take up to 8 meaningful keywords
+        $keywords = array_slice($keywords, 0, 8);
+        // Final fallback: if entire query was stop-words, use all words up to 5
+        if (empty($keywords)) {
+            $keywords = array_slice($allWords, 0, 5);
+        }
+
+        // ── Query builder ─────────────────────────────────────────────────────
         $knowledge = KnowledgeBase::active()
             ->published()
             ->where(function ($q) use ($keywords, $query) {
-                // Full-text search first
+                // Primary: MySQL FULLTEXT for relevance ranking
                 $q->whereRaw('MATCH(title, search_content) AGAINST(? IN NATURAL LANGUAGE MODE)', [$query]);
-
-                // Add keyword matching for fallback
+                // Secondary: individual keyword LIKE fallback
                 foreach ($keywords as $keyword) {
                     $q->orWhere('title', 'LIKE', "%{$keyword}%")
                         ->orWhere('search_content', 'LIKE', "%{$keyword}%");
@@ -961,35 +1080,40 @@ REQUIREMENTS:
             })
             ->orderByDesc('priority')
             ->orderByDesc('view_count')
-            ->limit(6)
+            ->limit(10)
             ->get(['id', 'title', 'content', 'answer', 'category', 'search_content'])
             ->map(function ($kb) use ($keywords) {
-                // Simple relevance scoring
-                $title = strtolower($kb->title ?? '');
-                $content = strtolower($kb->search_content ?? '');
-                $score = 0.1; // Base score
+                // Relevance scoring: title matches are weighted 3× over content
+                $title   = mb_strtolower($kb->title ?? '');
+                // Score against clean text (search_content has entities decoded)
+                $content = mb_strtolower($kb->search_content ?? strip_tags($kb->content ?? ''));
+                $score   = 0.12; // Base score to pass threshold
 
                 foreach ($keywords as $keyword) {
-                    if (strpos($title, $keyword) !== false) $score += 0.3;
-                    if (strpos($content, $keyword) !== false) $score += 0.1;
+                    if (mb_strpos($title, $keyword) !== false)   $score += 0.35;
+                    if (mb_strpos($content, $keyword) !== false) $score += 0.12;
                 }
 
                 return [
-                    'id' => $kb->id,
-                    'title' => $kb->title,
-                    'content' => $kb->content,
-                    'answer' => $kb->answer,
-                    'category' => $kb->category,
-                    'score' => min($score, 1.0) // Cap at 1.0
+                    'id'             => $kb->id,
+                    'title'          => $kb->title,
+                    'content'        => $kb->content,
+                    'answer'         => $kb->answer,
+                    'category'       => $kb->category,
+                    'search_content' => $kb->search_content,
+                    'score'          => min($score, 1.0),
                 ];
             })
-            ->filter(function ($kb) {
-                return $kb['score'] >= 0.2; // Apply score threshold
-            })
+            ->filter(fn($kb) => $kb['score'] >= 0.15)   // lower threshold = catch more
+            ->sortByDesc('score')
             ->values()
             ->toArray();
 
-        if ($this->debug) Log::info('DB search completed', ['results' => count($knowledge)]);
+        if ($this->debug) Log::info('DB search completed', [
+            'query'    => $userQuery,
+            'keywords' => $keywords,
+            'results'  => count($knowledge),
+        ]);
         return $knowledge;
     }
 
@@ -1424,7 +1548,7 @@ LARANGAN:
         try {
             if (empty($chats)) return ['success' => true, 'message' => 'No chats', 'data' => []];
 
-            $model = config('services.openai.model', 'gpt-4o-mini');
+            $model = config('services.openai.model', 'gpt-5-mini');
 
             $labels = [];
             foreach ($categoryLabels as $k => $lbl) {
@@ -1500,13 +1624,12 @@ PROMPT;
 
             $response = $this->retryRequest(function () use ($systemPrompt, $userContent) {
                 return $this->client->chat()->create([
-                    'model'                  => 'gpt-4o-mini',
+                    'model'                  => config('services.openai.model', 'gpt-5-mini'),
                     'messages'               => [
                         ['role' => 'system', 'content' => $systemPrompt],
                         ['role' => 'user',   'content' => $userContent],
                     ],
                     'max_completion_tokens'  => 400,
-                    'temperature'            => 0.2,
                 ]);
             });
 
@@ -1576,13 +1699,12 @@ PROMPT;
 
             $response = $this->retryRequest(function () use ($systemPrompt, $payload) {
                 return $this->client->chat()->create([
-                    'model'                 => 'gpt-4o',
+                    'model'                 => config('services.openai.model', 'gpt-5-mini'),
                     'messages'              => [
                         ['role' => 'system', 'content' => $systemPrompt],
                         ['role' => 'user',   'content' => $payload],
                     ],
                     'max_completion_tokens' => 2000,
-                    'temperature'           => 0.3,
                 ]);
             });
 
@@ -1608,5 +1730,61 @@ PROMPT;
             \Illuminate\Support\Facades\Log::error('OpenAIService::enhanceKnowledgeBase error', ['id' => $kb->id, 'error' => $e->getMessage()]);
             return ['success' => false, 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Strip any AI-generated lines that leak internal backend references to the user.
+     * These include "📚 Sumber:" citations, "KB" mentions, document names, and internal
+     * reasoning annotations. Applied as a safety net even when the prompt already
+     * instructs the model not to include them.
+     */
+    private function cleanAiResponse(string $text): string
+    {
+        if ($text === '') return $text;
+
+        // 1. Remove entire lines that are source citations or KB references
+        $lines = explode("\n", $text);
+        $filtered = array_filter($lines, function (string $line) {
+            $t = trim($line);
+            // Source / citation lines
+            if (preg_match('/^\s*[\*\-]*\s*📚\s*(Sumber|Source)/ui', $t)) return false;
+            if (preg_match('/^\s*[\*\-]*\s*(Sumber|Source)\s*:/ui', $t)) return false;
+            // Lines that are purely KB-internal attributions
+            if (preg_match('/^\s*[\*\-]*\s*(Knowledge Base|Basis Data Pengetahuan)\s*:/ui', $t)) return false;
+            return true;
+        });
+        $text = implode("\n", $filtered);
+
+        // 2. Remove inline KB/source annotations (parenthetical or bracketed)
+        $patterns = [
+            // (KB mensyaratkan / KB menyebut / KB memuat / KB tidak memuat...)
+            '/\(KB[^)]{0,120}\)/ui',
+            // (Fakta wajib...) or (Fakta wajib pelayanan)
+            '/\(Fakta wajib[^)]{0,80}\)/ui',
+            // (Panduan Samsat... / Standar Pelayanan... as attribution)
+            '/\((?:Panduan|Standar Pelayanan)[^)]{0,120}\)/ui',
+            // [KB...] bracketed
+            '/\[KB[^\]]{0,120}\]/ui',
+            // Inline: "berdasarkan KB", "menurut KB", "KB menyebutkan", "KB tidak memuat"
+            '/\b(?:berdasarkan|menurut|sesuai)\s+KB\b/ui',
+            '/\bKB\s+(?:menyebutkan|mensyaratkan|memuat|tidak memuat|mencantumkan|menyebut|mengharuskan)\b[^.]{0,80}/ui',
+            '/\btidak ada di KB\b/ui',
+            '/\btidak tercantum di KB\b/ui',
+            // "Fakta wajib + ..." or "Fakta wajib pelayanan"
+            '/\.?\s*\(Fakta wajib[^)]{0,80}\)\.?/ui',
+            // Trailing inline source blocks like "; Fakta wajib pelayanan."
+            '/;\s*Fakta wajib[^.\n]{0,80}/ui',
+        ];
+
+        foreach ($patterns as $pattern) {
+            $text = preg_replace($pattern, '', $text);
+        }
+
+        // 3. Clean up any double-spaces or orphaned punctuation left behind
+        $text = preg_replace('/[ \t]{2,}/', ' ', $text);
+        $text = preg_replace('/ ([,\.;])/', '$1', $text);
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim($text);
     }
 }

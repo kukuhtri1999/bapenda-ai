@@ -33,11 +33,11 @@ return [
 
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
-        // Default chat model to gpt-4o-mini; override with OPENAI_MODEL in .env
-        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+        // Default chat model to gpt-5-mini; override with OPENAI_MODEL in .env
+        'model' => env('OPENAI_MODEL', 'gpt-5-mini'),
         // Analytics model can be overridden separately; defaults set in service code
-        'analytics_model' => env('OPENAI_ANALYTICS_MODEL', 'gpt-4o-mini'),
-        'max_tokens' => env('OPENAI_MAX_TOKENS', 1500),
+        'analytics_model' => env('OPENAI_ANALYTICS_MODEL', 'gpt-5-mini'),
+        'max_tokens' => env('OPENAI_MAX_TOKENS', 4000),
         'temperature' => env('OPENAI_TEMPERATURE', 0.7),
         'request_timeout' => env('OPENAI_REQUEST_TIMEOUT', 30), // seconds
         // Embedding model for vector database
