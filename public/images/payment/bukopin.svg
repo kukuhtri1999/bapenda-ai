@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80">
+  <rect width="240" height="80" rx="8" fill="white" stroke="#003087" stroke-width="2"/>
+  <!-- Star/compass mark -->
+  <g transform="translate(40,40)">
+    <polygon points="0,-22 6,-6 22,-6 10,4 14,20 0,12 -14,20 -10,4 -22,-6 -6,-6" fill="#003087"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="76" y="34" font-family="Arial,sans-serif" font-weight="600" font-size="13" fill="#003087">BANK</text>
+  <text x="76" y="60" font-family="Arial Black,sans-serif" font-weight="900" font-size="24" fill="#003087">BUKOPIN</text>
+</svg>

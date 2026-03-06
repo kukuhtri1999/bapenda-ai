@@ -175,7 +175,7 @@ function handleDismiss() {
 /* ── Wrapper ──────────────────────────────────────────────────────────────── */
 .pwa-install-wrapper {
   position: fixed;
-  bottom: 88px; /* sit above floating chat button */
+  bottom: 108px; /* sit above floating chat button */
   right: 20px;
   z-index: 2000;
   display: flex;

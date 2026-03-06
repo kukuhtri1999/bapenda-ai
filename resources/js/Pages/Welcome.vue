@@ -68,46 +68,176 @@ const popularQuestions = ref([
   },
 ]);
 
-// Services data
-const services = ref([
+// Jadwal Samsat Keliling Pagi
+const activeKelilingDay = ref(0);
+const kelilingPagiSchedule = [
   {
-    icon: 'mdi-credit-card',
-    title: 'Pembayaran Pajak',
-    description:
-      'Layanan pembayaran pajak kendaraan bermotor dengan berbagai metode',
-    features: ['Online', 'Offline', 'Transfer Bank'],
+    day: 'Senin',
+    short: 'Sen',
+    locations: [
+      'Pertigaan Sambopinggir (Karangbinangun)',
+      'Depan Pantai Lorena (Paciran)',
+      'Depan Terminal MPU Sukodadi',
+    ],
   },
   {
-    icon: 'mdi-card-account-details',
-    title: 'Pengurusan STNK',
-    description: 'Pengesahan, penggantian, dan penerbitan STNK baru',
-    features: ['Pengesahan', 'Ganti Hilang', 'STNK Baru'],
+    day: 'Selasa',
+    short: 'Sel',
+    locations: [
+      'Depan Kantor Kec. Karanggeneng',
+      'Jl. Raya Pangean (Maduran)',
+      'Depan Kantor Kec. Kembangbahu',
+    ],
   },
   {
-    icon: 'mdi-account-switch',
-    title: 'Balik Nama',
-    description: 'Proses balik nama kendaraan bermotor dan mutasi',
-    features: ['Dalam Daerah', 'Luar Daerah', 'Mutasi'],
+    day: 'Rabu',
+    short: 'Rab',
+    locations: [
+      'Depan Kantor Kec. Mantup',
+      'Balai Desa Sugio',
+      'Jl. Raya Pangean (Maduran)',
+    ],
   },
   {
-    icon: 'mdi-file-document',
-    title: 'Pengurusan BPKB',
-    description: 'Layanan pengurusan dan penggantian BPKB kendaraan',
-    features: ['BPKB Baru', 'Ganti Rusak', 'Ganti Hilang'],
+    day: 'Kamis',
+    short: 'Kam',
+    locations: [
+      'Desa Kandangrejo (Kedungpring)',
+      'Kantor Kec. Modo',
+      'Depan Masjid Moropelang (Babat)',
+    ],
   },
   {
-    icon: 'mdi-web',
-    title: 'Layanan Online',
-    description: 'Platform digital untuk berbagai layanan Samsat',
-    features: ['e-Samsat', 'Cek Pajak', 'Info Denda'],
+    day: 'Jumat',
+    short: 'Jum',
+    locations: [
+      'Balai Desa Puter (Kembangbahu)',
+      'Depan Pantai Lorena (Paciran)',
+      'Samping Koramil Sugio',
+    ],
   },
   {
-    icon: 'mdi-information',
-    title: 'Informasi Umum',
-    description: 'Informasi tarif, syarat, dan prosedur layanan Samsat',
-    features: ['FAQ', 'Tarif', 'Syarat'],
+    day: 'Sabtu',
+    short: 'Sab',
+    locations: [
+      'Depan Kantor Kec. Mantup',
+      'Kantor Kec. Karanggeneng',
+      'Pertigaan Lonjong (Glagah)',
+    ],
   },
-]);
+];
+
+// Layanan Menetap (Payment Point)
+const layananMenetap = [
+  {
+    name: 'Samsat Walkthru',
+    address: 'Jl. Veteran No. 2, Lamongan',
+    hours: 'Senin – Sabtu',
+    icon: 'mdi-office-building-marker',
+    color: '#6C33A0',
+  },
+  {
+    name: 'Mal Pelayanan Publik (MPP)',
+    address: 'Jl. Lamongrejo No. 120, Lamongan',
+    hours: 'Senin – Jumat',
+    icon: 'mdi-domain',
+    color: '#C68EFD',
+  },
+  {
+    name: 'Payment Point Ngimbang',
+    address: 'Kantor Kec. Ngimbang',
+    hours: 'Senin – Jumat',
+    icon: 'mdi-map-marker-radius-outline',
+    color: '#8F87F1',
+  },
+  {
+    name: 'Payment Point Babat',
+    address: 'Bank Jatim KCP Babat',
+    hours: 'Senin – Jumat',
+    icon: 'mdi-map-marker-radius-outline',
+    color: '#8F87F1',
+  },
+  {
+    name: 'Payment Point Brondong',
+    address: 'Bank Jatim KCP Brondong',
+    hours: 'Senin – Jumat',
+    icon: 'mdi-map-marker-radius-outline',
+    color: '#8F87F1',
+  },
+];
+
+// BELOK WANGI – Samsat Keliling Malam
+const belokWangiSchedule = [
+  {
+    days: 'Senin & Kamis',
+    location: 'Depan Kantor KB Samsat',
+    icon: 'mdi-office-building',
+  },
+  {
+    days: 'Selasa & Jumat',
+    location: 'Alun-Alun Lamongan',
+    icon: 'mdi-city-variant-outline',
+  },
+  { days: 'Rabu', location: 'Terminal Sukodadi', icon: 'mdi-bus-stop' },
+];
+
+// Pembayaran Digital
+const activePaymentTab = ref(0);
+const paymentCategories = [
+  {
+    name: 'E-Commerce',
+    icon: 'mdi-shopping-outline',
+    color: '#00AA5B',
+    platforms: [
+      {
+        name: 'Tokopedia',
+        logo: '/images/payment/tokopedia.png',
+        bg: '#FFFFFF',
+      },
+      { name: 'Shopee', logo: '/images/payment/shopee.png', bg: '#ffffff' },
+      { name: 'Alfamart', logo: '/images/payment/alfamart.png', bg: '#CC192B' },
+      {
+        name: 'Indomaret',
+        logo: '/images/payment/indomaret.png',
+        bg: '#003F8E',
+      },
+    ],
+  },
+  {
+    name: 'E-Wallet',
+    icon: 'mdi-wallet-outline',
+    color: '#00AED6',
+    platforms: [
+      { name: 'GoPay', logo: '/images/payment/gopay.png', bg: '#00AED6' },
+      { name: 'LinkAja', logo: '/images/payment/linkaja.svg', bg: '#E82529' },
+      { name: 'iSaku', logo: '/images/payment/isaku.png', bg: '#ffffff' },
+      { name: 'QRIS', logo: '/images/payment/qris.svg', bg: '#FFFFFF' },
+    ],
+  },
+  {
+    name: 'Perbankan',
+    icon: 'mdi-bank-outline',
+    color: '#003087',
+    platforms: [
+      {
+        name: 'Bank Jatim',
+        logo: '/images/payment/bankjatim.png',
+        bg: '#FFFFFF',
+      },
+      {
+        name: 'Bukopin',
+        logo: '/images/payment/new/bank-bukopin.png',
+        bg: '#FFFFFF',
+      },
+      { name: 'BTN', logo: '/images/payment/btn.png', bg: '#FFFFFF' },
+      {
+        name: 'Pos Indonesia',
+        logo: '/images/payment/pos-indonesia.png',
+        bg: '#Ffffff',
+      },
+    ],
+  },
+];
 
 // Methods
 const startChat = () => {
@@ -145,9 +275,13 @@ const getServiceColor = (index) => {
   return colors[index % colors.length];
 };
 
+const todayDayIndex = new Date().getDay(); // 0=Sunday, 1=Monday...
+// Map JS day (0-6) to schedule index (0=Senin..5=Sabtu)
+const todayKelilingIndex = todayDayIndex >= 1 && todayDayIndex <= 6 ? todayDayIndex - 1 : 0;
+
 onMounted(() => {
-  // Add smooth scrolling behavior
   document.documentElement.style.scrollBehavior = 'smooth';
+  activeKelilingDay.value = todayKelilingIndex;
 });
 
 function handleImageError() {
@@ -440,56 +574,398 @@ function handleImageError() {
       <!-- Services Section -->
       <section ref="servicesSection" class="services-section py-16">
         <VContainer>
+          <!-- Header -->
           <VRow>
-            <VCol cols="12" class="text-center mb-12">
-              <h2 class="text-h3 font-weight-bold text-primary mb-4">
+            <VCol cols="12" class="text-center mb-2">
+              <VChip
+                color="primary"
+                variant="flat"
+                size="small"
+                class="mb-4 px-4"
+              >
+                <VIcon start size="14">mdi-map-marker-check</VIcon>
+                Layanan Kami
+              </VChip>
+              <h2 class="text-h3 font-weight-bold text-primary mb-3">
                 Layanan Samsat Lamongan
               </h2>
-              <p class="text-h6 text-grey-700 max-width-600 mx-auto">
-                Informasi lengkap tentang berbagai layanan yang tersedia di
-                Samsat Lamongan
+              <p class="text-body-1 text-grey-700 max-width-700 mx-auto">
+                Temukan jadwal dan lokasi layanan pajak kendaraan yang paling
+                dekat dan nyaman untuk Anda
               </p>
             </VCol>
           </VRow>
 
-          <VRow>
-            <VCol
-              v-for="(service, index) in services"
-              :key="index"
-              cols="12"
-              md="6"
-              lg="4"
-            >
+          <!-- 1. Jadwal Samsat Keliling Pagi -->
+          <VRow class="mt-10">
+            <VCol cols="12">
               <VCard
-                class="service-card h-100"
-                variant="outlined"
-                :color="index % 2 === 0 ? 'grey-lighten-5' : 'white'"
+                class="service-block-card service-block-keliling"
+                elevation="0"
               >
-                <VCardText class="pa-6 text-center">
-                  <VAvatar
-                    :color="getServiceColor(index)"
-                    size="80"
-                    class="mb-4"
+                <VCardText class="pa-0">
+                  <div
+                    class="service-block-header service-block-header--keliling pa-5 pa-md-6"
                   >
-                    <VIcon :icon="service.icon" color="white" size="40"></VIcon>
-                  </VAvatar>
-                  <h4 class="text-h6 font-weight-bold text-black mb-3">
-                    {{ service.title }}
-                  </h4>
-                  <p class="text-black mb-4">
-                    {{ service.description }}
-                  </p>
-                  <VChipGroup class="justify-center">
-                    <VChip
-                      v-for="feature in service.features"
-                      :key="feature"
-                      size="small"
+                    <div class="d-flex align-center gap-3 flex-wrap">
+                      <div class="service-block-icon-wrap">
+                        <VIcon color="white" size="28">mdi-bus-clock</VIcon>
+                      </div>
+                      <div>
+                        <div
+                          class="text-caption text-white-70 text-uppercase font-weight-medium letter-spacing-1 mb-1"
+                        >
+                          Samsat Keliling
+                        </div>
+                        <h3 class="text-h5 font-weight-bold text-white mb-0">
+                          Jadwal Samsat Keliling Pagi
+                        </h3>
+                      </div>
+                      <VSpacer />
+                      <VChip
+                        color="white"
+                        text-color="primary"
+                        variant="flat"
+                        size="small"
+                        class="ms-auto"
+                      >
+                        <VIcon start size="12" color="success"
+                          >mdi-circle</VIcon
+                        >
+                        Aktif
+                      </VChip>
+                    </div>
+                    <p class="text-white-70 text-body-2 mt-3 mb-0">
+                      Layanan berpindah setiap hari ke berbagai kecamatan di
+                      Lamongan
+                    </p>
+                  </div>
+
+                  <!-- Day Tabs -->
+                  <div class="pa-4 pa-md-6">
+                    <VTabs
+                      v-model="activeKelilingDay"
                       color="primary"
-                      variant="flat"
+                      bg-color="transparent"
+                      show-arrows
+                      density="compact"
+                      class="keliling-day-tabs mb-5"
                     >
-                      <span class="text-white">{{ feature }}</span>
-                    </VChip>
-                  </VChipGroup>
+                      <VTab
+                        v-for="(schedule, idx) in kelilingPagiSchedule"
+                        :key="idx"
+                        :value="idx"
+                        class="keliling-day-tab text-body-2 font-weight-semibold"
+                      >
+                        <span class="d-none d-sm-inline">{{
+                          schedule.day
+                        }}</span>
+                        <span class="d-sm-none">{{ schedule.short }}</span>
+                      </VTab>
+                    </VTabs>
+
+                    <VWindow v-model="activeKelilingDay">
+                      <VWindowItem
+                        v-for="(schedule, idx) in kelilingPagiSchedule"
+                        :key="idx"
+                        :value="idx"
+                      >
+                        <VRow>
+                          <VCol
+                            v-for="(loc, locIdx) in schedule.locations"
+                            :key="locIdx"
+                            cols="12"
+                            sm="6"
+                            md="4"
+                          >
+                            <div class="location-card">
+                              <div class="location-number">
+                                {{ locIdx + 1 }}
+                              </div>
+                              <div class="location-info">
+                                <VIcon
+                                  size="16"
+                                  color="primary"
+                                  class="me-2 flex-shrink-0 mt-1"
+                                  >mdi-map-marker</VIcon
+                                >
+                                <span
+                                  class="text-body-2 font-weight-medium text-grey-800"
+                                  >{{ loc }}</span
+                                >
+                              </div>
+                            </div>
+                          </VCol>
+                        </VRow>
+                      </VWindowItem>
+                    </VWindow>
+                  </div>
+                </VCardText>
+              </VCard>
+            </VCol>
+          </VRow>
+
+          <!-- 2. Layanan Menetap -->
+          <VRow class="mt-8">
+            <VCol cols="12">
+              <VCard class="service-block-card" elevation="0">
+                <VCardText class="pa-0">
+                  <div
+                    class="service-block-header service-block-header--menetap pa-5 pa-md-6"
+                  >
+                    <div class="d-flex align-center gap-3 flex-wrap">
+                      <div
+                        class="service-block-icon-wrap service-block-icon-wrap--menetap"
+                      >
+                        <VIcon color="white" size="28"
+                          >mdi-map-marker-multiple</VIcon
+                        >
+                      </div>
+                      <div>
+                        <div
+                          class="text-caption text-white-70 text-uppercase font-weight-medium letter-spacing-1 mb-1"
+                        >
+                          Lokasi Tetap
+                        </div>
+                        <h3 class="text-h5 font-weight-bold text-white mb-0">
+                          Layanan Payment Point 
+                        </h3>
+                      </div>
+                    </div>
+                    <p class="text-white-70 text-body-2 mt-3 mb-0">
+                      Pilihan lokasi pembayaran tetap untuk kemudahan Anda
+                    </p>
+                  </div>
+                  <div class="pa-4 pa-md-6">
+                    <VRow>
+                      <VCol
+                        v-for="(place, idx) in layananMenetap"
+                        :key="idx"
+                        cols="12"
+                        sm="6"
+                        md="4"
+                      >
+                        <div class="menetap-card">
+                          <div
+                            class="menetap-icon-wrap"
+                            :style="{ backgroundColor: place.color + '18' }"
+                          >
+                            <VIcon :color="place.color" size="22">{{
+                              place.icon
+                            }}</VIcon>
+                          </div>
+                          <div class="menetap-info">
+                            <div
+                              class="text-body-2 font-weight-bold text-grey-900 mb-1"
+                            >
+                              {{ place.name }}
+                            </div>
+                            <div class="text-caption text-grey-600 mb-1">
+                              <VIcon size="12" color="grey-500" class="me-1"
+                                >mdi-map-marker-outline</VIcon
+                              >
+                              {{ place.address }}
+                            </div>
+                            <VChip
+                              size="x-small"
+                              color="primary"
+                              variant="tonal"
+                              class="mt-1"
+                            >
+                              <VIcon start size="10">mdi-clock-outline</VIcon>
+                              {{ place.hours }}
+                            </VChip>
+                          </div>
+                        </div>
+                      </VCol>
+                    </VRow>
+                  </div>
+                </VCardText>
+              </VCard>
+            </VCol>
+          </VRow>
+
+          <!-- 3. BELOK WANGI -->
+          <VRow class="mt-8">
+            <VCol cols="12">
+              <VCard
+                class="service-block-card service-block-night"
+                elevation="0"
+              >
+                <VCardText class="pa-0">
+                  <div class="belok-wangi-header pa-5 pa-md-6">
+                    <div class="d-flex align-center gap-3 flex-wrap">
+                      <div class="belok-wangi-icon-wrap">
+                        <VIcon color="#FFD700" size="28"
+                          >mdi-weather-night</VIcon
+                        >
+                      </div>
+                      <div>
+                        <div class="d-flex align-center gap-2 mb-1">
+                          <span
+                            class="text-caption text-amber-300 text-uppercase font-weight-medium letter-spacing-1"
+                            >Layanan Malam</span
+                          >
+                          <VChip
+                            size="x-small"
+                            color="amber-darken-1"
+                            variant="flat"
+                            >SPESIAL</VChip
+                          >
+                        </div>
+                        <h3 class="text-h5 font-weight-bold text-white mb-0">
+                          Samsat Keliling Malam
+                          <span class="belok-wangi-badge ms-2"
+                            >BELOK WANGI</span
+                          >
+                        </h3>
+                      </div>
+                      <VSpacer />
+                      <div class="belok-wangi-time d-none d-sm-flex">
+                        <VIcon color="#FFD700" size="18" class="me-1"
+                          >mdi-clock-outline</VIcon
+                        >
+                        <span class="text-white font-weight-bold"
+                          >18.00 – 20.00 WIB</span
+                        >
+                      </div>
+                    </div>
+                    <p class="text-white text-body-2 mt-3 mb-0">
+                      <strong class="text-amber-300"
+                        >Beda Lokasi Wayah Bengi</strong
+                      >
+                      — Khusus untuk Anda yang sibuk di siang hari
+                    </p>
+                    <div class="mt-2 d-flex d-sm-none align-center gap-1">
+                      <VIcon color="#FFD700" size="16">mdi-clock-outline</VIcon>
+                      <span class="text-white text-body-2 font-weight-bold"
+                        >18.00 – 20.00 WIB</span
+                      >
+                    </div>
+                  </div>
+                  <div class="pa-4 pa-md-6">
+                    <VRow>
+                      <VCol
+                        v-for="(sesh, idx) in belokWangiSchedule"
+                        :key="idx"
+                        cols="12"
+                        sm="4"
+                      >
+                        <div class="belok-wangi-card">
+                          <div class="belok-wangi-card-icon">
+                            <VIcon color="#FFD700" size="24">{{
+                              sesh.icon
+                            }}</VIcon>
+                          </div>
+                          <div
+                            class="text-amber-300 text-caption font-weight-bold text-uppercase mb-1"
+                          >
+                            {{ sesh.days }}
+                          </div>
+                          <div
+                            class="text-white text-body-2 font-weight-medium"
+                          >
+                            {{ sesh.location }}
+                          </div>
+                        </div>
+                      </VCol>
+                    </VRow>
+                  </div>
+                </VCardText>
+              </VCard>
+            </VCol>
+          </VRow>
+
+          <!-- 4. Pembayaran Digital -->
+          <VRow class="mt-8">
+            <VCol cols="12">
+              <VCard class="service-block-card" elevation="0">
+                <VCardText class="pa-0">
+                  <div
+                    class="service-block-header service-block-header--digital pa-5 pa-md-6"
+                  >
+                    <div class="d-flex align-center gap-3 flex-wrap">
+                      <div
+                        class="service-block-icon-wrap service-block-icon-wrap--digital"
+                      >
+                        <VIcon color="white" size="28"
+                          >mdi-contactless-payment</VIcon
+                        >
+                      </div>
+                      <div>
+                        <div
+                          class="text-caption text-white-70 text-uppercase font-weight-medium letter-spacing-1 mb-1"
+                        >
+                          E-Samsat
+                        </div>
+                        <h3 class="text-h5 font-weight-bold text-white mb-0">
+                          Pembayaran Digital
+                        </h3>
+                      </div>
+                    </div>
+                    <p class="text-white-70 text-body-2 mt-3 mb-0">
+                      Bayar pajak kendaraan kapan saja dan di mana saja tanpa
+                      perlu antri
+                    </p>
+                  </div>
+
+                  <div class="pa-4 pa-md-6">
+                    <!-- Category Tabs -->
+                    <VTabs
+                      v-model="activePaymentTab"
+                      color="primary"
+                      bg-color="transparent"
+                      density="compact"
+                      class="payment-category-tabs mb-6"
+                    >
+                      <VTab
+                        v-for="(cat, idx) in paymentCategories"
+                        :key="idx"
+                        :value="idx"
+                        class="text-body-2 font-weight-semibold"
+                      >
+                        <VIcon start size="16">{{ cat.icon }}</VIcon>
+                        {{ cat.name }}
+                      </VTab>
+                    </VTabs>
+
+                    <!-- Payment Logos Grid per Category -->
+                    <VWindow v-model="activePaymentTab">
+                      <VWindowItem
+                        v-for="(cat, catIdx) in paymentCategories"
+                        :key="catIdx"
+                        :value="catIdx"
+                      >
+                        <VRow class="mt-2">
+                          <VCol
+                            v-for="(platform, pIdx) in cat.platforms"
+                            :key="pIdx"
+                            cols="6"
+                            sm="4"
+                            md="3"
+                          >
+                            <div class="payment-logo-card">
+                              <div
+                                class="payment-logo-img-wrap"
+                                :style="{ backgroundColor: platform.bg }"
+                              >
+                                <img
+                                  :src="platform.logo"
+                                  :alt="platform.name"
+                                  class="payment-logo-img"
+                                />
+                              </div>
+                              <div
+                                class="payment-logo-name text-caption text-center font-weight-medium mt-2"
+                              >
+                                {{ platform.name }}
+                              </div>
+                            </div>
+                          </VCol>
+                        </VRow>
+                      </VWindowItem>
+                    </VWindow>
+                  </div>
                 </VCardText>
               </VCard>
             </VCol>
@@ -610,11 +1086,7 @@ function handleImageError() {
             <p class="text-white-70 mb-2">
               © 2025 SALMA AI - Samsat Lamongan. All rights reserved.
             </p>
-            <p class="text-white-70">
-              Powered by AI Technology | Laravel v{{ laravelVersion }} (PHP v{{
-                phpVersion
-              }})
-            </p>
+            <p class="text-white-70">Powered by AI Technology</p>
           </VCol>
         </VRow>
       </VContainer>
@@ -1163,19 +1635,295 @@ function handleImageError() {
 
 /* Services Section */
 .services-section {
+  background: linear-gradient(180deg, #f8f6ff 0%, #ffffff 60%, #f8f9fa 100%);
+}
+
+.max-width-700 {
+  max-width: 700px;
+}
+
+/* Service Block Cards */
+.service-block-card {
+  border-radius: 20px !important;
+  overflow: hidden;
+  border: 1px solid rgba(140, 100, 200, 0.12);
   background: #ffffff;
 }
 
-.service-card {
-  transition: all 0.3s ease;
-  border-radius: 16px !important;
-  border: 2px solid transparent;
+/* Keliling Pagi Header */
+.service-block-header--keliling {
+  background: linear-gradient(135deg, #6c33a0 0%, #9b59d0 50%, #c68efd 100%);
 }
 
-.service-card:hover {
-  border-color: #e9a5f1;
+/* Layanan Menetap Header */
+.service-block-header--menetap {
+  background: linear-gradient(135deg, #8f87f1 0%, #c68efd 100%);
+}
+
+/* Pembayaran Digital Header */
+.service-block-header--digital {
+  background: linear-gradient(135deg, #0066cc 0%, #00aed6 100%);
+}
+
+.service-block-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+}
+
+.service-block-icon-wrap--menetap {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.service-block-icon-wrap--digital {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.text-white-70 {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.letter-spacing-1 {
+  letter-spacing: 0.08em;
+}
+
+/* Day Tabs */
+.keliling-day-tabs .v-tab {
+  text-transform: none;
+  border-radius: 8px !important;
+  min-width: 56px;
+  font-size: 0.875rem;
+}
+
+.keliling-day-tabs .v-tab--selected {
+  background: rgba(108, 51, 160, 0.08);
+}
+
+/* Location Cards */
+.location-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #f8f6ff;
+  border: 1px solid rgba(140, 100, 200, 0.15);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  transition: all 0.25s ease;
+}
+
+.location-card:hover {
+  border-color: #c68efd;
+  background: #f3eeff;
+  transform: translateX(3px);
+}
+
+.location-number {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6c33a0, #c68efd);
+  color: white;
+  font-weight: 700;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.location-info {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+/* Layanan Menetap Cards */
+.menetap-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: #fafafa;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: all 0.25s ease;
+  height: 100%;
+}
+
+.menetap-card:hover {
+  border-color: #c68efd;
+  background: #f8f6ff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(108, 51, 160, 0.1);
+}
+
+.menetap-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* BELOK WANGI Night Section */
+.service-block-night {
+  background: #0d0d2b !important;
+  border: 1px solid rgba(255, 215, 0, 0.15) !important;
+}
+
+.belok-wangi-header {
+  background: linear-gradient(135deg, #0d0d2b 0%, #1a1a4e 50%, #0d0d2b 100%);
+  border-bottom: 1px solid rgba(255, 215, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.belok-wangi-header::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 215, 0, 0.08) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.belok-wangi-icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.belok-wangi-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 20px;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  color: #ffd700;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+}
+
+.belok-wangi-time {
+  align-items: center;
+  background: rgba(255, 215, 0, 0.12);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 20px;
+  padding: 4px 14px;
+}
+
+.belok-wangi-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  border-radius: 14px;
+  padding: 20px 18px;
+  text-align: center;
+  transition: all 0.25s ease;
+  height: 100%;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.belok-wangi-card:hover {
+  background: rgba(255, 215, 0, 0.07);
+  border-color: rgba(255, 215, 0, 0.5);
+  transform: translateY(-3px);
+}
+
+.belok-wangi-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 215, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+/* Payment Digital */
+.payment-category-tabs .v-tab {
+  text-transform: none;
+  border-radius: 8px !important;
+  font-size: 0.875rem;
+}
+
+.payment-logo-card {
+  width: 100%;
+  cursor: default;
+  transition: transform 0.25s ease;
+}
+
+.payment-logo-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(233, 165, 241, 0.2) !important;
+}
+
+.payment-logo-img-wrap {
+  width: 100%;
+  height: 80px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 10px 12px;
+}
+
+.payment-logo-img {
+  max-width: 100%;
+  max-height: 58px;
+  object-fit: contain;
+  display: block;
+}
+
+.payment-logo-name {
+  color: #555 !important;
+}
+
+/* Responsive Services */
+@media (max-width: 600px) {
+  .service-block-card {
+    border-radius: 16px !important;
+  }
+  .belok-wangi-badge {
+    display: none;
+  }
+  .payment-logo-img-wrap {
+    height: 64px;
+  }
 }
 
 /* Contact Section */

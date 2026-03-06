@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80">
+  <rect width="240" height="80" rx="8" fill="#F77F00"/>
+  <!-- Circle mark -->
+  <circle cx="42" cy="40" r="26" fill="white"/>
+  <!-- Horn/bugle stylized -->
+  <path d="M28,45 L28,35 L44,30 L52,32 L52,48 L44,50 Z" fill="#F77F00"/>
+  <circle cx="26" cy="40" r="6" fill="#F77F00"/>
+  <rect x="26" y="37" width="4" height="6" fill="#F77F00"/>
+  <!-- Wordmark -->
+  <text x="80" y="35" font-family="Arial Black,sans-serif" font-weight="900" font-size="22" fill="white">POS</text>
+  <text x="80" y="62" font-family="Arial,sans-serif" font-weight="700" font-size="16" fill="white">INDONESIA</text>
+</svg>
