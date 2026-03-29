@@ -37,6 +37,24 @@ Route::middleware([
         return Inertia::render('Chat/Index');
     })->name('chat');
 
+    // ─── API endpoints for User Management (AJAX / modal-driven) ───────────
+    Route::prefix('api/admin/users')->group(function () {
+        Route::get('/stats',                  [UserManagementController::class, 'stats']);
+        Route::get('/',                       [UserManagementController::class, 'apiIndex']);
+        Route::post('/',                      [UserManagementController::class, 'apiStore']);
+        Route::get('/{id}',                   [UserManagementController::class, 'apiShow']);
+        Route::put('/{id}',                   [UserManagementController::class, 'apiUpdate']);
+        Route::delete('/{id}',                [UserManagementController::class, 'apiDestroy']);
+        Route::post('/{id}/change-password',  [UserManagementController::class, 'changePassword']);
+        Route::post('/{id}/toggle-status',    [UserManagementController::class, 'toggleStatus']);
+        Route::post('/{id}/restore',          [UserManagementController::class, 'apiRestore']);
+        Route::delete('/{id}/force-delete',   [UserManagementController::class, 'apiForceDelete']);
+    });
+    Route::get('/api/admin/roles', [UserManagementController::class, 'getRoles']);
+
+    // ─── API endpoint for chat-history detail ────────────────────────────────
+    Route::get('/api/admin/chat-history/show/{id}', [App\Http\Controllers\Admin\ChatHistoryController::class, 'show'])->name('admin.chat-history.show');
+
     // User Management Routes
     Route::resource('users', UserManagementController::class);
     Route::post('/users/{user}/toggle-status', [UserManagementController::class, 'toggleStatus'])->name('users.toggle-status');

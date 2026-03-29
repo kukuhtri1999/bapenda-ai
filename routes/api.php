@@ -34,8 +34,9 @@ Route::prefix('admin/analytics')->group(function () {
 
 // Admin chat history APIs
 Route::prefix('admin/chat-history')->group(function () {
-    Route::get('/meta', [ChatHistoryController::class, 'meta']);
-    Route::get('/list', [ChatHistoryController::class, 'index']);
+    Route::get('/meta',       [ChatHistoryController::class, 'meta']);
+    Route::get('/list',       [ChatHistoryController::class, 'index']);
+    Route::get('/show/{id}',  [ChatHistoryController::class, 'show']);
 });
 
 // Public App Settings API Routes

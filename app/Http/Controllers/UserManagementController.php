@@ -5,216 +5,227 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
 
 class UserManagementController extends Controller
 {
-    /**
-     * Display a listing of users.
-     */
-    public function index(Request $request)
+    // ─── Inertia page entry ─────────────────────────────────────────────────
+    public function index()
     {
-        $query = User::query();
+        return Inertia::render('UserManagement/Index');
+    }
 
-        // Search functionality
-        if ($request->filled('search')) {
-            $search = $request->get('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
+    // ─── API: list roles ─────────────────────────────────────────────────────
+    public function getRoles()
+    {
+        return response()->json(Role::orderBy('name')->get(['id', 'name']));
+    }
+
+    // ─── API: stats (totals for header cards) ────────────────────────────────
+    public function stats()
+    {
+        return response()->json([
+            'total'    => User::withTrashed()->count(),
+            'active'   => User::whereNull('deleted_at')->where('is_active', true)->count(),
+            'inactive' => User::whereNull('deleted_at')->where('is_active', false)->count(),
+            'deleted'  => User::onlyTrashed()->count(),
+        ]);
+    }
+
+    // ─── API: paginated user list ─────────────────────────────────────────────
+    public function apiIndex(Request $request)
+    {
+        $per    = min((int) $request->query('per_page', 15), 100);
+        $q      = (string) $request->query('q', '');
+        $role   = $request->query('role');
+        $status = $request->query('status', 'all'); // all | active | inactive | deleted
+
+        $query = User::query()->with('roles');
+
+        if ($status === 'deleted') {
+            $query->onlyTrashed();
+        } elseif ($status === 'active') {
+            $query->whereNull('deleted_at')->where('is_active', true);
+        } elseif ($status === 'inactive') {
+            $query->whereNull('deleted_at')->where('is_active', false);
+        } else {
+            $query->withTrashed();
+        }
+
+        if ($q !== '') {
+            $query->where(function ($x) use ($q) {
+                $x->where('name', 'LIKE', "%{$q}%")
+                  ->orWhere('email', 'LIKE', "%{$q}%");
             });
         }
 
-        // Role filter
-        if ($request->filled('role')) {
-            $query->role($request->get('role'));
+        if ($role) {
+            $query->role($role);
         }
 
-        // Status filter
-        if ($request->filled('status')) {
-            if ($request->get('status') === 'active') {
-                $query->whereNull('deleted_at');
-            } elseif ($request->get('status') === 'inactive') {
-                $query->whereNotNull('deleted_at');
-            }
-        }
+        $users = $query->latest()->paginate($per);
+        $users->getCollection()->transform(fn($u) => $this->formatUser($u));
 
-        $users = $query->with('roles')
-            ->latest()
-            ->paginate(15)
-            ->withQueryString();
-
-        $roles = Role::all();
-
-        return Inertia::render('UserManagement/Index', [
-            'users' => $users,
-            'roles' => $roles,
-            'filters' => $request->only(['search', 'role', 'status']),
-        ]);
+        return response()->json($users);
     }
 
-    /**
-     * Show the form for creating a new user.
-     */
-    public function create()
+    // ─── API: show single user ────────────────────────────────────────────────
+    public function apiShow($id)
     {
-        $roles = Role::all();
-
-        return Inertia::render('UserManagement/Create', [
-            'roles' => $roles,
-        ]);
+        $user = User::withTrashed()->with('roles')->findOrFail($id);
+        return response()->json($this->formatUser($user));
     }
 
-    /**
-     * Store a newly created user in storage.
-     */
-    public function store(Request $request)
+    // ─── API: create user ───────────────────────────────────────────────────
+    public function apiStore(Request $request)
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'role' => ['required', 'exists:roles,name'],
-            'is_active' => ['boolean'],
+            'name'                  => ['required', 'string', 'max:255'],
+            'email'                 => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'password'              => ['required', 'string', 'min:8', 'confirmed'],
+            'password_confirmation' => ['required'],
+            'role'                  => ['required', 'exists:roles,name'],
+            'is_active'             => ['boolean'],
         ]);
 
         $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'email_verified_at' => now(), // Auto-verify for admin created users
+            'name'              => $validated['name'],
+            'email'             => $validated['email'],
+            'password'          => Hash::make($validated['password']),
+            'is_active'         => $validated['is_active'] ?? true,
+            'email_verified_at' => now(),
         ]);
 
-        // Assign role
         $user->assignRole($validated['role']);
-
-        return redirect()->route('users.index')
-            ->with('success', 'User created successfully.');
-    }
-
-    /**
-     * Display the specified user.
-     */
-    public function show(User $user)
-    {
         $user->load('roles');
 
-        return Inertia::render('UserManagement/Show', [
-            'user' => $user,
-        ]);
+        return response()->json([
+            'success' => true,
+            'message' => 'User berhasil dibuat.',
+            'user'    => $this->formatUser($user),
+        ], 201);
     }
 
-    /**
-     * Show the form for editing the specified user.
-     */
-    public function edit(User $user)
+    // ─── API: update user ────────────────────────────────────────────────────
+    public function apiUpdate(Request $request, $id)
     {
-        $user->load('roles');
-        $roles = Role::all();
+        $user = User::withTrashed()->findOrFail($id);
 
-        return Inertia::render('UserManagement/Edit', [
-            'user' => $user,
-            'roles' => $roles,
-        ]);
-    }
-
-    /**
-     * Update the specified user in storage.
-     */
-    public function update(Request $request, User $user)
-    {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
-            'role' => ['required', 'exists:roles,name'],
+            'name'      => ['required', 'string', 'max:255'],
+            'email'     => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'role'      => ['required', 'exists:roles,name'],
             'is_active' => ['boolean'],
         ]);
 
-        $updateData = [
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-        ];
+        $user->update([
+            'name'      => $validated['name'],
+            'email'     => $validated['email'],
+            'is_active' => $validated['is_active'] ?? $user->is_active,
+        ]);
 
-        // Only update password if provided
-        if (!empty($validated['password'])) {
-            $updateData['password'] = Hash::make($validated['password']);
-        }
-
-        $user->update($updateData);
-
-        // Update role
         $user->syncRoles([$validated['role']]);
+        $user->load('roles');
 
-        return redirect()->route('users.index')
-            ->with('success', 'User updated successfully.');
+        return response()->json([
+            'success' => true,
+            'message' => 'User berhasil diperbarui.',
+            'user'    => $this->formatUser($user),
+        ]);
     }
 
-    /**
-     * Remove the specified user from storage.
-     */
-    public function destroy(User $user)
+    // ─── API: change password ────────────────────────────────────────────────
+    public function changePassword(Request $request, $id)
     {
-        // Prevent self-deletion
+        $user = User::withTrashed()->findOrFail($id);
+
+        $request->validate([
+            'password'              => ['required', 'string', 'min:8', 'confirmed'],
+            'password_confirmation' => ['required'],
+        ]);
+
+        $user->update(['password' => Hash::make($request->password)]);
+
+        return response()->json(['success' => true, 'message' => 'Password berhasil diubah.']);
+    }
+
+    // ─── API: toggle active status ───────────────────────────────────────────
+    public function toggleStatus(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
         if ($user->id === auth()->id()) {
-            return redirect()->route('users.index')
-                ->with('error', 'You cannot delete your own account.');
+            return response()->json(['success' => false, 'message' => 'Tidak dapat mengubah status akun sendiri.'], 403);
+        }
+
+        $user->update(['is_active' => !$user->is_active]);
+
+        return response()->json([
+            'success'   => true,
+            'message'   => 'Status user berhasil diperbarui.',
+            'is_active' => $user->is_active,
+            'user'      => $this->formatUser($user->load('roles')),
+        ]);
+    }
+
+    // ─── API: soft delete ────────────────────────────────────────────────────
+    public function apiDestroy($id)
+    {
+        $user = User::findOrFail($id);
+
+        if ($user->id === auth()->id()) {
+            return response()->json(['success' => false, 'message' => 'Tidak dapat menghapus akun sendiri.'], 403);
         }
 
         $user->delete();
 
-        return redirect()->route('users.index')
-            ->with('success', 'User deleted successfully.');
+        return response()->json(['success' => true, 'message' => 'User berhasil dihapus.']);
     }
 
-    /**
-     * Restore the specified user.
-     */
-    public function restore($id)
+    // ─── API: restore ────────────────────────────────────────────────────────
+    public function apiRestore($id)
     {
-        $user = User::withTrashed()->findOrFail($id);
+        $user = User::onlyTrashed()->findOrFail($id);
         $user->restore();
-
-        return redirect()->route('users.index')
-            ->with('success', 'User restored successfully.');
-    }
-
-    /**
-     * Permanently delete the specified user.
-     */
-    public function forceDelete($id)
-    {
-        $user = User::withTrashed()->findOrFail($id);
-        $user->forceDelete();
-
-        return redirect()->route('users.index')
-            ->with('success', 'User permanently deleted.');
-    }
-
-    /**
-     * Toggle user active status.
-     */
-    public function toggleStatus(User $user)
-    {
-        // Prevent self-deactivation
-        if ($user->id === auth()->id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You cannot deactivate your own account.'
-            ], 403);
-        }
-
-        $user->update([
-            'is_active' => !$user->is_active
-        ]);
+        $user->load('roles');
 
         return response()->json([
             'success' => true,
-            'message' => 'User status updated successfully.',
-            'is_active' => $user->is_active
+            'message' => 'User berhasil dipulihkan.',
+            'user'    => $this->formatUser($user),
         ]);
+    }
+
+    // ─── API: permanent delete ───────────────────────────────────────────────
+    public function apiForceDelete($id)
+    {
+        $user = User::withTrashed()->findOrFail($id);
+
+        if ($user->id === auth()->id()) {
+            return response()->json(['success' => false, 'message' => 'Tidak dapat menghapus akun sendiri.'], 403);
+        }
+
+        $user->forceDelete();
+
+        return response()->json(['success' => true, 'message' => 'User dihapus permanen.']);
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+    private function formatUser(User $u): array
+    {
+        return [
+            'id'                => $u->id,
+            'name'              => $u->name,
+            'email'             => $u->email,
+            'email_verified_at' => $u->email_verified_at?->toIso8601String(),
+            'is_active'         => (bool) $u->is_active,
+            'profile_photo_url' => $u->profile_photo_url ?? null,
+            'roles'             => $u->roles->pluck('name')->values()->toArray(),
+            'created_at'        => $u->created_at?->toIso8601String(),
+            'updated_at'        => $u->updated_at?->toIso8601String(),
+            'deleted_at'        => $u->deleted_at?->toIso8601String(),
+        ];
     }
 }

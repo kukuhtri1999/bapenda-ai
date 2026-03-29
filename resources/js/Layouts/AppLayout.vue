@@ -55,6 +55,12 @@ const navLinks = ref([
     href: route('admin.wajib-pajak.index'),
   },
   {
+    icon: 'mdi-account-cog',
+    title: 'User Management',
+    value: 'users.index',
+    href: route('users.index'),
+  },
+  {
     icon: 'mdi-book-open-variant',
     title: 'Knowledge Base',
     value: 'knowledge-base.index',

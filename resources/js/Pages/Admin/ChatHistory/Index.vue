@@ -158,11 +158,12 @@
             <thead>
               <tr>
                 <th class="th-id">ID</th>
-                <th>Isi / Pertanyaan</th>
+                <th>Pertanyaan Pengguna</th>
                 <th class="th-sm">Sentimen</th>
                 <th class="th-md">Topik</th>
                 <th class="th-sm">Waktu Jawab</th>
-                <th class="th-md">Tanggal Kirim</th>
+                <th class="th-md">Tanggal</th>
+                <th class="th-act">Detail</th>
               </tr>
             </thead>
             <tbody>
@@ -192,9 +193,32 @@
                   <span v-else class="td-empty">—</span>
                 </td>
                 <td class="td-date">{{ formatDateTime(row.sent_at) }}</td>
+                <td class="td-act">
+                  <button
+                    class="ch-btn-detail"
+                    @click="openDetail(row)"
+                    title="Lihat Detail"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    Lihat
+                  </button>
+                </td>
               </tr>
               <tr v-if="!loading && rows.length === 0">
-                <td colspan="6" class="ch-empty">
+                <td colspan="7" class="ch-empty">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="36"
@@ -266,6 +290,152 @@
         </div>
       </div>
     </div>
+    <!-- ── Detail Dialog ──────────────────────────────────────────────── -->
+    <Transition name="dlg-fade">
+      <div
+        v-if="detailDialog"
+        class="dlg-backdrop"
+        @click.self="detailDialog = false"
+      >
+        <div class="dlg-box">
+          <!-- Dialog Header -->
+          <div class="dlg-head">
+            <div class="dlg-head-left">
+              <div class="dlg-icon">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <div class="dlg-title">Detail Percakapan</div>
+                <div class="dlg-sub" v-if="selectedRow">
+                  {{ formatDateTime(selectedRow.sent_at) }}
+                </div>
+              </div>
+            </div>
+            <button class="dlg-close" @click="detailDialog = false">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Meta chips -->
+          <div class="dlg-meta" v-if="selectedRow">
+            <span
+              v-if="selectedRow.sentiment"
+              :class="`dlg-chip dlg-chip--${selectedRow.sentiment}`"
+              >{{ formatTopic(selectedRow.sentiment) }}</span
+            >
+            <span v-if="selectedRow.topic" class="dlg-chip dlg-chip--topic">{{
+              formatTopic(selectedRow.topic)
+            }}</span>
+            <span
+              v-if="selectedRow.response_time_seconds != null"
+              class="dlg-chip dlg-chip--time"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              {{ selectedRow.response_time_seconds }}s
+            </span>
+            <span class="dlg-chip dlg-chip--id">#{{ selectedRow.id }}</span>
+          </div>
+
+          <!-- Content panels -->
+          <div class="dlg-panels" v-if="selectedRow">
+            <!-- User question -->
+            <div class="dlg-panel dlg-panel--user">
+              <div class="dlg-panel-label">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                Pertanyaan Pengguna
+              </div>
+              <div class="dlg-panel-body">{{ selectedRow.content }}</div>
+            </div>
+
+            <!-- AI answer -->
+            <div class="dlg-panel dlg-panel--ai">
+              <div class="dlg-panel-label">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M12 2C6.477 2 2 6.477 2 12c0 1.821.487 3.53 1.338 5L2.5 21.5l4.5-.838A9.955 9.955 0 0 0 12 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"
+                  />
+                </svg>
+                Jawaban SALMA AI
+              </div>
+              <div
+                class="dlg-panel-body dlg-panel-body--ai"
+                v-html="renderAnswer(selectedRow.answer)"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="dlg-foot">
+            <button class="ch-btn-outline" @click="detailDialog = false">
+              Tutup
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </AppLayout>
 </template>
 
@@ -289,6 +459,32 @@ const rows = ref([]);
 const topics = ref([]);
 const loading = ref(false);
 const avgResponseTime = ref(null);
+
+// Detail dialog
+const detailDialog = ref(false);
+const selectedRow = ref(null);
+
+const openDetail = (row) => {
+  selectedRow.value = row;
+  detailDialog.value = true;
+};
+
+// Render markdown-like answer to safe HTML
+const renderAnswer = (text) => {
+  if (!text) return '';
+  const html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^#{1,3}\s+(.+)$/gm, '<p class="dlg-answer-heading">$1</p>')
+    .replace(/^[-•]\s+(.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/gs, (m) => `<ul>${m}</ul>`)
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+  return `<p>${html}</p>`;
+};
 const q = ref('');
 const topic = ref('');
 const sentiment = ref('');
@@ -829,5 +1025,264 @@ onMounted(async () => {
     width: 100%;
     min-width: 0;
   }
+}
+
+/* ── Detail Button ────────────────────────────────────────── */
+.th-act {
+  width: 80px;
+  text-align: center;
+}
+.td-act {
+  text-align: center;
+}
+
+.ch-btn-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #5b21b6;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.ch-btn-detail:hover {
+  border-color: #7c3aed;
+  background: #faf5ff;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.12);
+}
+
+/* ── Dialog ───────────────────────────────────────────────── */
+.dlg-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 10, 35, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.dlg-box {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 780px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+
+.dlg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+.dlg-head-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dlg-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #6c33a0, #c68efd);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dlg-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.dlg-sub {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+.dlg-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.dlg-close:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: #fef2f2;
+}
+
+.dlg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 22px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+.dlg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.dlg-chip--positive {
+  background: #dcfce7;
+  color: #15803d;
+}
+.dlg-chip--neutral {
+  background: #f1f5f9;
+  color: #475569;
+}
+.dlg-chip--negative {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.dlg-chip--topic {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+.dlg-chip--time {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+.dlg-chip--id {
+  background: #f8fafc;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+}
+
+.dlg-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.dlg-panel {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.dlg-panel--user {
+  border-color: #c7d2fe;
+}
+.dlg-panel--ai {
+  border-color: #ddd6fe;
+}
+
+.dlg-panel-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dlg-panel--user .dlg-panel-label {
+  background: #eef2ff;
+  color: #4338ca;
+}
+.dlg-panel--ai .dlg-panel-label {
+  background: #ede9fe;
+  color: #6c33a0;
+}
+
+.dlg-panel-body {
+  padding: 14px;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: #334155;
+  background: #fff;
+  white-space: pre-line;
+}
+
+.dlg-panel-body--ai {
+  white-space: normal;
+}
+
+.dlg-panel-body--ai :deep(ul) {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+.dlg-panel-body--ai :deep(li) {
+  margin-bottom: 3px;
+}
+
+.dlg-panel-body--ai :deep(strong) {
+  color: #1e293b;
+}
+
+.dlg-panel-body--ai :deep(.dlg-answer-heading) {
+  font-weight: 700;
+  color: #1e293b;
+  margin: 8px 0 4px;
+  font-size: 0.9rem;
+}
+
+.dlg-panel-body--ai :deep(p) {
+  margin: 0 0 6px;
+}
+
+.dlg-foot {
+  padding: 12px 22px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+/* Dialog transition */
+.dlg-fade-enter-active,
+.dlg-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.dlg-fade-enter-from,
+.dlg-fade-leave-to {
+  opacity: 0;
 }
 </style>
