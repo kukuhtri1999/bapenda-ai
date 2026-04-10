@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { router, Head } from '@inertiajs/vue3';
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
 
 const props = defineProps({
   existingData: {
@@ -67,7 +69,7 @@ const showSnackbar = (
 };
 
 const formatNopol = () => {
-  // Auto format nopol (AA 0000 ZZZ)
+  // Auto format nopol (S 1234 ZZ)
   let value = form.value.nopol.replace(/\s/g, '').toUpperCase();
   if (value.length > 0) {
     value = value
@@ -134,6 +136,43 @@ const startChatSession = async () => {
 const proceedToChat = () => {
   window.location.href = '/customer-service';
 };
+
+const formSteps = [
+  {
+    title: 'Selamat Datang!',
+    intro:
+      'Halaman ini digunakan untuk mendaftarkan data kendaraan Anda sebelum memulai sesi chat dengan SALMA AI.',
+  },
+  {
+    element: '#tour-wp-card',
+    title: 'Formulir Pendaftaran',
+    intro:
+      'Isi formulir ini untuk menggunakan layanan chat AI Samsat Lamongan. Data Anda aman dan hanya digunakan untuk keperluan layanan.',
+  },
+  {
+    element: '#tour-wp-nama',
+    title: 'Nama Lengkap',
+    intro: 'Masukkan nama lengkap Anda sesuai STNK atau KTP.',
+  },
+  {
+    element: '#tour-wp-nopol',
+    title: 'Nomor Polisi',
+    intro:
+      'Masukkan nomor polisi kendaraan Anda. Format otomatis akan diterapkan, contoh: S 1234 ZZ. Gunakan plat kendaraan yang ingin Anda tanyakan.',
+  },
+  {
+    element: '#tour-wp-wa',
+    title: 'Nomor WhatsApp',
+    intro:
+      'Masukkan nomor WhatsApp aktif Anda, contoh: 08123456789. Nomor ini digunakan untuk keperluan konfirmasi layanan.',
+  },
+  {
+    title: 'Mulai Chat',
+    intro:
+      'Setelah semua data terisi, klik tombol "Mulai Chat AI" untuk memulai sesi tanya-jawab dengan SALMA AI secara gratis.',
+  },
+];
+const { startTour } = useTour(formSteps);
 </script>
 
 <template>
@@ -144,7 +183,7 @@ const proceedToChat = () => {
       <VContainer class="py-8">
         <VRow justify="center">
           <VCol cols="12" md="8" lg="6">
-            <VCard class="pa-8 form-card" elevation="12">
+            <VCard id="tour-wp-card" class="pa-8 form-card" elevation="12">
               <div class="text-center mb-8">
                 <VAvatar color="primary" size="80" class="mb-4">
                   <VIcon size="40" color="white">mdi-chat</VIcon>
@@ -231,6 +270,7 @@ const proceedToChat = () => {
                     <VTextField
                       v-model="form.nama"
                       label="Nama Lengkap"
+                      id="tour-wp-nama"
                       prepend-inner-icon="mdi-account"
                       variant="outlined"
                       :error-messages="errors.nama"
@@ -241,12 +281,13 @@ const proceedToChat = () => {
                   <VCol cols="12">
                     <VTextField
                       v-model="form.nopol"
-                      label="Nomor Polisi (contoh: AA 0000 ZZZ)"
+                      label="Nomor Polisi (contoh: S 1234 ZZ)"
+                      id="tour-wp-nopol"
                       prepend-inner-icon="mdi-car-info"
                       variant="outlined"
                       :error-messages="errors.nopol"
                       @input="formatNopol"
-                      placeholder="AA 0000 ZZZ"
+                      placeholder="S 1234 ZZ"
                     ></VTextField>
                   </VCol>
 
@@ -254,6 +295,7 @@ const proceedToChat = () => {
                     <VTextField
                       v-model="form.nomer_wa"
                       label="Nomor WhatsApp"
+                      id="tour-wp-wa"
                       prepend-inner-icon="mdi-whatsapp"
                       variant="outlined"
                       :error-messages="errors.nomer_wa"
@@ -307,6 +349,7 @@ const proceedToChat = () => {
       <VIcon left>{{ snackbar.icon }}</VIcon>
       {{ snackbar.message }}
     </VSnackbar>
+    <TourButton @start="startTour" variant="public" />
   </VApp>
 </template>
 

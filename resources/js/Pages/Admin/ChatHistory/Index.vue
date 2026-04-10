@@ -2,7 +2,7 @@
   <AppLayout title="AI Chat History">
     <div class="ch-page">
       <!-- ── Page Header ─────────────────────────────────────── -->
-      <div class="ch-header mb-6">
+      <div id="tour-ch-header" class="ch-header mb-6">
         <div>
           <h1 class="ch-title">Riwayat Chat AI</h1>
           <p class="ch-sub">
@@ -18,7 +18,7 @@
       </div>
 
       <!-- ── Filter Bar ──────────────────────────────────────── -->
-      <div class="ch-filter-card mb-5">
+      <div id="tour-ch-filter" class="ch-filter-card mb-5">
         <div class="ch-filter-grid">
           <div class="ch-field">
             <label class="ch-label">Cari</label>
@@ -125,7 +125,7 @@
       </div>
 
       <!-- ── Table Card ──────────────────────────────────────── -->
-      <div class="ch-table-card">
+      <div id="tour-ch-table" class="ch-table-card">
         <!-- Loading overlay -->
         <Transition name="fade">
           <div v-if="loading" class="ch-loading">
@@ -436,10 +436,13 @@
         </div>
       </div>
     </Transition>
+      <TourButton @start="startTour" />
   </AppLayout>
 </template>
 
 <script setup>
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import flatpickr from 'flatpickr';
@@ -620,6 +623,15 @@ onMounted(async () => {
 
   fetchRows();
 });
+
+const chSteps = [
+  { title: 'Riwayat Chat AI', intro: 'Halaman ini menampilkan semua percakapan pengguna dengan SALMA AI yang sudah mendapat respons. Setiap baris adalah satu sesi tanya-jawab.' },
+  { element: '#tour-ch-header', title: 'Judul & Statistik', intro: 'Bagian ini menampilkan total chat yang tersimpan dan rata-rata waktu respons AI dalam detik.' },
+  { element: '#tour-ch-filter', title: 'Filter & Pencarian', intro: 'Gunakan kolom pencarian untuk mencari berdasarkan kata kunci. Filter tanggal, sentimen, atau topik untuk mempersempit hasil. Klik "Reset" untuk menghapus semua filter.' },
+  { element: '#tour-ch-table', title: 'Tabel Riwayat Chat', intro: 'Setiap baris menampilkan pertanyaan pengguna, sentimen (positif/negatif/netral), topik, dan waktu. Klik ikon mata (👁) pada kolom Detail untuk melihat pertanyaan dan jawaban AI secara lengkap.' },
+];
+const { startTour } = useTour(chSteps);
+
 </script>
 
 <style scoped>

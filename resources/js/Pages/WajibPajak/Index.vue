@@ -2,7 +2,7 @@
   <AppLayout title="Wajib Pajak">
     <div class="wp-page">
       <!-- Page Header -->
-      <div class="wp-header">
+      <div id="tour-wp-header" class="wp-header">
         <div class="wp-header-left">
           <h2 class="wp-title">Daftar Wajib Pajak</h2>
           <p class="wp-subtitle">Kelola data wajib pajak kendaraan bermotor</p>
@@ -38,7 +38,7 @@
       </div>
 
       <!-- Table Card -->
-      <div class="wp-card">
+      <div id="tour-wp-table" class="wp-card">
         <!-- Loading overlay -->
         <Transition name="fade">
           <div v-if="loading" class="wp-loading">
@@ -169,10 +169,14 @@
         </div>
       </div>
     </div>
+      <TourButton @start="startTour" />
   </AppLayout>
 </template>
 
 <script setup>
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
+
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -220,6 +224,13 @@ const goto = (page) => {
 onMounted(() => fetchList(1));
 
 const formatDate = (d) => (d ? new Date(d).toLocaleString('id-ID') : '-');
+
+const wpAdminSteps = [
+  { title: 'Halaman Wajib Pajak', intro: 'Halaman ini menampilkan seluruh data wajib pajak yang terdaftar dalam sistem SALMA AI.' },
+  { element: '#tour-wp-header', title: 'Pencarian Data', intro: 'Gunakan kolom pencarian untuk menemukan data berdasarkan nama, nomor polisi, atau nomor WhatsApp. Klik "Cari" untuk memfilter atau "Reset" untuk kembali ke semua data.' },
+  { element: '#tour-wp-table', title: 'Tabel Data Wajib Pajak', intro: 'Tabel ini menampilkan ID, Nama, Nomor Polisi, Nomor WA, dan tanggal pendaftaran. Gunakan tombol navigasi halaman di bagian bawah untuk berpindah halaman.' },
+];
+const { startTour } = useTour(wpAdminSteps);
 </script>
 
 <style scoped>

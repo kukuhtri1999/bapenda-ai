@@ -1,4 +1,6 @@
 <script setup>
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
 import {
   ref, computed, onMounted, onUnmounted, reactive, inject,
 } from 'vue';
@@ -407,6 +409,17 @@ const cancelUpload = () => {
 const cancel = () => {
   window.history.back();
 };
+
+const kbCreateSteps = [
+  { title: 'Buat Entri Knowledge Base', intro: 'Halaman ini digunakan untuk menambahkan konten baru ke basis pengetahuan SALMA AI. Isi semua field yang diperlukan dengan benar.' },
+  { element: '#tour-kb-create-header', title: 'Judul Halaman & Preview', intro: 'Bagian ini menampilkan judul halaman dan tombol "Preview" untuk melihat tampilan konten sebelum disimpan.' },
+  { element: '#tour-kb-title', title: 'Judul (Title)', intro: 'Isi judul artikel atau informasi ini. Gunakan judul yang deskriptif dan mudah dipahami, misalnya "Jadwal Samsat Keliling Lamongan Mei 2026".' },
+  { element: '#tour-kb-create-content', title: 'Jenis Konten', intro: 'Pilih cara input konten: Manual (ketik langsung), Upload PDF (unggah dokumen PDF), atau URL (tarik konten dari halaman web). Sesuaikan dengan sumber informasi Anda.' },
+  { element: '#tour-kb-category', title: 'Kategori & Pengaturan', intro: 'Pilih kategori yang sesuai, atur status Aktif/Draft, dan tentukan tipe konten. Pengaturan ini membantu AI mengklasifikasikan informasi secara tepat.' },
+  { element: '#tour-kb-actions', title: 'Tombol Simpan', intro: 'Klik "Save Knowledge Base" untuk menyimpan dan memproses data ke sistem AI. Untuk PDF besar, proses bisa memakan waktu 1–2 menit. Jangan tutup halaman selama proses berlangsung.' },
+];
+const { startTour } = useTour(kbCreateSteps);
+
 </script>
 
 <template>
@@ -575,7 +588,7 @@ const cancel = () => {
       </Teleport>
 
       <!-- Header -->
-      <VRow class="mb-6">
+      <VRow id="tour-kb-create-header" class="mb-6">
         <VCol cols="12">
           <VCard elevation="2">
             <VCardText class="pa-6">
@@ -723,6 +736,7 @@ const cancel = () => {
                 <!-- Title -->
                 <VTextField
                   v-model="form.title"
+                  id="tour-kb-title"
                   label="Title *"
                   variant="outlined"
                   :error-messages="formState.errors.title"
@@ -825,6 +839,7 @@ const cancel = () => {
                 <VSelect
                   v-model="form.category"
                   :items="categoryItems"
+                  id="tour-kb-category"
                   label="Category"
                   variant="outlined"
                   :error-messages="formState.errors.category"
@@ -843,7 +858,7 @@ const cancel = () => {
 
             <!-- Actions -->
             <VCard elevation="2">
-              <VCardTitle class="bg-blue text-white">
+              <VCardTitle id="tour-kb-actions" class="bg-blue text-white">
                 <VIcon class="mr-2">mdi-lightning-bolt</VIcon>
                 Actions
               </VCardTitle>
@@ -881,6 +896,7 @@ const cancel = () => {
         </VRow>
       </form>
     </div>
+      <TourButton @start="startTour" />
   </AppLayout>
 </template>
 

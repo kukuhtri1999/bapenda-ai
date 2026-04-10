@@ -1,4 +1,6 @@
 <script setup>
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
 import {
   ref, computed, onMounted, reactive, inject,
 } from 'vue';
@@ -239,6 +241,16 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
   hour: '2-digit',
   minute: '2-digit',
 });
+
+const kbEditSteps = [
+  { title: 'Edit Knowledge Base', intro: 'Halaman ini digunakan untuk memperbarui entri yang sudah ada di basis pengetahuan SALMA AI.' },
+  { element: '#tour-kbedit-title', title: 'Judul', intro: 'Perbarui judul entri ini jika diperlukan. Pastikan judul tetap deskriptif dan relevan.' },
+  { element: '#tour-kbedit-category', title: 'Kategori', intro: 'Ubah kategori jika informasi ini lebih cocok diklasifikasikan secara berbeda.' },
+  { element: '#tour-kbedit-status', title: 'Status Aktif/Draft', intro: 'Ubah status menjadi "Active" agar konten digunakan AI, atau "Draft" untuk menyembunyikan sementara dari sistem AI.' },
+  { title: 'Simpan Perubahan', intro: 'Setelah selesai mengedit, klik tombol "Update Knowledge Base" di bagian bawah. AI akan langsung menggunakan data terbaru setelah tersimpan.' },
+];
+const { startTour } = useTour(kbEditSteps);
+
 </script>
 
 <template>
@@ -507,6 +519,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                 <!-- Title -->
                 <VTextField
                   v-model="form.title"
+                  id="tour-kbedit-title"
                   label="Title *"
                   variant="outlined"
                   :error-messages="formState.errors.title"
@@ -608,6 +621,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                 <VSelect
                   v-model="form.status"
                   :items="statusItems"
+                  id="tour-kbedit-status"
                   label="Status"
                   variant="outlined"
                   :error-messages="formState.errors.status"
@@ -634,6 +648,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
                 <VSelect
                   v-model="form.category"
                   :items="categoryItems"
+                  id="tour-kbedit-category"
                   label="Category"
                   variant="outlined"
                   :error-messages="formState.errors.category"
@@ -705,6 +720,7 @@ const formatDate = (date) => new Date(date).toLocaleDateString('id-ID', {
         </VRow>
       </form>
     </div>
+      <TourButton @start="startTour" />
   </AppLayout>
 </template>
 

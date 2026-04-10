@@ -5,7 +5,7 @@
     <!-- ── App Bar at VApp level so VMain auto-offsets content ── -->
     <VAppBar
       density="comfortable"
-      class="chat-header"
+      id="tour-chat-header" class="chat-header"
       :style="{
         background:
           'linear-gradient(135deg, #A855F7 0%, #9333EA 50%, #7C3AED 100%)',
@@ -72,7 +72,7 @@
         <!-- Welcome Section -->
         <div
           v-if="!chatSession || messages.length === 0"
-          class="welcome-section pa-6 text-center"
+          id="tour-chat-welcome" class="welcome-section pa-6 text-center"
           :style="{
             background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
             height: '100%',
@@ -178,7 +178,7 @@
         </div>
 
         <!-- Messages Area -->
-        <div v-else class="chat-messages-area">
+        <div v-else id="tour-chat-messages" class="chat-messages-area">
           <!-- Messages Container -->
           <div
             ref="messagesContainer"
@@ -327,7 +327,7 @@
                   auto-grow
                   max-rows="3"
                   variant="outlined"
-                  class="message-input"
+                  id="tour-chat-input" class="message-input"
                   :disabled="isLoading"
                   @keydown.enter="handleEnterKey"
                   hide-details
@@ -493,10 +493,13 @@
         </VBtn>
       </template>
     </VSnackbar>
+    <TourButton @start="startChatTour" variant="public" />
   </VApp>
 </template>
 
 <script setup>
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
 import {
   ref, onMounted, onBeforeUnmount, nextTick, watch,
 } from 'vue';
@@ -1148,6 +1151,16 @@ watch(
   },
   { deep: true },
 );
+
+const chatTourSteps = [
+  { title: 'Layanan Chat SALMA AI', intro: 'Selamat datang! Ini adalah halaman chat interaktif dengan AI SALMA — Asisten Digital Samsat Lamongan.' },
+  { element: '#tour-chat-header', title: 'Header Chat', intro: 'Bagian atas menampilkan nama asisten (SALMA AI) beserta data kendaraan Anda. Gunakan tombol ↩ untuk kembali, atau ↺ untuk memulai sesi chat baru.' },
+  { element: '#tour-chat-welcome', title: 'Area Sambutan & Saran', intro: 'Sebelum memulai, Anda akan melihat layar sambutan dengan contoh pertanyaan populer. Klik salah satu kartu saran untuk langsung bertanya.' },
+  { element: '#tour-chat-input', title: 'Kolom Pesan', intro: 'Ketik pertanyaan Anda tentang pajak kendaraan, STNK, denda, jadwal Samsat Keliling, atau layanan lainnya di sini, lalu tekan Enter atau tombol kirim.' },
+  { title: 'Mengakhiri Sesi & Memberikan Rating', intro: 'Setelah selesai, klik tombol "Akhiri Chat" (tombol merah di bawah). Dialog penilaian akan muncul — pilih bintang 1–5 dan tulis komentar opsional, lalu klik "Kirim Feedback".' },
+];
+const { startTour: startChatTour } = useTour(chatTourSteps);
+
 </script>
 
 <style scoped>

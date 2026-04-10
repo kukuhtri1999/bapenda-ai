@@ -1,4 +1,6 @@
 <script setup>
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { usePage } from '@inertiajs/vue3';
@@ -181,6 +183,16 @@ onMounted(async () => {
   await Promise.all([fetchRoles(), fetchStats()]);
   fetchUsers();
 });
+
+const umSteps = [
+  { title: 'Manajemen Pengguna', intro: 'Halaman ini untuk mengelola semua akun pengguna sistem SALMA AI, termasuk membuat, mengedit, mengubah password, dan menonaktifkan pengguna.' },
+  { element: '#tour-um-header', title: 'Judul & Tombol Tambah', intro: 'Klik "Tambah Pengguna" (tombol ungu) untuk membuat akun pengguna baru dengan nama, email, password, dan role.' },
+  { element: '#tour-um-stats', title: 'Statistik Pengguna', intro: 'Empat kartu menampilkan jumlah total, aktif, nonaktif, dan pengguna yang sudah dihapus (soft delete).' },
+  { element: '#tour-um-filter', title: 'Pencarian & Filter', intro: 'Cari pengguna berdasarkan nama/email, filter berdasarkan role atau status (aktif/nonaktif/dihapus), dan pilih jumlah data per halaman.' },
+  { element: '#tour-um-table', title: 'Tabel Pengguna', intro: 'Setiap baris menampilkan nama, email, role, dan status. Gunakan tombol-tombol aksi di kolom kanan: 👁 Lihat, ✏️ Edit, 🔒 Ubah Password, 🔄 Aktif/Nonaktif, dan 🗑️ Hapus.' },
+];
+const { startTour: startUmTour } = useTour(umSteps);
+
 </script>
 
 <template>
@@ -197,7 +209,7 @@ onMounted(async () => {
       </Transition>
 
       <!-- Header -->
-      <div class="um-header mb-5">
+      <div id="tour-um-header" class="um-header mb-5">
         <div>
           <h1 class="um-title">Manajemen Pengguna</h1>
           <p class="um-sub">Kelola akun, peran, dan akses pengguna sistem SALMA AI</p>
@@ -209,7 +221,7 @@ onMounted(async () => {
       </div>
 
       <!-- Stats -->
-      <div class="um-stats mb-5">
+      <div id="tour-um-stats" class="um-stats mb-5">
         <div class="stat-card stat-card--total">
           <div class="stat-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
           <div><div class="stat-num">{{ stats.total }}</div><div class="stat-lbl">Total</div></div>
@@ -229,7 +241,7 @@ onMounted(async () => {
       </div>
 
       <!-- Filters -->
-      <div class="um-filter-card mb-4">
+      <div id="tour-um-filter" class="um-filter-card mb-4">
         <div class="um-filter-grid">
           <div class="um-field">
             <label class="um-label">Cari</label>
@@ -270,7 +282,7 @@ onMounted(async () => {
       </div>
 
       <!-- Table -->
-      <div class="um-table-card">
+      <div id="tour-um-table" class="um-table-card">
         <Transition name="fade">
           <div v-if="loading" class="um-loading">
             <svg class="um-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
@@ -564,6 +576,7 @@ onMounted(async () => {
       </div></Transition>
 
     </div>
+      <TourButton @start="startUmTour" />
   </AppLayout>
 </template>
 

@@ -1,7 +1,7 @@
 <template>
   <AppLayout title="AI Chat Analytics">
-    <div class="p-6">
-      <div class="flex gap-4 mb-4">
+    <div id="tour-analytics-page" class="p-6">
+      <div id="tour-analytics-filter" class="flex gap-4 mb-4">
         <div class="w-1/2">
           <label class="block text-sm text-gray-600"
             >Start date (dd/mm/yyyy)</label
@@ -28,7 +28,7 @@
         </div>
       </div>
 
-      <div class="flex gap-3 items-center">
+      <div id="tour-analytics-actions" class="flex gap-3 items-center">
         <button
           @click="confirmStart"
           :disabled="loading"
@@ -68,7 +68,7 @@
           reportSummary.status === 'completed' &&
           reportSummary.summary_json
         "
-        class="mt-6 bg-white p-4 rounded shadow"
+        id="tour-analytics-insights" class="mt-6 bg-white p-4 rounded shadow"
       >
         <h3 class="font-medium mb-3">AI Insights</h3>
         <div class="grid grid-cols-1 lg:grid-cols-1 gap-6">
@@ -1219,10 +1219,13 @@
         </div> -->
       </div>
     </div>
+      <TourButton @start="startTour" />
   </AppLayout>
 </template>
 
 <script setup>
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
 import {
   ref, onMounted, onUnmounted, computed, watch,
 } from 'vue';
@@ -1993,6 +1996,15 @@ const paragraphize = (text) => {
   if (buf.length) out.push(buf.join(' '));
   return out;
 };
+
+const analyticsSteps = [
+  { title: 'Halaman Analitik AI', intro: 'Halaman ini memungkinkan Anda menganalisis pola percakapan pengguna dan mendapatkan laporan insight berbasis AI.' },
+  { element: '#tour-analytics-filter', title: 'Filter Tanggal', intro: 'Pilih rentang tanggal "Dari" dan "Sampai" untuk menentukan periode data yang akan dianalisis.' },
+  { element: '#tour-analytics-actions', title: 'Tombol Analisis', intro: 'Klik "Generate Analysis" untuk memproses data chat pada rentang tanggal yang dipilih. Proses ini menggunakan AI dan membutuhkan beberapa detik.' },
+  { element: '#tour-analytics-insights', title: 'Laporan AI Insights', intro: 'Setelah analisis selesai, hasil laporan akan muncul di sini berupa ringkasan, topik populer, sentimen pengguna, dan rekomendasi.' },
+];
+const { startTour } = useTour(analyticsSteps);
+
 </script>
 
 <style scoped>

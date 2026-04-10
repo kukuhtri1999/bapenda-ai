@@ -1,4 +1,6 @@
 <script setup>
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
 import { ref, computed } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -639,13 +641,23 @@ const startBatchUpload = async () => {
     batchProcessing.value = false;
   }
 };
+
+const kbSteps = [
+  { title: 'Knowledge Base', intro: 'Halaman ini adalah pusat pengelolaan basis pengetahuan SALMA AI. Semua artikel, dokumen, dan informasi yang digunakan AI untuk menjawab pertanyaan dikelola di sini.' },
+  { element: '#tour-kb-header', title: 'Header & Tombol Aksi', intro: 'Di sini Anda bisa klik "Tambah KB" untuk membuat entri baru, atau "Sinkronisasi Vektor" untuk memperbarui data AI setelah perubahan.' },
+  { element: '#tour-kb-filter', title: 'Filter & Pencarian', intro: 'Cari konten berdasarkan kata kunci, filter berdasarkan kategori, tipe, status aktif/tidak aktif. Gunakan dropdown untuk mengubah jumlah data per halaman.' },
+  { element: '#tour-kb-table', title: 'Daftar Knowledge Base', intro: 'Setiap baris menampilkan judul, kategori, tipe (manual/PDF/URL), status aktif, dan tanggal. Klik ikon untuk melihat detail, mengedit, atau menghapus entri.' },
+  { element: '#tour-kb-bulk', title: 'Aksi Massal', intro: 'Centang beberapa item sekaligus, lalu gunakan toolbar aksi massal ini untuk mengaktifkan, menonaktifkan, atau menghapus beberapa entri sekaligus.' },
+];
+const { startTour } = useTour(kbSteps);
+
 </script>
 
 <template>
   <AppLayout title="Knowledge Base Management">
     <div class="kb-page">
       <!-- ── Page header ──────────────────────────────────────────────────── -->
-      <div class="kb-header mb-5">
+      <div id="tour-kb-header" class="kb-header mb-5">
         <div class="d-flex align-center justify-space-between flex-wrap gap-3">
           <div class="d-flex align-center gap-3">
             <div class="kb-header-icon">
@@ -689,7 +701,7 @@ const startBatchUpload = async () => {
       </div>
 
       <!-- ── Filters ──────────────────────────────────────────────────────── -->
-      <div class="kb-section mb-4 pa-4">
+      <div id="tour-kb-filter" class="kb-section mb-4 pa-4">
         <VRow dense align="center">
           <VCol cols="12" sm="4" md="3">
             <VTextField
@@ -768,7 +780,7 @@ const startBatchUpload = async () => {
 
       <!-- ── Bulk action bar ──────────────────────────────────────────────── -->
       <Transition name="slide-down">
-        <div v-if="selectedItems.length > 0" class="kb-bulk-bar mb-3">
+        <div v-if="selectedItems.length > 0" id="tour-kb-bulk" class="kb-bulk-bar mb-3">
           <div class="d-flex align-center gap-3 flex-wrap">
             <VIcon color="primary" size="18"
               >mdi-checkbox-multiple-marked</VIcon
@@ -808,7 +820,7 @@ const startBatchUpload = async () => {
       </Transition>
 
       <!-- ── Data table ───────────────────────────────────────────────────── -->
-      <div class="kb-section">
+      <div id="tour-kb-table" class="kb-section">
         <VDataTable
           v-model="selectedItems"
           :headers="headers"
@@ -1639,6 +1651,7 @@ const startBatchUpload = async () => {
         </VCard>
       </VDialog>
     </div>
+      <TourButton @start="startTour" />
   </AppLayout>
 </template>
 

@@ -3,7 +3,7 @@
   <AppLayout title="Feedback Management">
     <div class="fb-page">
       <!-- ── Page Header ─────────────────────────────────────── -->
-      <div class="fb-header mb-6">
+      <div id="tour-fb-header" class="fb-header mb-6">
         <div>
           <h1 class="fb-title">Feedback Management</h1>
           <p class="fb-sub">
@@ -23,7 +23,7 @@
       </div>
 
       <!-- ── Metric Cards ──────────────────────────────────── -->
-      <VRow class="mb-6" dense>
+      <VRow id="tour-fb-stats" class="mb-6" dense>
         <VCol
           v-for="(stat, index) in statisticsCards"
           :key="index"
@@ -46,7 +46,7 @@
       <!-- ── Charts Row ────────────────────────────────────── -->
       <VRow class="mb-6" dense>
         <VCol cols="12" md="6">
-          <div class="fb-card">
+          <div id="tour-fb-distribution" class="fb-card">
             <div class="fb-card-header">
               <VIcon size="18" class="me-2" color="#7c3aed"
                 >mdi-chart-bar</VIcon
@@ -239,10 +239,13 @@
         </div>
       </div>
     </div>
+      <TourButton @start="startTour" />
   </AppLayout>
 </template>
 
 <script setup>
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
 import {
   ref, computed, onMounted, watch,
 } from 'vue';
@@ -421,6 +424,16 @@ const exportFeedback = async () => {
 onMounted(() => {
   // Any initialization logic
 });
+
+const fbSteps = [
+  { title: 'Feedback Management', intro: 'Halaman ini menampilkan semua penilaian dan komentar dari pengguna setelah menggunakan layanan SALMA AI.' },
+  { element: '#tour-fb-header', title: 'Judul & Export', intro: 'Klik tombol "Export" untuk mengunduh seluruh data feedback dalam format Excel/CSV untuk keperluan pelaporan.' },
+  { element: '#tour-fb-stats', title: 'Statistik Ringkasan', intro: 'Kartu statistik menampilkan total feedback yang masuk, rata-rata rating bintang, dan persentase pengguna yang puas.' },
+  { element: '#tour-fb-distribution', title: 'Distribusi Rating', intro: 'Grafik batang menampilkan berapa banyak pengguna yang memberikan rating 1 hingga 5 bintang, beserta persentasenya.' },
+  { title: 'Daftar Ulasan', intro: 'Gulir ke bawah untuk melihat daftar lengkap feedback pengguna, termasuk nama, nomor kendaraan, teks komentar, dan tanggal diberikan.' },
+];
+const { startTour } = useTour(fbSteps);
+
 </script>
 
 <style scoped>

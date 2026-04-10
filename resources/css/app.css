@@ -10,6 +10,125 @@
   font-family: Poppins !important;
 }
 
+/* ── Intro.js global style overrides (SALMA AI theme) ─────────── */
+.introjs-overlay {
+  background: rgba(15, 10, 35, 0.55) !important;
+  backdrop-filter: blur(3px) !important;
+}
+
+/* Tooltip box */
+.salma-tooltip.introjs-tooltip {
+  background: #ffffff !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18) !important;
+  padding: 22px 24px 18px !important;
+  min-width: 280px !important;
+  max-width: 360px !important;
+  border: 1px solid #ede9fe !important;
+  font-family: Poppins, sans-serif !important;
+}
+
+/* Tooltip title */
+.salma-tooltip .introjs-tooltip-title {
+  font-size: 0.9375rem !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  margin-bottom: 6px !important;
+}
+
+/* Tooltip body */
+.salma-tooltip .introjs-tooltiptext {
+  font-size: 0.8125rem !important;
+  color: #475569 !important;
+  line-height: 1.6 !important;
+  margin-bottom: 14px !important;
+}
+
+/* Progress bar */
+.salma-tooltip .introjs-progress {
+  background: #f1f5f9 !important;
+  border-radius: 10px !important;
+  height: 4px !important;
+  margin-bottom: 12px !important;
+}
+.salma-tooltip .introjs-progressbar {
+  background: linear-gradient(90deg, #6c33a0, #9b59d0) !important;
+  border-radius: 10px !important;
+}
+
+/* Buttons */
+.salma-tour-btn.introjs-button {
+  background: linear-gradient(135deg, #6c33a0, #9b59d0) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 8px 16px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  font-family: Poppins, sans-serif !important;
+  cursor: pointer !important;
+  transition: opacity 0.15s !important;
+  text-shadow: none !important;
+}
+.salma-tour-btn.introjs-button:hover {
+  opacity: 0.88 !important;
+}
+.salma-tour-btn.introjs-prevbutton {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+}
+.salma-tour-btn.introjs-skipbutton {
+  background: transparent !important;
+  color: #94a3b8 !important;
+  font-size: 0.75rem !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 4px 8px !important;
+}
+.salma-tour-btn.introjs-skipbutton:hover {
+  color: #ef4444 !important;
+}
+.salma-tour-btn.introjs-disabled {
+  background: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  cursor: not-allowed !important;
+}
+
+/* Highlight ring */
+.salma-highlight.introjs-helperLayer {
+  box-shadow:
+    0 0 0 4px rgba(108, 51, 160, 0.25),
+    0 0 0 9999px rgba(15, 10, 35, 0.55) !important;
+  border-radius: 10px !important;
+}
+
+/* Arrow */
+.salma-tooltip .introjs-arrow {
+  border-color: #ffffff !important;
+}
+
+/* Step badge */
+.salma-tooltip .introjs-helperNumberLayer {
+  background: linear-gradient(135deg, #6c33a0, #9b59d0) !important;
+  border: 2px solid #fff !important;
+  border-radius: 50% !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  width: 26px !important;
+  height: 26px !important;
+  line-height: 22px !important;
+  text-align: center !important;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .salma-tooltip.introjs-tooltip {
+    min-width: 240px !important;
+    max-width: calc(100vw - 40px) !important;
+    padding: 16px 18px 14px !important;
+  }
+}
+
 .assistant-content a {
   color: blue;
   text-decoration: underline;

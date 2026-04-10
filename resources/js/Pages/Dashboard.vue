@@ -2,6 +2,8 @@
 import { ref, onMounted, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import TourButton from '@/Components/TourButton.vue';
+import { useTour } from '@/composables/useTour.js';
 
 const page = usePage();
 const metrics = computed(() => page.props.metrics || {});
@@ -124,13 +126,23 @@ const quickActions = [
 onMounted(() => {
   // Any additional client-only effects
 });
+
+const dashSteps = [
+  { title: 'Selamat Datang di Dashboard', intro: 'Ini adalah halaman utama admin SALMA AI. Di sini Anda bisa melihat ringkasan semua data sistem secara real-time.' },
+  { element: '#tour-dash-hero', title: 'Banner Selamat Datang', intro: 'Bagian ini menampilkan nama Anda dan tombol cepat menuju halaman Analitik.' },
+  { element: '#tour-dash-metrics', title: 'Kartu Statistik', intro: 'Lima kartu ini menampilkan total Wajib Pajak, Pesan AI, Laporan Analitik, Knowledge Base, dan rata-rata waktu jawab AI.' },
+  { element: '#tour-dash-actions', title: 'Quick Actions', intro: 'Tombol pintas untuk mengelola pengguna, melihat riwayat chat, mengimpor data, dan membuka analitik.' },
+  { element: '#tour-dash-activity', title: 'Recent Activity', intro: 'Menampilkan status laporan AI insight terakhir. Klik "View All" untuk melihat analitik lengkap.' },
+  { element: '#tour-dash-status', title: 'System Status', intro: 'Indikator status real-time: API, Database, dan AI Service. Pastikan semua berwarna hijau (Aktif).' },
+];
+const { startTour } = useTour(dashSteps);
 </script>
 
 <template>
   <AppLayout title="Dashboard">
     <div class="dash-page">
       <!-- ── Hero Welcome Banner ─────────────────────────────────── -->
-      <div class="dash-hero mb-8">
+      <div id="tour-dash-hero" class="dash-hero mb-8">
         <div class="dash-hero-content">
           <div class="dash-hero-avatar">
             <VIcon size="40" color="white">mdi-account-circle</VIcon>
@@ -155,7 +167,7 @@ onMounted(() => {
       </div>
 
       <!-- ── Metric Cards ──────────────────────────────────────── -->
-      <VRow class="mb-8" dense>
+      <VRow id="tour-dash-metrics" class="mb-8" dense>
         <VCol cols="12" sm="6" lg="3">
           <div class="metric-card">
             <div class="metric-icon-wrap mc-purple">
@@ -238,7 +250,7 @@ onMounted(() => {
       </VRow>
 
       <!-- ── Quick Actions ─────────────────────────────────────── -->
-      <div class="section-header mb-4">
+      <div id="tour-dash-actions" class="section-header mb-4">
         <div>
           <h2 class="section-title">Quick Actions</h2>
           <p class="section-sub">Akses fitur yang sering digunakan</p>
@@ -268,7 +280,7 @@ onMounted(() => {
       <!-- ── Bottom Row ────────────────────────────────────────── -->
       <VRow>
         <VCol cols="12" md="8">
-          <div class="info-card">
+          <div id="tour-dash-activity" class="info-card">
             <div class="info-card-header">
               <div>
                 <h3 class="info-card-title">Recent Activity</h3>
@@ -319,7 +331,7 @@ onMounted(() => {
         </VCol>
 
         <VCol cols="12" md="4">
-          <div class="info-card h-100">
+          <div id="tour-dash-status" class="info-card h-100">
             <div class="info-card-header">
               <h3 class="info-card-title">System Status</h3>
               <span class="status-badge-online">
@@ -353,6 +365,7 @@ onMounted(() => {
         </VCol>
       </VRow>
     </div>
+      <TourButton @start="startTour" />
   </AppLayout>
 </template>
 
