@@ -798,6 +798,8 @@ const { startTour } = useTour(kbSteps);
               ]"
               label="Status"
               variant="outlined"
+              density="compact"
+              hide-details
             />
           </VCol>
           <VCol cols="6" sm="4" md="2">
@@ -880,11 +882,12 @@ const { startTour } = useTour(kbSteps);
           v-model="selectedItems"
           :headers="headers"
           :items="filteredKnowledgeBases"
-          :items-per-page="perPage"
+          :items-per-page="-1"
           class="kb-table"
           show-select
           item-value="id"
           hover
+          hide-default-footer
         >
           <!-- Title column -->
           <template #item.title="{ item }">
@@ -1090,13 +1093,25 @@ const { startTour } = useTour(kbSteps);
 
         <!-- Pagination -->
         <VDivider />
-        <div class="pa-6 d-flex justify-center">
+        <div class="pa-3 d-flex flex-wrap align-center justify-space-between gap-2 px-4">
+          <span class="text-caption text-medium-emphasis">
+            Showing {{ knowledgeBases.from ?? 0 }}–{{ knowledgeBases.to ?? 0 }} of {{ knowledgeBases.total ?? 0 }} entries
+          </span>
           <VPagination
             :model-value="knowledgeBases.current_page"
             :length="knowledgeBases.last_page"
             @update:model-value="
               (page) =>
-                router.get(route('knowledge-base.index'), { ...filters, page })
+                router.get(route('knowledge-base.index'), {
+                  search: search,
+                  category: categoryFilter,
+                  type: typeFilter,
+                  source_type: sourceTypeFilter,
+                  status: statusFilter,
+                  is_active: activeFilter,
+                  per_page: perPage,
+                  page,
+                })
             "
             total-visible="7"
             size="small"
