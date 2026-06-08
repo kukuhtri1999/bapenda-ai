@@ -780,8 +780,13 @@ REQUIREMENTS:
 
             $userQuery = (string)($latestUser['content'] ?? '');
 
+            // Get dynamic Indonesian calendar and holiday details
+            $cal = $this->getCalendarDetails();
+            $calendarContextString = $this->getCalendarContextString($cal);
+            $fullContext = ($context ? $context . "\n" : "") . $calendarContextString;
+
             // ── Retrieve relevant knowledge chunks ────────────────────────────
-            $relevantKnowledge = $this->getVectorKnowledge($userQuery);
+            $relevantKnowledge = $this->getVectorKnowledge($userQuery, $cal);
             if ($this->debug) {
                 Log::info('Vector search results', ['count' => count($relevantKnowledge)]);
             }
@@ -802,7 +807,7 @@ REQUIREMENTS:
                 ->values()
                 ->toArray();
 
-            $systemPrompt = $salmaPrompt->buildPrompt($kbChunks, $context, $corrections);
+            $systemPrompt = $salmaPrompt->buildPrompt($kbChunks, $fullContext, $corrections);
 
             if ($this->debug) {
                 Log::info('SalmaPrompt built', [
@@ -887,8 +892,11 @@ REQUIREMENTS:
      * This ensures queries that span multiple source documents (e.g. "biaya balik nama")
      * receive relevant chunks from EVERY matching document, not just the top-ranked one.
      */
-    private function getVectorKnowledge(string $userQuery): array
+    private function getVectorKnowledge(string $userQuery, ?array $cal = null): array
     {
+        $cal = $cal ?? $this->getCalendarDetails();
+        $searchQuery = $this->expandQueryForTemporalContext($userQuery, $cal);
+
         $vectorResults = [];
         $vectorOk      = false;
 
@@ -898,7 +906,7 @@ REQUIREMENTS:
                 $embeddingService = app(EmbeddingService::class);
                 $pineconeService  = app(PineconeService::class);
 
-                $queryEmbedding = $embeddingService->embed($userQuery);
+                $queryEmbedding = $embeddingService->embed($searchQuery);
                 if ($queryEmbedding) {
                     // topK=15 casts a wide net so chunks from ALL relevant documents surface
                     $matches = $pineconeService->query(
@@ -940,7 +948,7 @@ REQUIREMENTS:
         // ── Phase 2: DB full-text search (always runs) ───────────────────────
         // Supplements vector results to guarantee coverage of ALL matching documents,
         // especially when a document is under-represented in the vector index.
-        $dbResults = $this->getDatabaseKnowledge($userQuery);
+        $dbResults = $this->getDatabaseKnowledge($searchQuery);
 
         if ($vectorOk && !empty($vectorResults)) {
             // IDs already covered by vector results
@@ -1861,6 +1869,118 @@ PROMPT;
             \Illuminate\Support\Facades\Log::error('OpenAIService::enhanceKnowledgeBase error', ['id' => $kb->id, 'error' => $e->getMessage()]);
             return ['success' => false, 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Get current Indonesian datetime and calendar context information.
+     */
+    public function getCalendarDetails(): array
+    {
+        $now = \Carbon\Carbon::now('Asia/Jakarta');
+        
+        $daysInIndonesian = [
+            'Sunday' => 'Minggu',
+            'Monday' => 'Senin',
+            'Tuesday' => 'Selasa',
+            'Wednesday' => 'Rabu',
+            'Thursday' => 'Kamis',
+            'Friday' => 'Jumat',
+            'Saturday' => 'Sabtu'
+        ];
+        $monthsInIndonesian = [
+            'January' => 'Januari',
+            'February' => 'Februari',
+            'March' => 'Maret',
+            'April' => 'April',
+            'May' => 'Mei',
+            'June' => 'Juni',
+            'July' => 'Juli',
+            'August' => 'Agustus',
+            'September' => 'September',
+            'October' => 'Oktober',
+            'November' => 'November',
+            'December' => 'Desember'
+        ];
+
+        $englishDay = $now->format('l');
+        $dayName = $daysInIndonesian[$englishDay] ?? $englishDay;
+        
+        $englishMonth = $now->format('F');
+        $monthName = $monthsInIndonesian[$englishMonth] ?? $englishMonth;
+        
+        $dateFormatted = $now->format('d') . ' ' . $monthName . ' ' . $now->format('Y');
+        $timeFormatted = $now->format('H:i');
+
+        $isSunday = ($englishDay === 'Sunday');
+        $isSaturday = ($englishDay === 'Saturday');
+        $todayYmd = $now->format('Y-m-d');
+
+        return [
+            'carbon' => $now,
+            'day_name' => $dayName,
+            'date_formatted' => $dateFormatted,
+            'time_formatted' => $timeFormatted,
+            'is_sunday' => $isSunday,
+            'is_saturday' => $isSaturday,
+            'ymd' => $todayYmd
+        ];
+    }
+
+    /**
+     * Build calendar context block to be injected into the system prompt.
+     */
+    public function getCalendarContextString(array $cal): string
+    {
+        $context = "\nINFO WAKTU & KALENDER SAAT INI:\n";
+        $context .= "- Hari: {$cal['day_name']}\n";
+        $context .= "- Tanggal: {$cal['date_formatted']}\n";
+        $context .= "- Jam: {$cal['time_formatted']} WIB\n";
+        
+        if ($cal['is_sunday']) {
+            $context .= "- Status Hari Kerja/Libur: Hari Minggu (Samsat Induk dan sebagian besar layanan TUTUP)\n";
+        } elseif ($cal['is_saturday']) {
+            $context .= "- Status Hari Kerja/Libur: Hari Sabtu (Layanan setengah hari atau tutup, silakan cocokkan dengan jadwal layanan terkait)\n";
+        } else {
+            $context .= "- Status Hari Kerja/Libur: Hari Kerja (Senin s.d. Jumat - Silakan cocokkan dengan jadwal layanan terkait)\n";
+        }
+
+        return $context;
+    }
+
+    /**
+     * Expand user query with current day/date/holiday context if temporal keywords are present.
+     */
+    private function expandQueryForTemporalContext(string $query, array $cal): string
+    {
+        $queryLower = strtolower($query);
+        
+        // Define temporal indicators in Indonesian
+        $temporalKeywords = [
+            'hari ini', 'besok', 'lusa', 'nanti', 'kemarin',
+            'jadwal', 'buka', 'tutup', 'jam', 'hari', 'tanggal',
+            'operasional', 'pelayanan', 'buka jam', 'tutup jam',
+            'samsat keliling', 'samkel', 'keliling', 'unggulan',
+            'ramadhan', 'ramadan', 'puasa', 'lebaran', 'libur',
+            'cuti', 'sabtu', 'minggu', 'senin', 'selasa', 'rabu',
+            'kamis', 'jumat'
+        ];
+        
+        $hasTemporalSignal = false;
+        foreach ($temporalKeywords as $keyword) {
+            if (strpos($queryLower, $keyword) !== false) {
+                $hasTemporalSignal = true;
+                break;
+            }
+        }
+        
+        if (!$hasTemporalSignal) {
+            return $query;
+        }
+        
+        // Expand query by appending day name and global keywords for Ramadan/holidays.
+        // This ensures the RAG retrieval fetches holiday calendars and Ramadan schedules
+        // for the LLM to inspect in-context.
+        return $query . " {$cal['day_name']} ramadhan ramadan libur tutup";
     }
 
     /**

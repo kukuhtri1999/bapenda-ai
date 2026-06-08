@@ -194,7 +194,7 @@ class ChatController extends Controller
         $aiStartTime = microtime(true);
         $aiResponse = $this->openAIService->generateCustomerServiceResponse(
             $currentContext,
-            "Session ID: {$request->session_id}, Current time: " . now()->format('Y-m-d H:i:s')
+            "Session ID: {$request->session_id}, Current time: " . now('Asia/Jakarta')->format('Y-m-d H:i:s')
         );
         $aiResponseTime = round(microtime(true) - $aiStartTime, 2);
 
