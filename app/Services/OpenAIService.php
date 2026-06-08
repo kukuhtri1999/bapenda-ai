@@ -782,13 +782,30 @@ REQUIREMENTS:
 
             // Get dynamic Indonesian calendar and holiday details
             $cal = $this->getCalendarDetails();
-            $calendarContextString = $this->getCalendarContextString($cal);
-            $fullContext = ($context ? $context . "\n" : "") . $calendarContextString;
 
             // ── Retrieve relevant knowledge chunks ────────────────────────────
             $relevantKnowledge = $this->getVectorKnowledge($userQuery, $cal);
             if ($this->debug) {
                 Log::info('Vector search results', ['count' => count($relevantKnowledge)]);
+            }
+
+            // Extract any AI instructions from the retrieved Knowledge Base chunks
+            $instructions = [];
+            foreach ($relevantKnowledge as $kb) {
+                if (!empty($kb['ai_instructions'])) {
+                    $instructions[] = trim($kb['ai_instructions']);
+                }
+            }
+            $instructions = array_unique($instructions);
+
+            $calendarContextString = $this->getCalendarContextString($cal);
+            $fullContext = ($context ? $context . "\n" : "") . $calendarContextString;
+
+            if (!empty($instructions)) {
+                $fullContext .= "\n\nINSTRUKSI & PETUNJUK KHUSUS AI (DARI KNOWLEDGE BASE REFERENSI - HARUS DIIKUTI):\n";
+                foreach ($instructions as $idx => $instr) {
+                    $fullContext .= ($idx + 1) . ". {$instr}\n";
+                }
             }
 
             // ── Build structured system prompt via SalmaPromptService ─────────
@@ -929,13 +946,14 @@ REQUIREMENTS:
                         $seenKbIds[$kbId] = $countFromDoc + 1;
 
                         $vectorResults[] = [
-                            'id'       => $kbId,
-                            'title'    => $metadata['title'] ?? '',
-                            'content'  => $metadata['chunk_text'] ?? '',
-                            'answer'   => $metadata['chunk_text'] ?? '',
-                            'category' => $metadata['category'] ?? '',
-                            'score'    => $score,
-                            '_source'  => 'vector',
+                            'id'              => $kbId,
+                            'title'           => $metadata['title'] ?? '',
+                            'content'         => $metadata['chunk_text'] ?? '',
+                            'answer'          => $metadata['chunk_text'] ?? '',
+                            'category'        => $metadata['category'] ?? '',
+                            'ai_instructions' => $metadata['ai_instructions'] ?? '',
+                            'score'           => $score,
+                            '_source'         => 'vector',
                         ];
                     }
                     $vectorOk = true;
@@ -970,11 +988,13 @@ REQUIREMENTS:
                 'top_score' => $vectorResults[0]['score'] ?? 0,
             ]);
 
-            return $this->injectReferencedKnowledge($vectorResults);
+            $results = $this->injectReferencedKnowledge($vectorResults);
+            return $this->injectAIInstructionReferencedKnowledge($results);
         }
 
         // Pure DB fallback when vector search could not run at all
-        return $this->injectReferencedKnowledge($dbResults);
+        $results = $this->injectReferencedKnowledge($dbResults);
+        return $this->injectAIInstructionReferencedKnowledge($results);
     }
 
     private function getDatabaseKnowledge(string $userQuery): array
@@ -1089,7 +1109,7 @@ REQUIREMENTS:
             ->orderByDesc('priority')
             ->orderByDesc('view_count')
             ->limit(10)
-            ->get(['id', 'title', 'content', 'answer', 'category', 'search_content'])
+            ->get(['id', 'title', 'content', 'answer', 'category', 'search_content', 'ai_instructions'])
             ->map(function ($kb) use ($keywords) {
                 // Relevance scoring: title matches are weighted 3× over content
                 $title   = mb_strtolower($kb->title ?? '');
@@ -1103,13 +1123,14 @@ REQUIREMENTS:
                 }
 
                 return [
-                    'id'             => $kb->id,
-                    'title'          => $kb->title,
-                    'content'        => $kb->content,
-                    'answer'         => $kb->answer,
-                    'category'       => $kb->category,
-                    'search_content' => $kb->search_content,
-                    'score'          => min($score, 1.0),
+                    'id'              => $kb->id,
+                    'title'           => $kb->title,
+                    'content'         => $kb->content,
+                    'answer'          => $kb->answer,
+                    'category'        => $kb->category,
+                    'ai_instructions' => $kb->ai_instructions,
+                    'search_content'  => $kb->search_content,
+                    'score'           => min($score, 1.0),
                 ];
             })
             ->filter(fn($kb) => $kb['score'] >= 0.15)   // lower threshold = catch more
@@ -1172,7 +1193,7 @@ REQUIREMENTS:
             // First try exact case-insensitive match on title:
             $exactMatches = KnowledgeBase::active()->published()
                 ->where('title', 'like', $refTitle)
-                ->select(['id', 'title', 'content', 'category'])
+                ->select(['id', 'title', 'content', 'category', 'ai_instructions'])
                 ->get();
 
             if ($exactMatches->isNotEmpty()) {
@@ -1188,7 +1209,7 @@ REQUIREMENTS:
             // Next, try a partial match: title containing the referenced term
             $partialMatches = KnowledgeBase::active()->published()
                 ->where('title', 'like', "%{$refTitle}%")
-                ->select(['id', 'title', 'content', 'category'])
+                ->select(['id', 'title', 'content', 'category', 'ai_instructions'])
                 ->get();
 
             if ($partialMatches->isNotEmpty()) {
@@ -1209,7 +1230,7 @@ REQUIREMENTS:
 
             if (!empty($words)) {
                 $keywordQuery = KnowledgeBase::active()->published()
-                    ->select(['id', 'title', 'content', 'category']);
+                    ->select(['id', 'title', 'content', 'category', 'ai_instructions']);
                 
                 foreach ($words as $word) {
                     $keywordQuery->where('title', 'like', "%{$word}%");
@@ -1245,14 +1266,15 @@ REQUIREMENTS:
     private function formatDbRowForKnowledge($match, string $source, float $score): array
     {
         return [
-            'id'             => $match->id,
-            'title'          => $match->title,
-            'content'        => $match->content,
-            'answer'         => $match->content,
-            'category'       => $match->category,
-            'search_content' => strip_tags($match->content),
-            'score'          => $score,
-            '_source'        => $source,
+            'id'              => $match->id,
+            'title'           => $match->title,
+            'content'         => $match->content,
+            'answer'          => $match->content,
+            'category'        => $match->category,
+            'ai_instructions' => $match->ai_instructions,
+            'search_content'  => strip_tags($match->content),
+            'score'           => $score,
+            '_source'         => $source,
         ];
     }
 
@@ -1981,6 +2003,95 @@ PROMPT;
         // This ensures the RAG retrieval fetches holiday calendars and Ramadan schedules
         // for the LLM to inspect in-context.
         return $query . " {$cal['day_name']} ramadhan ramadan libur tutup";
+    }
+
+    /**
+     * Scan retrieved knowledge base chunks for instructions referencing other categories or types,
+     * and dynamically retrieve and inject those matching entries into the RAG context.
+     */
+    private function injectAIInstructionReferencedKnowledge(array $results): array
+    {
+        $referencedCategories = [];
+        $referencedTypes = [];
+        
+        $categoriesMap = KnowledgeBase::getCategories();
+        $typesMap = KnowledgeBase::getTypes();
+
+        foreach ($results as $item) {
+            $instr = $item['ai_instructions'] ?? '';
+            if (empty($instr)) continue;
+
+            // Match anything inside single/double quotes, e.g. 'peraturan & kebijakan'
+            if (preg_match_all('/[\'"]([^\'"]+)[\'"]/u', $instr, $matches)) {
+                foreach ($matches[1] as $quotedText) {
+                    $cleaned = strtolower(trim($quotedText));
+                    
+                    // 1. Check if it matches a category key or label
+                    foreach ($categoriesMap as $key => $label) {
+                        if ($cleaned === strtolower($key) || $cleaned === strtolower($label)) {
+                            $referencedCategories[] = $key;
+                        }
+                    }
+                    
+                    // 2. Check if it matches a type key or label
+                    foreach ($typesMap as $key => $label) {
+                        if ($cleaned === strtolower($key) || $cleaned === strtolower($label)) {
+                            $referencedTypes[] = $key;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (empty($referencedCategories) && empty($referencedTypes)) {
+            return $results;
+        }
+
+        $referencedCategories = array_unique($referencedCategories);
+        $referencedTypes = array_unique($referencedTypes);
+        $injectedIds = array_filter(array_column($results, 'id'));
+        $extraResults = [];
+
+        // Fetch extra KBs by category
+        if (!empty($referencedCategories)) {
+            $catKbs = KnowledgeBase::active()->published()
+                ->whereIn('category', $referencedCategories)
+                ->select(['id', 'title', 'content', 'category', 'ai_instructions'])
+                ->get();
+            foreach ($catKbs as $match) {
+                if (!in_array($match->id, $injectedIds, true)) {
+                    $extraResults[] = $this->formatDbRowForKnowledge($match, 'instruction_category', 0.90);
+                    $injectedIds[] = $match->id;
+                }
+            }
+        }
+
+        // Fetch extra KBs by type
+        if (!empty($referencedTypes)) {
+            $typeKbs = KnowledgeBase::active()->published()
+                ->whereIn('type', $referencedTypes)
+                ->select(['id', 'title', 'content', 'category', 'ai_instructions'])
+                ->get();
+            foreach ($typeKbs as $match) {
+                if (!in_array($match->id, $injectedIds, true)) {
+                    $extraResults[] = $this->formatDbRowForKnowledge($match, 'instruction_type', 0.90);
+                    $injectedIds[] = $match->id;
+                }
+            }
+        }
+
+        if (!empty($extraResults)) {
+            if ($this->debug) {
+                Log::info('Injected AI instruction referenced knowledge bases', [
+                    'categories' => $referencedCategories,
+                    'types' => $referencedTypes,
+                    'count' => count($extraResults),
+                ]);
+            }
+            $results = array_merge($results, $extraResults);
+        }
+
+        return $results;
     }
 
     /**

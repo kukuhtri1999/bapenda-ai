@@ -20,6 +20,7 @@ class KnowledgeBase extends Model
         'answer',
         'excerpt',
         'content',
+        'ai_instructions',
         'category',
         'type',
         'source_type',
@@ -338,16 +339,17 @@ class KnowledgeBase extends Model
                 id: 'kb_' . $this->id,
                 embedding: $embedding,
                 metadata: [
-                    'kb_id'       => $this->id,
-                    'title'       => $this->title,
-                    'category'    => $this->category,
-                    'type'        => $this->type,
-                    'chunk_text'  => $metadataText,
-                    'source_type' => $this->source_type,
-                    'is_active'   => $this->is_active,
-                    'status'      => $this->status,
-                    'created_at'  => $this->created_at?->toISOString(),
-                    'updated_at'  => $this->updated_at?->toISOString(),
+                    'kb_id'           => $this->id,
+                    'title'           => $this->title,
+                    'category'        => $this->category,
+                    'type'            => $this->type,
+                    'chunk_text'      => $metadataText,
+                    'ai_instructions' => $this->ai_instructions ?? '',
+                    'source_type'     => $this->source_type,
+                    'is_active'       => $this->is_active,
+                    'status'          => $this->status,
+                    'created_at'      => $this->created_at?->toISOString() ?? '',
+                    'updated_at'      => $this->updated_at?->toISOString() ?? '',
                 ]
             );
 
@@ -369,7 +371,7 @@ class KnowledgeBase extends Model
     {
         try {
             // Check if content or active status changed
-            $contentChanged = $this->isDirty(['title', 'content', 'answer', 'category', 'type']);
+            $contentChanged = $this->isDirty(['title', 'content', 'answer', 'category', 'type', 'ai_instructions']);
             $statusChanged = $this->isDirty(['is_active', 'status']);
 
             if (!$contentChanged && !$statusChanged) {

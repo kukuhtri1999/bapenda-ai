@@ -21,6 +21,7 @@ const props = defineProps({
 const form = reactive({
   title: '',
   content: '',
+  ai_instructions: '',
   category: 'pajak',
   type: 'faq',
   status: 'published',
@@ -311,6 +312,7 @@ const submit = async () => {
     const formData = new FormData();
     formData.append('title', form.title);
     formData.append('content', form.content);
+    formData.append('ai_instructions', form.ai_instructions || '');
     formData.append('category', form.category);
     formData.append('type', form.type);
     formData.append('status', form.status);
@@ -764,6 +766,21 @@ const { startTour } = useTour(kbCreateSteps);
                   >
                     {{ formState.errors.content }}
                   </div>
+                </div>
+
+                <!-- AI Instructions / RAG Hints -->
+                <div class="mt-4">
+                  <VTextarea
+                    v-model="form.ai_instructions"
+                    label="Instruksi AI / RAG Hints (Opsional)"
+                    variant="outlined"
+                    rows="3"
+                    :error-messages="formState.errors.ai_instructions"
+                    prepend-inner-icon="mdi-robot"
+                    placeholder="Instruksi tambahan untuk AI (misal: baca kategori 'peraturan & kebijakan' untuk detail biaya, atau berikan link web online untuk cek PKB)"
+                    hint="Instruksi khusus ini akan disisipkan ke sistem prompt AI saat dokumen ini digunakan sebagai referensi."
+                    persistent-hint
+                  ></VTextarea>
                 </div>
               </VCardText>
             </VCard>

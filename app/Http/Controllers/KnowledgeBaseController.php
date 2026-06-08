@@ -108,6 +108,7 @@ class KnowledgeBaseController extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'content' => $request->source_type === 'file' ? 'nullable|string' : 'required|string',
+            'ai_instructions' => 'nullable|string',
             'category' => 'required|string|max:50',
             'type' => 'required|string|max:50',
             'source_type' => 'required|in:manual,file',
@@ -327,6 +328,7 @@ class KnowledgeBaseController extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'content' => 'required|string',
+            'ai_instructions' => 'nullable|string',
             'category' => 'required|string|max:50',
             'type' => 'required|string|max:50',
             'tags' => 'nullable', // allow string or array
