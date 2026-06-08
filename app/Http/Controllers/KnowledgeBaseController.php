@@ -530,50 +530,59 @@ class KnowledgeBaseController extends Controller
      */
     public function bulkAction(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'action' => 'required|in:delete,activate,deactivate,publish,archive,export_word',
-            'ids' => 'required|array|min:1',
-            'ids.*' => 'integer|exists:knowledge_bases,id',
-        ]);
+        try {
+            $validator = Validator::make($request->all(), [
+                'action' => 'required|in:delete,activate,deactivate,publish,archive,export_word',
+                'ids' => 'required|array|min:1',
+                'ids.*' => 'integer|exists:knowledge_bases,id',
+            ]);
 
-        if ($validator->fails()) {
-            return back()->withErrors($validator);
+            if ($validator->fails()) {
+                return back()->withErrors($validator);
+            }
+
+            if ($request->action === 'export_word') {
+                return $this->exportToWord($request->ids);
+            }
+
+            $knowledgeBases = KnowledgeBase::whereIn('id', $request->ids);
+
+            switch ($request->action) {
+                case 'delete':
+                    $knowledgeBases->delete();
+                    $message = 'Selected entries deleted successfully.';
+                    break;
+                case 'activate':
+                    $knowledgeBases->update(['is_active' => true, 'updated_by' => Auth::id()]);
+                    $message = 'Selected entries activated successfully.';
+                    break;
+                case 'deactivate':
+                    $knowledgeBases->update(['is_active' => false, 'updated_by' => Auth::id()]);
+                    $message = 'Selected entries deactivated successfully.';
+                    break;
+                case 'publish':
+                    $knowledgeBases->update([
+                        'status' => 'published',
+                        'published_at' => now(),
+                        'updated_by' => Auth::id()
+                    ]);
+                    $message = 'Selected entries published successfully.';
+                    break;
+                case 'archive':
+                    $knowledgeBases->update(['status' => 'archived', 'updated_by' => Auth::id()]);
+                    $message = 'Selected entries archived successfully.';
+                    break;
+            }
+
+            return back()->with('success', $message);
+        } catch (\Throwable $e) {
+            Log::error('Bulk Action Throwable: ' . $e->getMessage(), [
+                'action' => $request->action,
+                'ids' => $request->ids,
+                'trace' => $e->getTraceAsString()
+            ]);
+            return back()->with('error', 'An error occurred during bulk action: ' . $e->getMessage());
         }
-
-        if ($request->action === 'export_word') {
-            return $this->exportToWord($request->ids);
-        }
-
-        $knowledgeBases = KnowledgeBase::whereIn('id', $request->ids);
-
-        switch ($request->action) {
-            case 'delete':
-                $knowledgeBases->delete();
-                $message = 'Selected entries deleted successfully.';
-                break;
-            case 'activate':
-                $knowledgeBases->update(['is_active' => true, 'updated_by' => Auth::id()]);
-                $message = 'Selected entries activated successfully.';
-                break;
-            case 'deactivate':
-                $knowledgeBases->update(['is_active' => false, 'updated_by' => Auth::id()]);
-                $message = 'Selected entries deactivated successfully.';
-                break;
-            case 'publish':
-                $knowledgeBases->update([
-                    'status' => 'published',
-                    'published_at' => now(),
-                    'updated_by' => Auth::id()
-                ]);
-                $message = 'Selected entries published successfully.';
-                break;
-            case 'archive':
-                $knowledgeBases->update(['status' => 'archived', 'updated_by' => Auth::id()]);
-                $message = 'Selected entries archived successfully.';
-                break;
-        }
-
-        return back()->with('success', $message);
     }
 
     /**
@@ -594,6 +603,28 @@ class KnowledgeBaseController extends Controller
             $idList = array_map('intval', $ids);
             if (empty($idList)) {
                 throw new \InvalidArgumentException('No valid IDs provided for export.');
+            }
+
+            // Check if PHPWord class is available
+            if (!class_exists('\PhpOffice\PhpWord\PhpWord')) {
+                throw new \RuntimeException('PHPWord library is not installed or configured on this server. Please run "composer install".');
+            }
+
+            // Check if required extensions are available
+            $missingExtensions = [];
+            foreach (['zip', 'xml', 'dom'] as $ext) {
+                if (!extension_loaded($ext)) {
+                    $missingExtensions[] = $ext;
+                }
+            }
+            if (!empty($missingExtensions)) {
+                throw new \RuntimeException('Required PHP extension(s) missing on this server: ' . implode(', ', $missingExtensions));
+            }
+
+            // Check if temporary directory is writable
+            $tempDir = sys_get_temp_dir();
+            if (!is_writable($tempDir)) {
+                throw new \RuntimeException('System temporary directory is not writable: ' . $tempDir);
             }
 
             // Create PHPWord instance
@@ -695,8 +726,8 @@ class KnowledgeBaseController extends Controller
 
             return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
 
-        } catch (\Exception $e) {
-            Log::error('Word Export Exception: ' . $e->getMessage(), [
+        } catch (\Throwable $e) {
+            Log::error('Word Export Throwable: ' . $e->getMessage(), [
                 'ids' => $ids,
                 'trace' => $e->getTraceAsString()
             ]);

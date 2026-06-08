@@ -1,8 +1,8 @@
 <script setup>
 import TourButton from '@/Components/TourButton.vue';
 import { useTour } from '@/composables/useTour.js';
-import { ref, computed } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { ref, computed, watch, inject } from 'vue';
+import { router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -13,6 +13,22 @@ const props = defineProps({
   types: Object,
   statuses: Object,
 });
+
+const page = usePage();
+const $toast = inject('$toast');
+
+watch(
+  () => page.props.flash,
+  (flash) => {
+    if (flash?.success) {
+      $toast.success(flash.success);
+    }
+    if (flash?.error) {
+      $toast.error(flash.error);
+    }
+  },
+  { deep: true, immediate: true }
+);
 
 const search = ref(props.filters.search || '');
 const categoryFilter = ref(props.filters.category || '');
