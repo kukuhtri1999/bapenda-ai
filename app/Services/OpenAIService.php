@@ -962,11 +962,11 @@ REQUIREMENTS:
                 'top_score' => $vectorResults[0]['score'] ?? 0,
             ]);
 
-            return $vectorResults;
+            return $this->injectReferencedKnowledge($vectorResults);
         }
 
         // Pure DB fallback when vector search could not run at all
-        return $dbResults;
+        return $this->injectReferencedKnowledge($dbResults);
     }
 
     private function getDatabaseKnowledge(string $userQuery): array
@@ -1115,6 +1115,137 @@ REQUIREMENTS:
             'results'  => count($knowledge),
         ]);
         return $knowledge;
+    }
+
+    /**
+     * Scan knowledge base entries for "referensi: Title A, Title B" and query matching KB entries
+     * from the database to inject them dynamically.
+     */
+    private function injectReferencedKnowledge(array $results): array
+    {
+        $referencedTitles = [];
+
+        // 1. Scan existing results for "referensi: ..." or "reference: ..."
+        foreach ($results as $item) {
+            $content = $item['content'] ?? $item['answer'] ?? '';
+            if (empty($content)) {
+                continue;
+            }
+
+            // Clean strip tags first to get clean text for regex matching
+            $cleanText = html_entity_decode(strip_tags($content), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+            // Match "referensi: ..." or "reference: ..." up to the end of the line or period
+            // Case-insensitive, supporting spaces around colon
+            if (preg_match('/(?:referensi|reference)\s*:\s*([^\n\r.]+)/i', $cleanText, $matches)) {
+                $rawList = $matches[1];
+                // Split by comma
+                $parts = explode(',', $rawList);
+                foreach ($parts as $part) {
+                    $trimmed = trim($part);
+                    if (!empty($trimmed) && strlen($trimmed) >= 3) {
+                        $referencedTitles[] = $trimmed;
+                    }
+                }
+            }
+        }
+
+        if (empty($referencedTitles)) {
+            return $results;
+        }
+
+        $referencedTitles = array_unique($referencedTitles);
+        $injectedIds = array_filter(array_column($results, 'id'));
+        $extraResults = [];
+
+        // 2. Search for each referenced title in the database
+        foreach ($referencedTitles as $refTitle) {
+            // Find in database with a smart search:
+            // First try exact case-insensitive match on title:
+            $exactMatches = KnowledgeBase::active()->published()
+                ->where('title', 'like', $refTitle)
+                ->select(['id', 'title', 'content', 'category'])
+                ->get();
+
+            if ($exactMatches->isNotEmpty()) {
+                foreach ($exactMatches as $match) {
+                    if (!in_array($match->id, $injectedIds, true)) {
+                        $extraResults[] = $this->formatDbRowForKnowledge($match, 'reference_exact', 0.95);
+                        $injectedIds[] = $match->id;
+                    }
+                }
+                continue;
+            }
+
+            // Next, try a partial match: title containing the referenced term
+            $partialMatches = KnowledgeBase::active()->published()
+                ->where('title', 'like', "%{$refTitle}%")
+                ->select(['id', 'title', 'content', 'category'])
+                ->get();
+
+            if ($partialMatches->isNotEmpty()) {
+                foreach ($partialMatches as $match) {
+                    if (!in_array($match->id, $injectedIds, true)) {
+                        $extraResults[] = $this->formatDbRowForKnowledge($match, 'reference_partial', 0.85);
+                        $injectedIds[] = $match->id;
+                    }
+                }
+                continue;
+            }
+
+            // Finally, if still no match, split the referenced title into words and try to match
+            // any active published KB title containing all keywords (excluding small stop words)
+            $words = array_filter(explode(' ', $refTitle), function($word) {
+                return strlen(trim($word)) > 3; // Keep only substantial words
+            });
+
+            if (!empty($words)) {
+                $keywordQuery = KnowledgeBase::active()->published()
+                    ->select(['id', 'title', 'content', 'category']);
+                
+                foreach ($words as $word) {
+                    $keywordQuery->where('title', 'like', "%{$word}%");
+                }
+                
+                $keywordMatches = $keywordQuery->get();
+                foreach ($keywordMatches as $match) {
+                    if (!in_array($match->id, $injectedIds, true)) {
+                        $extraResults[] = $this->formatDbRowForKnowledge($match, 'reference_keyword', 0.75);
+                        $injectedIds[] = $match->id;
+                    }
+                }
+            }
+        }
+
+        // 3. Append the referenced results to the end of the collection
+        if (!empty($extraResults)) {
+            if ($this->debug) {
+                Log::info('Injected cross-referenced knowledge base documents', [
+                    'referenced_titles' => $referencedTitles,
+                    'injected_count'    => count($extraResults),
+                ]);
+            }
+            $results = array_merge($results, $extraResults);
+        }
+
+        return $results;
+    }
+
+    /**
+     * Helper to format a KnowledgeBase Eloquent model into the standard retrieval array format.
+     */
+    private function formatDbRowForKnowledge($match, string $source, float $score): array
+    {
+        return [
+            'id'             => $match->id,
+            'title'          => $match->title,
+            'content'        => $match->content,
+            'answer'         => $match->content,
+            'category'       => $match->category,
+            'search_content' => strip_tags($match->content),
+            'score'          => $score,
+            '_source'        => $source,
+        ];
     }
 
     /**
