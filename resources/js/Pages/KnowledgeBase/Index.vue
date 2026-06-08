@@ -20,6 +20,7 @@ const typeFilter = ref(props.filters.type || '');
 const sourceTypeFilter = ref(props.filters.source_type || '');
 const statusFilter = ref(props.filters.status || '');
 const activeFilter = ref(props.filters.is_active || '');
+const perPage = ref(props.filters.per_page || 15);
 const selectedItems = ref([]);
 const bulkAction = ref('');
 const confirmDelete = ref(false);
@@ -61,6 +62,7 @@ const bulkActions = [
   { title: 'Deactivate Selected', value: 'deactivate' },
   { title: 'Publish Selected', value: 'publish' },
   { title: 'Archive Selected', value: 'archive' },
+  { title: 'Export to Word', value: 'export_word' },
 ];
 
 // ── Quality Score & Enhance ─────────────────────────────────────────────────
@@ -330,6 +332,7 @@ const applyFilters = () => {
       source_type: sourceTypeFilter.value,
       status: statusFilter.value,
       is_active: activeFilter.value,
+      per_page: perPage.value,
     },
     {
       preserveState: true,
@@ -345,6 +348,7 @@ const clearFilters = () => {
   sourceTypeFilter.value = '';
   statusFilter.value = '';
   activeFilter.value = '';
+  perPage.value = 15;
   router.get(route('knowledge-base.index'));
 };
 
@@ -377,6 +381,41 @@ const toggleStatus = (item) => {
 
 const executeBulkAction = () => {
   if (!bulkAction.value || selectedItems.value.length === 0) return;
+
+  if (bulkAction.value === 'export_word') {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = route('knowledge-base.bulk-action');
+
+    const csrfToken = document.head.querySelector('meta[name="csrf-token"]')?.content;
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = '_token';
+    csrfInput.value = csrfToken;
+    form.appendChild(csrfInput);
+
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = 'export_word';
+    form.appendChild(actionInput);
+
+    selectedItems.value.forEach((id) => {
+      const idInput = document.createElement('input');
+      idInput.type = 'hidden';
+      idInput.name = 'ids[]';
+      idInput.value = id;
+      form.appendChild(idInput);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+
+    selectedItems.value = [];
+    bulkAction.value = '';
+    return;
+  }
 
   router.post(
     route('knowledge-base.bulk-action'),
@@ -759,8 +798,24 @@ const { startTour } = useTour(kbSteps);
               ]"
               label="Status"
               variant="outlined"
+            />
+          </VCol>
+          <VCol cols="6" sm="4" md="2">
+            <VSelect
+              v-model="perPage"
+              :items="[
+                { title: '5 per page', value: 5 },
+                { title: '10 per page', value: 10 },
+                { title: '15 per page', value: 15 },
+                { title: '25 per page', value: 25 },
+                { title: '50 per page', value: 50 },
+                { title: '100 per page', value: 100 }
+              ]"
+              label="Show"
+              variant="outlined"
               density="compact"
               hide-details
+              @update:model-value="applyFilters"
             />
           </VCol>
           <VCol cols="6" sm="auto" class="d-flex gap-2">
@@ -825,7 +880,7 @@ const { startTour } = useTour(kbSteps);
           v-model="selectedItems"
           :headers="headers"
           :items="filteredKnowledgeBases"
-          :items-per-page="15"
+          :items-per-page="perPage"
           class="kb-table"
           show-select
           item-value="id"

@@ -51,11 +51,19 @@ class KnowledgeBaseController extends Controller
             $query->where('is_active', $request->boolean('is_active'));
         }
 
-        $knowledgeBases = $query->paginate(15)->withQueryString();
+        $perPage = $request->integer('per_page', 15);
+        if (!in_array($perPage, [5, 10, 15, 25, 50, 100])) {
+            $perPage = 15;
+        }
+
+        $knowledgeBases = $query->paginate($perPage)->withQueryString();
 
         return Inertia::render('KnowledgeBase/Index', [
             'knowledgeBases' => $knowledgeBases,
-            'filters' => $request->only(['search', 'category', 'type', 'source_type', 'status', 'is_active']),
+            'filters' => array_merge(
+                ['per_page' => $perPage],
+                $request->only(['search', 'category', 'type', 'source_type', 'status', 'is_active'])
+            ),
             'categories' => KnowledgeBase::getCategories(),
             'types' => KnowledgeBase::getTypes(),
             'statuses' => KnowledgeBase::getStatuses(),
@@ -523,13 +531,17 @@ class KnowledgeBaseController extends Controller
     public function bulkAction(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'action' => 'required|in:delete,activate,deactivate,publish,archive',
+            'action' => 'required|in:delete,activate,deactivate,publish,archive,export_word',
             'ids' => 'required|array|min:1',
             'ids.*' => 'integer|exists:knowledge_bases,id',
         ]);
 
         if ($validator->fails()) {
             return back()->withErrors($validator);
+        }
+
+        if ($request->action === 'export_word') {
+            return $this->exportToWord($request->ids);
         }
 
         $knowledgeBases = KnowledgeBase::whereIn('id', $request->ids);
@@ -562,6 +574,126 @@ class KnowledgeBaseController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * Export selected entries to a Word document (.docx)
+     */
+    private function exportToWord(array $ids)
+    {
+        $entries = KnowledgeBase::whereIn('id', $ids)->get();
+
+        $phpWord = new \PhpOffice\PhpWord\PhpWord();
+        
+        // Set document default styles
+        $phpWord->setDefaultFontName('Arial');
+        $phpWord->setDefaultFontSize(11);
+        $phpWord->addTitleStyle(1, ['name' => 'Arial', 'size' => 12, 'bold' => true]);
+
+        $section = $phpWord->addSection();
+
+        $first = true;
+        $counter = 1;
+        foreach ($entries as $entry) {
+            if (!$first) {
+                // Add horizontal divider line exactly as requested (full width using bottom border)
+                $section->addText('', [], ['borderBottomSize' => 6, 'borderBottomColor' => 'CCCCCC', 'spaceAfter' => 200, 'spaceBefore' => 200]);
+            }
+
+            // Data counter label (e.g. "Data 1")
+            $section->addText('Data ' . $counter, ['name' => 'Arial', 'size' => 11, 'bold' => true, 'color' => '555555']);
+            $section->addTextBreak(1);
+
+            // Title
+            $section->addTitle($entry->title, 1);
+            $section->addTextBreak(1);
+
+            // Import content using HTML parser to keep formatting (bold, lists, etc.)
+            $content = $entry->content;
+            
+            if (!empty($content)) {
+                // Clean the HTML to make it safe for the strict XML parser in PHPWord
+                $cleanContent = $this->cleanHtmlForPhpWord($content);
+                if (!empty($cleanContent)) {
+                    // Parse HTML content to keep original rich formatting in Word
+                    \PhpOffice\PhpWord\Shared\Html::addHtml($section, $cleanContent, false, false);
+                }
+            }
+            
+            $section->addTextBreak(1);
+            $first = false;
+            $counter++;
+        }
+
+        $filename = 'knowledge-base-export-' . date('Y-m-d-His') . '.docx';
+        $tempFile = tempnam(sys_get_temp_dir(), 'phpword');
+
+        try {
+            $objWriter = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'Word2007');
+            $objWriter->save($tempFile);
+            return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            Log::error('Word Export Error: ' . $e->getMessage());
+            return back()->with('error', 'Failed to generate Word document: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Clean and transform HTML content to be safe for PhpWord's XML parser.
+     */
+    private function cleanHtmlForPhpWord(string $html): string
+    {
+        if (empty(trim($html))) {
+            return '';
+        }
+
+        // Remove any existing XML declarations to prevent "XML declaration allowed only at start of document"
+        $html = preg_replace('/<\?xml[^>]*\?>/i', '', $html);
+
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML('<body>' . $html . '</body>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+
+        // Process image tags to resolve local paths and filter out missing/broken files
+        $imgs = $dom->getElementsByTagName('img');
+        $toRemove = [];
+        foreach ($imgs as $img) {
+            $src = $img->getAttribute('src');
+            $resolvedPath = null;
+
+            // Check if the image points to local storage
+            if (preg_match('/storage\/(.*)$/i', $src, $matches)) {
+                $relativePath = $matches[1];
+                $resolvedPath = public_path('storage/' . $relativePath);
+            }
+
+            if ($resolvedPath && file_exists($resolvedPath)) {
+                $img->setAttribute('src', $resolvedPath);
+            } else {
+                // Remove the image to prevent PHPWord from throwing "Could not load image" exception
+                $toRemove[] = $img;
+            }
+        }
+
+        foreach ($toRemove as $img) {
+            if ($img->parentNode) {
+                $img->parentNode->removeChild($img);
+            }
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        $xml = '';
+        if ($body) {
+            foreach ($body->childNodes as $child) {
+                $xml .= $dom->saveXML($child);
+            }
+        }
+
+        // Clean any stray XML declarations output by saveXML
+        $xml = preg_replace('/<\?xml[^>]*\?>/i', '', $xml);
+
+        return $xml;
     }
 
     /**
