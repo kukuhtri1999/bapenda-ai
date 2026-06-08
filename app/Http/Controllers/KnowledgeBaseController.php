@@ -587,92 +587,124 @@ class KnowledgeBaseController extends Controller
         @ini_set('max_execution_time', '300');
         @set_time_limit(300);
 
-        $phpWord = new \PhpOffice\PhpWord\PhpWord();
+        $tempFile = null;
 
-        // ── 2. Set document-wide default styles ───────────────────────────────
-        $phpWord->setDefaultFontName('Arial');
-        $phpWord->setDefaultFontSize(11);
-        $phpWord->addTitleStyle(1, ['name' => 'Arial', 'size' => 12, 'bold' => true]);
+        try {
+            // Validate and sanitize input IDs
+            $idList = array_map('intval', $ids);
+            if (empty($idList)) {
+                throw new \InvalidArgumentException('No valid IDs provided for export.');
+            }
 
-        $section = $phpWord->addSection();
+            // Create PHPWord instance
+            $phpWord = new \PhpOffice\PhpWord\PhpWord();
 
-        $counter = 1;
-        $first   = true;
+            // Set document-wide default styles
+            $phpWord->setDefaultFontName('Arial');
+            $phpWord->setDefaultFontSize(11);
+            $phpWord->addTitleStyle(1, ['name' => 'Arial', 'size' => 12, 'bold' => true]);
 
-        // ── 3. Process in chunks of 20 to avoid loading all data into memory ──
-        // We only select the columns we actually need – content can be huge, so
-        // we avoid selecting un-needed metadata columns.
-        KnowledgeBase::whereIn('id', $ids)
-            ->select(['id', 'title', 'content'])
-            ->orderByRaw('FIELD(id, ' . implode(',', array_map('intval', $ids)) . ')')
-            ->chunk(20, function ($entries) use ($section, &$first, &$counter) {
-                foreach ($entries as $entry) {
-                    if (!$first) {
-                        // Full-width divider between entries
-                        $section->addText('', [], [
-                            'borderBottomSize'  => 6,
-                            'borderBottomColor' => 'CCCCCC',
-                            'spaceAfter'        => 200,
-                            'spaceBefore'       => 200,
-                        ]);
+            $section = $phpWord->addSection();
+
+            // ── 2. Process database query in chunks (database-agnostic) ───────────
+            // We load items in chunks of 50 ordered by primary key (highly efficient).
+            // Inside the chunk, we clean HTML immediately and store in a memory cache array.
+            $entriesById = [];
+            KnowledgeBase::whereIn('id', $idList)
+                ->select(['id', 'title', 'content'])
+                ->chunk(50, function ($entries) use (&$entriesById) {
+                    foreach ($entries as $entry) {
+                        $entriesById[$entry->id] = [
+                            'title'   => $entry->title,
+                            'content' => $this->cleanHtmlForPhpWord($entry->content),
+                        ];
                     }
+                });
 
-                    // Data counter label (e.g. "Data 1")
-                    $section->addText(
-                        'Data ' . $counter,
-                        ['name' => 'Arial', 'size' => 11, 'bold' => true, 'color' => '555555']
-                    );
-                    $section->addTextBreak(1);
+            // ── 3. Assemble document in the user's requested selection order ─────
+            $counter = 1;
+            $first   = true;
 
-                    // Title
-                    $section->addTitle($entry->title, 1);
-                    $section->addTextBreak(1);
+            foreach ($idList as $id) {
+                if (!isset($entriesById[$id])) {
+                    continue;
+                }
 
-                    // Content – clean HTML and render rich formatting
-                    if (!empty($entry->content)) {
-                        $cleanContent = $this->cleanHtmlForPhpWord($entry->content);
-                        if (!empty($cleanContent)) {
-                            try {
-                                \PhpOffice\PhpWord\Shared\Html::addHtml($section, $cleanContent, false, false);
-                            } catch (\Exception $htmlEx) {
-                                // Fallback: if HTML parsing still fails, add plain text
-                                Log::warning("KB Export: HTML parse failed for ID {$entry->id}: " . $htmlEx->getMessage());
-                                $plainText = html_entity_decode(strip_tags($entry->content), ENT_QUOTES, 'UTF-8');
-                                foreach (explode("\n", wordwrap($plainText, 120, "\n")) as $line) {
-                                    if (trim($line) !== '') {
-                                        $section->addText(trim($line), ['name' => 'Arial', 'size' => 11]);
-                                    }
-                                }
+                $entryData = $entriesById[$id];
+
+                if (!$first) {
+                    // Full-width divider between entries
+                    $section->addText('', [], [
+                        'borderBottomSize'  => 6,
+                        'borderBottomColor' => 'CCCCCC',
+                        'spaceAfter'        => 200,
+                        'spaceBefore'       => 200,
+                    ]);
+                }
+
+                // Data counter label (e.g. "Data 1")
+                $section->addText(
+                    'Data ' . $counter,
+                    ['name' => 'Arial', 'size' => 11, 'bold' => true, 'color' => '555555']
+                );
+                $section->addTextBreak(1);
+
+                // Title
+                $section->addTitle($entryData['title'], 1);
+                $section->addTextBreak(1);
+
+                // Content – clean HTML and render rich formatting
+                if (!empty($entryData['content'])) {
+                    try {
+                        \PhpOffice\PhpWord\Shared\Html::addHtml($section, $entryData['content'], false, false);
+                    } catch (\Exception $htmlEx) {
+                        // Fallback: if HTML parsing still fails, add plain text
+                        Log::warning("KB Export: HTML parse failed for ID {$id}: " . $htmlEx->getMessage());
+                        $plainText = html_entity_decode(strip_tags($entryData['content']), ENT_QUOTES, 'UTF-8');
+                        foreach (explode("\n", wordwrap($plainText, 120, "\n")) as $line) {
+                            if (trim($line) !== '') {
+                                $section->addText(trim($line), ['name' => 'Arial', 'size' => 11]);
                             }
                         }
                     }
-
-                    $section->addTextBreak(1);
-                    $first = false;
-                    $counter++;
-
-                    // Free memory for this entry explicitly
-                    unset($entry);
                 }
-            });
 
-        // ── 4. Write to a temp file and stream as download ────────────────────
-        $filename = 'knowledge-base-export-' . date('Y-m-d-His') . '.docx';
-        $tempFile = tempnam(sys_get_temp_dir(), 'phpword');
+                $section->addTextBreak(1);
+                $first = false;
+                $counter++;
 
-        try {
+                // Free memory for this entry explicitly as we proceed
+                unset($entriesById[$id]);
+            }
+
+            // Clean up cache array
+            unset($entriesById);
+
+            // ── 4. Write to a temp file and stream as download ────────────────────
+            $filename = 'knowledge-base-export-' . date('Y-m-d-His') . '.docx';
+            $tempFile = tempnam(sys_get_temp_dir(), 'phpword');
+            if ($tempFile === false) {
+                throw new \RuntimeException('Failed to create a temporary file in the system temp directory.');
+            }
+
             $objWriter = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'Word2007');
             $objWriter->save($tempFile);
 
-            // Free the PHPWord object before streaming to reduce peak memory
+            // Free PHPWord objects before streaming
             unset($phpWord, $objWriter);
 
             return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
+
         } catch (\Exception $e) {
-            Log::error('Word Export Error: ' . $e->getMessage());
-            if (file_exists($tempFile)) {
+            Log::error('Word Export Exception: ' . $e->getMessage(), [
+                'ids' => $ids,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            if ($tempFile && file_exists($tempFile)) {
                 @unlink($tempFile);
             }
+
             return back()->with('error', 'Failed to generate Word document: ' . $e->getMessage());
         }
     }
