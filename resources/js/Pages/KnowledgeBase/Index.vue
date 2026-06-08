@@ -23,6 +23,7 @@ const activeFilter = ref(props.filters.is_active || '');
 const perPage = ref(props.filters.per_page || 15);
 const selectedItems = ref([]);
 const bulkAction = ref('');
+const exportLoading = ref(false);
 const confirmDelete = ref(false);
 const itemToDelete = ref(null);
 const syncDialog = ref(false);
@@ -383,6 +384,9 @@ const executeBulkAction = () => {
   if (!bulkAction.value || selectedItems.value.length === 0) return;
 
   if (bulkAction.value === 'export_word') {
+    const count = selectedItems.value.length;
+    exportLoading.value = true;
+
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = route('knowledge-base.bulk-action');
@@ -411,6 +415,11 @@ const executeBulkAction = () => {
     document.body.appendChild(form);
     form.submit();
     document.body.removeChild(form);
+
+    // Dismiss loading after a generous delay (browser triggers download and navigates back)
+    setTimeout(() => {
+      exportLoading.value = false;
+    }, 8000);
 
     selectedItems.value = [];
     bulkAction.value = '';
@@ -695,6 +704,23 @@ const { startTour } = useTour(kbSteps);
 <template>
   <AppLayout title="Knowledge Base Management">
     <div class="kb-page">
+      <!-- ── Export loading overlay ──────────────────────────────────────────── -->
+      <VOverlay
+        v-model="exportLoading"
+        class="d-flex align-center justify-center"
+        persistent
+        z-index="9999"
+      >
+        <VCard class="pa-6 text-center" rounded="xl" style="min-width:260px">
+          <VProgressCircular indeterminate color="primary" size="52" class="mb-4" />
+          <div class="text-h6 font-weight-semibold mb-1">Generating Word File</div>
+          <div class="text-body-2 text-medium-emphasis">
+            Processing your selected entries…<br>
+            This may take a moment for large exports.
+          </div>
+        </VCard>
+      </VOverlay>
+
       <!-- ── Page header ──────────────────────────────────────────────────── -->
       <div id="tour-kb-header" class="kb-header mb-5">
         <div class="d-flex align-center justify-space-between flex-wrap gap-3">

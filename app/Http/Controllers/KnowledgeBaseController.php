@@ -578,68 +578,110 @@ class KnowledgeBaseController extends Controller
 
     /**
      * Export selected entries to a Word document (.docx)
+     * Designed to handle large exports (100–500+ entries) without timeout or memory errors.
      */
     private function exportToWord(array $ids)
     {
-        $entries = KnowledgeBase::whereIn('id', $ids)->get();
+        // ── 1. Raise PHP runtime limits for this heavy operation ──────────────
+        @ini_set('memory_limit', '512M');
+        @ini_set('max_execution_time', '300');
+        @set_time_limit(300);
 
         $phpWord = new \PhpOffice\PhpWord\PhpWord();
-        
-        // Set document default styles
+
+        // ── 2. Set document-wide default styles ───────────────────────────────
         $phpWord->setDefaultFontName('Arial');
         $phpWord->setDefaultFontSize(11);
         $phpWord->addTitleStyle(1, ['name' => 'Arial', 'size' => 12, 'bold' => true]);
 
         $section = $phpWord->addSection();
 
-        $first = true;
         $counter = 1;
-        foreach ($entries as $entry) {
-            if (!$first) {
-                // Add horizontal divider line exactly as requested (full width using bottom border)
-                $section->addText('', [], ['borderBottomSize' => 6, 'borderBottomColor' => 'CCCCCC', 'spaceAfter' => 200, 'spaceBefore' => 200]);
-            }
+        $first   = true;
 
-            // Data counter label (e.g. "Data 1")
-            $section->addText('Data ' . $counter, ['name' => 'Arial', 'size' => 11, 'bold' => true, 'color' => '555555']);
-            $section->addTextBreak(1);
+        // ── 3. Process in chunks of 20 to avoid loading all data into memory ──
+        // We only select the columns we actually need – content can be huge, so
+        // we avoid selecting un-needed metadata columns.
+        KnowledgeBase::whereIn('id', $ids)
+            ->select(['id', 'title', 'content'])
+            ->orderByRaw('FIELD(id, ' . implode(',', array_map('intval', $ids)) . ')')
+            ->chunk(20, function ($entries) use ($section, &$first, &$counter) {
+                foreach ($entries as $entry) {
+                    if (!$first) {
+                        // Full-width divider between entries
+                        $section->addText('', [], [
+                            'borderBottomSize'  => 6,
+                            'borderBottomColor' => 'CCCCCC',
+                            'spaceAfter'        => 200,
+                            'spaceBefore'       => 200,
+                        ]);
+                    }
 
-            // Title
-            $section->addTitle($entry->title, 1);
-            $section->addTextBreak(1);
+                    // Data counter label (e.g. "Data 1")
+                    $section->addText(
+                        'Data ' . $counter,
+                        ['name' => 'Arial', 'size' => 11, 'bold' => true, 'color' => '555555']
+                    );
+                    $section->addTextBreak(1);
 
-            // Import content using HTML parser to keep formatting (bold, lists, etc.)
-            $content = $entry->content;
-            
-            if (!empty($content)) {
-                // Clean the HTML to make it safe for the strict XML parser in PHPWord
-                $cleanContent = $this->cleanHtmlForPhpWord($content);
-                if (!empty($cleanContent)) {
-                    // Parse HTML content to keep original rich formatting in Word
-                    \PhpOffice\PhpWord\Shared\Html::addHtml($section, $cleanContent, false, false);
+                    // Title
+                    $section->addTitle($entry->title, 1);
+                    $section->addTextBreak(1);
+
+                    // Content – clean HTML and render rich formatting
+                    if (!empty($entry->content)) {
+                        $cleanContent = $this->cleanHtmlForPhpWord($entry->content);
+                        if (!empty($cleanContent)) {
+                            try {
+                                \PhpOffice\PhpWord\Shared\Html::addHtml($section, $cleanContent, false, false);
+                            } catch (\Exception $htmlEx) {
+                                // Fallback: if HTML parsing still fails, add plain text
+                                Log::warning("KB Export: HTML parse failed for ID {$entry->id}: " . $htmlEx->getMessage());
+                                $plainText = html_entity_decode(strip_tags($entry->content), ENT_QUOTES, 'UTF-8');
+                                foreach (explode("\n", wordwrap($plainText, 120, "\n")) as $line) {
+                                    if (trim($line) !== '') {
+                                        $section->addText(trim($line), ['name' => 'Arial', 'size' => 11]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    $section->addTextBreak(1);
+                    $first = false;
+                    $counter++;
+
+                    // Free memory for this entry explicitly
+                    unset($entry);
                 }
-            }
-            
-            $section->addTextBreak(1);
-            $first = false;
-            $counter++;
-        }
+            });
 
+        // ── 4. Write to a temp file and stream as download ────────────────────
         $filename = 'knowledge-base-export-' . date('Y-m-d-His') . '.docx';
         $tempFile = tempnam(sys_get_temp_dir(), 'phpword');
 
         try {
             $objWriter = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'Word2007');
             $objWriter->save($tempFile);
+
+            // Free the PHPWord object before streaming to reduce peak memory
+            unset($phpWord, $objWriter);
+
             return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
         } catch (\Exception $e) {
             Log::error('Word Export Error: ' . $e->getMessage());
+            if (file_exists($tempFile)) {
+                @unlink($tempFile);
+            }
             return back()->with('error', 'Failed to generate Word document: ' . $e->getMessage());
         }
     }
 
     /**
-     * Clean and transform HTML content to be safe for PhpWord's XML parser.
+     * Clean and transform HTML content to be safe for PhpWord's strict XML parser.
+     * - Strips conflicting XML declarations
+     * - Removes ALL <img> tags (too slow/risky for bulk export)
+     * - Normalises HTML to valid XHTML fragments
      */
     private function cleanHtmlForPhpWord(string $html): string
     {
@@ -647,40 +689,19 @@ class KnowledgeBaseController extends Controller
             return '';
         }
 
-        // Remove any existing XML declarations to prevent "XML declaration allowed only at start of document"
+        // Strip any existing XML declarations
         $html = preg_replace('/<\?xml[^>]*\?>/i', '', $html);
+
+        // Remove all <img> tags entirely for bulk export (images are the main cause of timeouts)
+        $html = preg_replace('/<img[^>]*\/?>/i', '', $html);
+
+        // Remove base64 data attributes that can be huge strings
+        $html = preg_replace('/data:[a-zA-Z\/]+;base64,[a-zA-Z0-9+\/=]+/i', '', $html);
 
         $dom = new \DOMDocument();
         libxml_use_internal_errors(true);
         $dom->loadHTML('<body>' . $html . '</body>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
         libxml_clear_errors();
-
-        // Process image tags to resolve local paths and filter out missing/broken files
-        $imgs = $dom->getElementsByTagName('img');
-        $toRemove = [];
-        foreach ($imgs as $img) {
-            $src = $img->getAttribute('src');
-            $resolvedPath = null;
-
-            // Check if the image points to local storage
-            if (preg_match('/storage\/(.*)$/i', $src, $matches)) {
-                $relativePath = $matches[1];
-                $resolvedPath = public_path('storage/' . $relativePath);
-            }
-
-            if ($resolvedPath && file_exists($resolvedPath)) {
-                $img->setAttribute('src', $resolvedPath);
-            } else {
-                // Remove the image to prevent PHPWord from throwing "Could not load image" exception
-                $toRemove[] = $img;
-            }
-        }
-
-        foreach ($toRemove as $img) {
-            if ($img->parentNode) {
-                $img->parentNode->removeChild($img);
-            }
-        }
 
         $body = $dom->getElementsByTagName('body')->item(0);
         $xml = '';
@@ -690,8 +711,10 @@ class KnowledgeBaseController extends Controller
             }
         }
 
-        // Clean any stray XML declarations output by saveXML
+        // Strip any XML declarations that saveXML may prepend
         $xml = preg_replace('/<\?xml[^>]*\?>/i', '', $xml);
+
+        unset($dom);
 
         return $xml;
     }
