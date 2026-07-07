@@ -1,2 +1,0 @@
-- Pelayanan Apapun selain pajak tahunan hanya dapat dilakukan di samsat induk. Jadi seperti Ganti plat, balik nama, mutasi masuk, mutasi keluar hanya bisa dilakukan di samsat induk
-- Lapor Blokir jual bisa dilakukan di samsat Induk atau lewat LAMPION
