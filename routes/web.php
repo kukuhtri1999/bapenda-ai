@@ -64,6 +64,7 @@ Route::middleware([
     Route::post('/knowledge-base/{knowledgeBase}/toggle-status', [KnowledgeBaseController::class, 'toggleStatus'])->name('knowledge-base.toggle-status');
     Route::post('/knowledge-base/bulk-action', [KnowledgeBaseController::class, 'bulkAction'])->name('knowledge-base.bulk-action');
     Route::post('/knowledge-base/sync-pinecone', [KnowledgeBaseController::class, 'syncPinecone'])->name('knowledge-base.sync-pinecone');
+    Route::post('/knowledge-base/fetch-pinecone', [KnowledgeBaseController::class, 'fetchFromPinecone'])->name('knowledge-base.fetch-pinecone');
     Route::get('/knowledge-base/{knowledgeBase}/download', [KnowledgeBaseController::class, 'downloadFile'])->name('knowledge-base.download');
     Route::post('/knowledge-base/{knowledgeBase}/score', [KnowledgeBaseController::class, 'computeScore'])->name('knowledge-base.score');
     Route::post('/knowledge-base/{knowledgeBase}/enhance', [KnowledgeBaseController::class, 'enhanceWithAI'])->name('knowledge-base.enhance');

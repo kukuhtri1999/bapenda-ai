@@ -2096,40 +2096,41 @@ PROMPT;
     }
 
     /**
-     * Enhance a KnowledgeBase entry's content using GPT-4o.
-     * Improves quality while preserving all facts. Aims for score 0.85–0.99.
+     * Enhance a KnowledgeBase entry's content using GPT-5.
+     * Improves quality and semantic coverage. Aims for vector similarity score >= 0.85 (85%+).
      * Returns: ['success' => bool, 'title' => string, 'question' => string, 'answer' => string, 'content' => string, 'keywords' => array, 'changes_summary' => string]
      */
     public function enhanceKnowledgeBase(\App\Models\KnowledgeBase $kb): array
     {
         try {
             $systemPrompt = <<<PROMPT
-You are an expert knowledge base content enhancer for an Indonesian government tax service (Bapenda/Samsat).
-Your task: improve the provided KB entry to achieve a quality score of 0.85–0.99.
+You are an advanced GovTech AI Knowledge Engineer for Bapenda Jawa Timur & Samsat Lamongan.
+Your task is to enhance the provided Knowledge Base entry into an authoritative, world-class reference document using GPT-5.
+Target quality score and Pinecone vector semantic match: 0.85 - 0.99 (>= 85%).
 
-Rules:
-- PRESERVE all factual information, dates, times, locations, prices, schedules
-- Improve clarity, structure, completeness, and practical usefulness
-- Write in clear, professional Indonesian (Bahasa Indonesia)
-- Expand thin or vague answers into comprehensive, actionable responses
-- Add useful context where appropriate (without hallucinating facts)
+Enhancement Rules:
+- PRESERVE all factual data, tariff amounts (PNBP, PKB, SWDKLLJ), dates, locations, and legal bases (e.g. Perda Jatim No. 8/2023).
+- IMMEDIATELY answer the main question clearly in the opening paragraph.
+- Add structured bullet points for Persyaratan (Requirements), Prosedur (Step-by-step Procedures), and Biaya/Tarif (Fees).
+- Add rich search keywords and synonyms (e.g. terms used by citizens in daily speech vs formal terms).
+- Write in professional, empathetic, and clear Bahasa Indonesia.
 - Return ONLY valid JSON with this exact shape:
 
 {
-  "title": "improved title",
-  "question": "improved/clarified question",
-  "answer": "enhanced answer text",
-  "content": "enhanced full content (can be same as answer if redundant)",
-  "keywords": ["keyword1", "keyword2"],
-  "changes_summary": "Brief description of what was improved (one sentence, in Indonesian)"
+  "title": "Clear, informative, and searchable title",
+  "question": "Clarified citizen question with common alternative phrasings",
+  "answer": "Comprehensive, structured, and actionable answer",
+  "content": "Full markdown-rich reference content",
+  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6"],
+  "changes_summary": "Ringkasan peningkatan konten oleh GPT-5 (1 kalimat)"
 }
 PROMPT;
 
             $payload = json_encode([
                 'title'    => $kb->title,
                 'question' => $kb->question,
-                'answer'   => mb_substr((string) ($kb->answer ?: ''), 0, 3000),
-                'content'  => mb_substr((string) ($kb->content ?: ''), 0, 3000),
+                'answer'   => mb_substr((string) ($kb->answer ?: ''), 0, 4000),
+                'content'  => mb_substr((string) ($kb->content ?: ''), 0, 4000),
                 'category' => $kb->category,
                 'type'     => $kb->type,
                 'keywords' => $kb->keywords,
@@ -2137,12 +2138,12 @@ PROMPT;
 
             $response = $this->retryRequest(function () use ($systemPrompt, $payload) {
                 return $this->client->chat()->create([
-                    'model'                 => config('services.openai.model', 'gpt-5-mini'),
+                    'model'                 => config('services.openai.complex_model', 'gpt-5'),
                     'messages'              => [
                         ['role' => 'system', 'content' => $systemPrompt],
                         ['role' => 'user',   'content' => $payload],
                     ],
-                    'max_completion_tokens' => 2000,
+                    'max_completion_tokens' => 10000,
                 ]);
             });
 

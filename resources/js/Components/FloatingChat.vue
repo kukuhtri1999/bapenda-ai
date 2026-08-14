@@ -17,7 +17,7 @@
       size="x-large"
       icon
     >
-      <VIcon size="32" color="white">mdi-robot</VIcon>
+      <VIcon size="32" color="white">mdi-chat-processing</VIcon>
       <VTooltip activator="parent" location="left">
         <div class="pa-2">
           <div class="font-weight-bold">AI Customer Service</div>
@@ -350,6 +350,9 @@
             </VBtn>
           </VCol>
         </VRow>
+        <div class="text-center text-caption text-grey pt-1" style="font-size: 10px; opacity: 0.65;">
+          Protected by reCAPTCHA • <a href="https://policies.google.com/privacy" target="_blank" class="text-grey text-decoration-none">Privacy</a> - <a href="https://policies.google.com/terms" target="_blank" class="text-grey text-decoration-none">Terms</a>
+        </div>
       </div>
     </VCard>
 
@@ -369,7 +372,7 @@
       elevation="0"
     >
       <VCardText class="pa-3 text-center">
-        <VIcon color="white" size="24" class="mb-1">mdi-robot</VIcon>
+        <VIcon color="white" size="24" class="mb-1">mdi-chat-processing</VIcon>
         <p class="text-caption text-white mb-0 font-weight-medium">Chat</p>
         <VBadge
           v-if="unreadCount > 0"

@@ -363,6 +363,9 @@
                 </VBtn>
               </VCol>
             </VRow>
+            <div class="text-center text-caption text-grey pt-1" style="font-size: 10px; opacity: 0.65;">
+              Protected by reCAPTCHA • <a href="https://policies.google.com/privacy" target="_blank" class="text-grey text-decoration-none">Privacy</a> - <a href="https://policies.google.com/terms" target="_blank" class="text-grey text-decoration-none">Terms</a>
+            </div>
           </div>
         </div>
       </VCard>

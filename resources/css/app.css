@@ -133,3 +133,12 @@
   color: blue;
   text-decoration: underline;
 }
+
+/* ── Google reCAPTCHA v3 badge legally hidden ─────────────────── */
+.grecaptcha-badge {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
+}
+

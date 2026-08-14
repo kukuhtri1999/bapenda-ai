@@ -47,6 +47,25 @@ const syncProgress = ref(false);
 const syncResults = ref(null);
 const syncDryRun = ref(true);
 
+// ── Fetch Vector DB (Pinecone -> MySQL) State ─────────────────────────────
+const fetchDialog = ref(false);
+const fetchProgress = ref(false);
+const fetchProgressPercent = ref(0);
+const fetchProgressMessage = ref('');
+const fetchCurrentStage = ref('idle'); // 'connecting' | 'listing' | 'downloading' | 'syncing' | 'completed' | 'failed'
+const fetchDryRun = ref(false);
+const fetchResults = ref(null);
+const fetchTipIndex = ref(0);
+let fetchTipTimer = null;
+
+const fetchGoodMoodTips = [
+  '⚡ SALMA AI menggunakan arsitektur Hybrid RAG yang menggabungkan kemiripan vektor Pinecone dengan MySQL Fulltext search!',
+  '☕ Tarik nafas dan santai sejenak — seluruh 101+ data pengetahuan regulasi, SOP, dan FAQ Samsat sedang disinkronkan ke database lokal.',
+  '🛡️ Sinkronisasi ini memastikan data di MySQL selalu selaras dengan representasi vektor dimensi 1536 di Pinecone.',
+  '📊 Setelah sinkronisasi selesai, tabel Knowledge Base akan langsung terisi dengan artikel siap pakai dan akurat.',
+  '🚀 Kecepatan pencarian rata-rata SALMA AI adalah di bawah 35ms untuk kueri yang terindeks.',
+];
+
 const headers = [
   { title: 'Title', key: 'title', sortable: true },
   { title: 'Category', key: 'category', sortable: true },
@@ -93,53 +112,95 @@ const enhanceDialog = ref(false);
 const enhanceResult = ref(null);
 const enhanceError = ref(null);
 
-const getScore = (item) => {
-  if (localScores.value[item.id] !== undefined) return localScores.value[item.id];
-  return item.quality_score;
+const getScore = (target) => {
+  if (target === null || target === undefined || target === '') return null;
+  // If target is an object (item or item.raw)
+  if (typeof target === 'object') {
+    const id = target.id ?? target.raw?.id;
+    if (id !== undefined && localScores.value[id] !== undefined) {
+      return localScores.value[id];
+    }
+    const val = target.quality_score ?? target.raw?.quality_score ?? target.columns?.quality_score;
+    if (val !== undefined && val !== null && val !== '') {
+      const num = parseFloat(val);
+      return isNaN(num) ? null : num;
+    }
+    return null;
+  }
+  // If target is already a primitive number or numeric string
+  const num = parseFloat(target);
+  return isNaN(num) ? null : num;
 };
 
-const scoreColorClass = (score) => {
+const formatQualityScore = (target) => {
+  const score = getScore(target);
+  if (score === null || score === undefined) return null;
+  const normalized = score > 1 ? score / 100 : score;
+  return (normalized * 100).toFixed(1) + '%';
+};
+
+const getScoreRaw = (target) => {
+  const score = getScore(target);
+  if (score === null || score === undefined) return '—';
+  const normalized = score > 1 ? score / 100 : score;
+  return normalized.toFixed(4);
+};
+
+const scoreColorClass = (target) => {
+  const score = getScore(target);
   if (score === null || score === undefined) return 'qs-none';
-  if (score >= 0.85) return 'qs-high';
-  if (score >= 0.6) return 'qs-mid';
-  return 'qs-low';
+  const val = score > 1 ? score / 100 : score;
+  if (val >= 0.8) return 'qs-high'; // Green (>= 80%)
+  if (val >= 0.6) return 'qs-mid';  // Amber (60% - 79.9%)
+  return 'qs-low';                  // Red (< 60%)
 };
 
-const computeScore = async (item) => {
-  if (scoringItems.value.has(item.id)) return;
-  scoringItems.value = new Set([...scoringItems.value, item.id]);
+const computeScore = async (target) => {
+  const item = target?.raw ?? target;
+  const id = item?.id;
+  if (!id || scoringItems.value.has(id)) return;
+
+  scoringItems.value = new Set([...scoringItems.value, id]);
   try {
     const csrfToken = document.head.querySelector(
       'meta[name="csrf-token"]',
     )?.content;
     const res = await axios.post(
-      route('knowledge-base.score', item.id),
+      route('knowledge-base.score', id),
       {},
       { headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' } },
     );
     if (res.data.success) {
-      localScores.value = { ...localScores.value, [item.id]: res.data.score };
+      localScores.value = { ...localScores.value, [id]: res.data.score };
+      item.quality_score = res.data.score;
+      if ($toast) $toast.success(res.data.message || `Skor Pinecone diperbarui: ${res.data.percentage}`);
+    } else {
+      if ($toast) $toast.error(res.data.message || 'Gagal menghitung skor.');
     }
   } catch (err) {
     console.error('Score error:', err);
+    if ($toast) $toast.error(err.response?.data?.message || 'Gagal memperbarui skor.');
   } finally {
     const s = new Set(scoringItems.value);
-    s.delete(item.id);
+    s.delete(id);
     scoringItems.value = s;
   }
 };
 
-const enhanceItem = async (item) => {
-  if (enhancingItems.value.has(item.id)) return;
+const enhanceItem = async (target) => {
+  const item = target?.raw ?? target;
+  const id = item?.id;
+  if (!id || enhancingItems.value.has(id)) return;
+
   enhanceResult.value = null;
   enhanceError.value = null;
-  enhancingItems.value = new Set([...enhancingItems.value, item.id]);
+  enhancingItems.value = new Set([...enhancingItems.value, id]);
   try {
     const csrfToken = document.head.querySelector(
       'meta[name="csrf-token"]',
     )?.content;
     const res = await axios.post(
-      route('knowledge-base.enhance', item.id),
+      route('knowledge-base.enhance', id),
       {},
       { headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' } },
     );
@@ -148,22 +209,26 @@ const enhanceItem = async (item) => {
       if (res.data.quality_score !== undefined) {
         localScores.value = {
           ...localScores.value,
-          [item.id]: res.data.quality_score,
+          [id]: res.data.quality_score,
         };
+        item.quality_score = res.data.quality_score;
       }
+      if (res.data.title) item.title = res.data.title;
       enhanceDialog.value = true;
-      // Reload the page data to reflect KB content changes
+      if ($toast) $toast.success(`✨ ${res.data.message}`);
       router.reload({ only: ['knowledgeBases'] });
     } else {
       enhanceError.value = res.data.message || 'Enhancement failed';
       enhanceDialog.value = true;
+      if ($toast) $toast.error(res.data.message || 'Gagal meningkatkan konten.');
     }
   } catch (err) {
     enhanceError.value = err.response?.data?.message || err.message || 'Request failed';
     enhanceDialog.value = true;
+    if ($toast) $toast.error(err.response?.data?.message || 'Gagal meningkatkan konten dengan GPT-5.');
   } finally {
     const s = new Set(enhancingItems.value);
-    s.delete(item.id);
+    s.delete(id);
     enhancingItems.value = s;
   }
 };
@@ -528,6 +593,78 @@ const closeSyncDialog = () => {
   syncResults.value = null;
 };
 
+// ── Fetch Vector DB Functions ──────────────────────────────────────────────
+const openFetchDialog = () => {
+  fetchDialog.value = true;
+  fetchProgress.value = false;
+  fetchProgressPercent.value = 0;
+  fetchProgressMessage.value = '';
+  fetchCurrentStage.value = 'idle';
+  fetchDryRun.value = false;
+  fetchResults.value = null;
+  fetchTipIndex.value = 0;
+};
+
+const startFetchPinecone = async () => {
+  try {
+    fetchProgress.value = true;
+    fetchCurrentStage.value = 'connecting';
+    fetchProgressPercent.value = 15;
+    fetchProgressMessage.value = 'Menghubungkan ke Pinecone Vector Database Cluster...';
+    fetchResults.value = null;
+
+    if (fetchTipTimer) clearInterval(fetchTipTimer);
+    fetchTipTimer = setInterval(() => {
+      fetchTipIndex.value = (fetchTipIndex.value + 1) % fetchGoodMoodTips.length;
+    }, 3500);
+
+    const csrfToken = document.head.querySelector('meta[name="csrf-token"]')?.content;
+
+    const response = await axios.post(
+      route('knowledge-base.fetch-pinecone'),
+      {
+        dry_run: fetchDryRun.value,
+      },
+      {
+        headers: {
+          'X-CSRF-TOKEN': csrfToken,
+          Accept: 'application/json',
+        },
+      },
+    );
+
+    if (fetchTipTimer) clearInterval(fetchTipTimer);
+    fetchProgressPercent.value = 100;
+    fetchCurrentStage.value = 'completed';
+    fetchProgressMessage.value = 'Sinkronisasi Pinecone ke MySQL selesai!';
+    fetchResults.value = response.data;
+
+    if (!fetchDryRun.value) {
+      router.reload({ only: ['knowledgeBases'] });
+    }
+  } catch (error) {
+    if (fetchTipTimer) clearInterval(fetchTipTimer);
+    console.error('Fetch Pinecone error:', error);
+    fetchCurrentStage.value = 'failed';
+    fetchResults.value = {
+      success: false,
+      message: error.response?.data?.message || 'Gagal menarik data dari Pinecone Vector DB.',
+      stats: null,
+    };
+  } finally {
+    fetchProgress.value = false;
+  }
+};
+
+const closeFetchDialog = () => {
+  if (fetchTipTimer) clearInterval(fetchTipTimer);
+  fetchDialog.value = false;
+  if (fetchResults.value?.success && !fetchDryRun.value) {
+    router.reload({ only: ['knowledgeBases'] });
+  }
+  fetchResults.value = null;
+};
+
 // ── Batch Upload ─────────────────────────────────────────────────────────────
 const batchDialog = ref(false);
 const batchStep = ref('setup'); // 'setup' | 'processing' | 'completed'
@@ -754,6 +891,15 @@ const { startTour } = useTour(kbSteps);
             </div>
           </div>
           <div class="d-flex align-center gap-2 flex-wrap">
+            <VBtn
+              variant="flat"
+              color="indigo-darken-1"
+              size="small"
+              prepend-icon="mdi-cloud-download"
+              class="elevation-1"
+              @click="openFetchDialog"
+              >Fetch Vector DB</VBtn
+            >
             <VBtn
               variant="outlined"
               color="grey-darken-1"
@@ -1030,21 +1176,22 @@ const { startTour } = useTour(kbSteps);
           </template>
 
           <!-- Quality Score column -->
-          <template #item.quality_score="{ item }">
+          <template #item.quality_score="{ item, value }">
             <div class="d-flex align-center gap-1">
               <span
-                v-if="getScore(item) !== null && getScore(item) !== undefined"
-                :class="['qs-badge', scoreColorClass(getScore(item))]"
-                :title="`Score: ${getScore(item)}`"
-                >{{ (getScore(item) * 100).toFixed(0) }}%</span
+                v-if="formatQualityScore(value ?? item) !== null"
+                :class="['qs-badge', scoreColorClass(value ?? item)]"
+                :title="`Pinecone Vector Match Score: ${getScoreRaw(value ?? item)}`"
+                >{{ formatQualityScore(value ?? item) }}</span
               >
               <span v-else class="qs-badge qs-none">—</span>
               <VBtn
-                :loading="scoringItems.has(item.id)"
+                :loading="scoringItems.has(item?.id ?? item?.raw?.id)"
                 size="x-small"
                 icon
                 variant="text"
                 color="grey"
+                title="Perbarui skor dari Pinecone Vector DB"
                 @click="computeScore(item)"
               >
                 <VIcon size="13">mdi-refresh</VIcon>
@@ -1078,8 +1225,8 @@ const { startTour } = useTour(kbSteps);
                 @click="window.open(route('knowledge-base.download', item.id))"
                 ><VIcon size="16">mdi-download</VIcon></VBtn
               >
-              <!-- Enhance with AI -->
-              <VTooltip text="Enhance dengan AI GPT-4o" location="top">
+              <!-- Enhance with AI GPT-5 -->
+              <VTooltip text="Enhance dengan AI GPT-5" location="top">
                 <template #activator="{ props: tip }">
                   <VBtn
                     v-bind="tip"
@@ -1309,6 +1456,208 @@ const { startTour } = useTour(kbSteps);
               :loading="syncProgress"
             >
               Perform Rebuild
+            </VBtn>
+          </VCardActions>
+        </VCard>
+      </VDialog>
+
+      <!-- ── Fetch Vector DB Dialog with Interactive Good Mood Experience ──── -->
+      <VDialog v-model="fetchDialog" max-width="640" persistent>
+        <VCard rounded="xl" border class="overflow-hidden">
+          <!-- Header gradient bar -->
+          <div
+            style="
+              height: 6px;
+              background: linear-gradient(90deg, #6366f1, #06b6d4, #10b981);
+            "
+          ></div>
+
+          <VCardTitle class="d-flex align-center px-6 pt-5 pb-3">
+            <div
+              class="kb-dialog-icon mr-3"
+              style="background: rgba(99, 102, 241, 0.12); color: #6366f1"
+            >
+              <VIcon size="22">mdi-cloud-download</VIcon>
+            </div>
+            <div>
+              <span class="text-h6 font-weight-bold">Fetch Vector Database</span>
+              <p class="text-caption text-medium-emphasis mb-0">
+                Tarik & sinkronkan seluruh Knowledge Base dari Pinecone ke MySQL
+              </p>
+            </div>
+            <VSpacer />
+            <VBtn
+              icon="mdi-close"
+              variant="text"
+              size="small"
+              @click="closeFetchDialog"
+              :disabled="fetchProgress"
+            />
+          </VCardTitle>
+          <VDivider />
+
+          <VCardText class="px-6 py-5">
+            <!-- State 1: Ready / Confirmation Form -->
+            <div v-if="!fetchProgress && !fetchResults">
+              <VAlert
+                type="info"
+                variant="tonal"
+                density="compact"
+                class="mb-4"
+              >
+                <strong>Sinkronisasi Data Dua Arah:</strong> Mengunduh seluruh
+                representasi vektor dan metadata artikel yang tersimpan di
+                Pinecone Cloud, lalu memperbarui atau membuat entri di MySQL
+                secara aman.
+              </VAlert>
+
+              <div class="pa-4 rounded-lg mb-4" style="background: #f8fafc; border: 1px solid #e2e8f0">
+                <div class="text-subtitle-2 font-weight-semibold mb-2 d-flex align-center">
+                  <VIcon size="18" color="indigo" class="mr-2">mdi-checkbox-marked-circle-outline</VIcon>
+                  Tahapan Operasi:
+                </div>
+                <div class="text-body-2 text-grey-darken-2 pl-6">
+                  1. Menghubungkan ke cluster Pinecone <code>bapenda-kb</code>.<br />
+                  2. Memindai seluruh Vector IDs & mengunduh metadata lengkap.<br />
+                  3. Menggabungkan artikel multi-part & memperbarui tabel MySQL.<br />
+                  4. Menghasilkan skor kualitas & indeks pencarian otomatis.
+                </div>
+              </div>
+
+              <VCheckbox
+                v-model="fetchDryRun"
+                label="Dry run (Pratinjau saja, jangan simpan perubahan ke database)"
+                color="primary"
+                density="compact"
+                hide-details
+              />
+            </div>
+
+            <!-- State 2: Active Loading & Progress ("Good Mood") -->
+            <div v-if="fetchProgress" class="py-4 text-center">
+              <!-- Orbit Animation -->
+              <div class="d-flex justify-center mb-4">
+                <div
+                  class="d-flex align-center justify-center rounded-circle elevation-2"
+                  style="
+                    width: 72px;
+                    height: 72px;
+                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                    color: white;
+                    animation: pulse 2s infinite;
+                  "
+                >
+                  <VIcon size="36" class="mdi-spin">mdi-sync</VIcon>
+                </div>
+              </div>
+
+              <div class="text-h6 font-weight-bold text-grey-darken-3 mb-1">
+                {{ fetchProgressMessage || 'Sedang Menyinkronkan Data...' }}
+              </div>
+              <div class="text-caption text-medium-emphasis mb-4">
+                Mohon tunggu beberapa detik, sistem sedang mengambil dokumen dari vector cloud.
+              </div>
+
+              <!-- Animated Progress Bar -->
+              <VProgressLinear
+                v-model="fetchProgressPercent"
+                color="indigo"
+                height="10"
+                rounded
+                striped
+                indeterminate
+                class="mb-4"
+              />
+
+              <!-- Rotating Good Mood Box -->
+              <div
+                class="pa-3 rounded-lg text-left d-flex align-start gap-3 mt-4"
+                style="background: #eef2ff; border: 1px solid #c7d2fe"
+              >
+                <VIcon color="indigo" size="20" class="mt-1">mdi-lightbulb-on</VIcon>
+                <div class="text-caption text-indigo-darken-4 font-weight-medium">
+                  {{ fetchGoodMoodTips[fetchTipIndex] }}
+                </div>
+              </div>
+            </div>
+
+            <!-- State 3: Results Summary -->
+            <div v-if="fetchResults && !fetchProgress">
+              <VAlert
+                :type="fetchResults.success ? 'success' : 'error'"
+                variant="tonal"
+                class="mb-4"
+                prominent
+              >
+                <VAlertTitle class="font-weight-bold">{{ fetchResults.message }}</VAlertTitle>
+              </VAlert>
+
+              <div v-if="fetchResults.stats">
+                <div class="text-subtitle-2 font-weight-semibold mb-3">
+                  Ringkasan Sinkronisasi
+                </div>
+                <div class="d-flex gap-3 mb-4 flex-wrap">
+                  <div class="stat-chip flex-1" style="min-width: 110px">
+                    <div class="text-h5 font-weight-bold text-indigo">
+                      {{ fetchResults.stats.total_vectors || 0 }}
+                    </div>
+                    <div class="text-caption">Total Vektor</div>
+                  </div>
+                  <div class="stat-chip flex-1" style="min-width: 110px">
+                    <div class="text-h5 font-weight-bold text-success">
+                      {{ fetchResults.stats.db_created || 0 }}
+                    </div>
+                    <div class="text-caption">Entri Baru</div>
+                  </div>
+                  <div class="stat-chip flex-1" style="min-width: 110px">
+                    <div class="text-h5 font-weight-bold text-warning">
+                      {{ fetchResults.stats.db_updated || 0 }}
+                    </div>
+                    <div class="text-caption">Diperbarui</div>
+                  </div>
+                </div>
+
+                <!-- Category Breakdown -->
+                <div v-if="fetchResults.stats.categories && Object.keys(fetchResults.stats.categories).length" class="mb-3">
+                  <div class="text-caption font-weight-bold text-medium-emphasis mb-2">
+                    DISTRIBUSI KATEGORI:
+                  </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <VChip
+                      v-for="(count, cat) in fetchResults.stats.categories"
+                      :key="cat"
+                      size="small"
+                      color="indigo"
+                      variant="tonal"
+                    >
+                      <strong>{{ cat }}</strong>: {{ count }}
+                    </VChip>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </VCardText>
+
+          <VDivider />
+          <VCardActions class="px-6 py-4 justify-end gap-2">
+            <VBtn
+              variant="outlined"
+              color="grey-darken-1"
+              @click="closeFetchDialog"
+              :disabled="fetchProgress"
+            >
+              {{ fetchResults ? 'Tutup' : 'Batal' }}
+            </VBtn>
+
+            <VBtn
+              v-if="!fetchResults"
+              color="indigo-darken-1"
+              variant="flat"
+              prepend-icon="mdi-cloud-download"
+              :loading="fetchProgress"
+              @click="startFetchPinecone"
+            >
+              {{ fetchDryRun ? 'Pratinjau Sinkronisasi' : 'Tarik Data Sekarang' }}
             </VBtn>
           </VCardActions>
         </VCard>

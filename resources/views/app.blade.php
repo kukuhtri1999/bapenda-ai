@@ -50,6 +50,14 @@
     @vite(['resources/js/app.js', "resources/js/Pages/{$page['component']}.vue"])
     @if(config('services.recaptcha.enabled'))
     <script src="https://www.google.com/recaptcha/api.js?render={{ config('services.recaptcha.site_key') }}" async defer></script>
+    <style>
+        .grecaptcha-badge {
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -9999 !important;
+        }
+    </style>
     @endif
     @inertiaHead
 </head>
