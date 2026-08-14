@@ -67,6 +67,18 @@ const navLinks = ref([
     href: route('knowledge-base.index'),
   },
   {
+    icon: 'mdi-lightbulb-alert-outline',
+    title: 'AI Knowledge Gaps',
+    value: 'admin.knowledge-gaps.index',
+    href: route('admin.knowledge-gaps.index'),
+  },
+  {
+    icon: 'mdi-shield-check-outline',
+    title: 'RAG Evaluation Suite',
+    value: 'admin.rag-evaluation.index',
+    href: route('admin.rag-evaluation.index'),
+  },
+  {
     icon: 'mdi-gift',
     title: 'Lotre - Pengaturan',
     value: 'admin.lotre.settings',

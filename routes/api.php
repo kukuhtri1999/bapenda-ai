@@ -6,14 +6,17 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\AppSettingController;
 use App\Http\Controllers\LotreController;
 
+use App\Http\Middleware\ChatAntiSpamMiddleware;
+
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-// Chat API Routes
-Route::prefix('chat')->group(function () {
+// Chat API Routes with Anti-Spam, Rate Limiting & reCAPTCHA v3 Shield
+Route::prefix('chat')->middleware(ChatAntiSpamMiddleware::class)->group(function () {
     Route::post('/start', [ChatController::class, 'startChat']);
     Route::post('/message', [ChatController::class, 'sendMessage']);
+    Route::post('/stream', [ChatController::class, 'streamMessage']);
     Route::get('/history', [ChatController::class, 'getChatHistory']);
     Route::post('/close', [ChatController::class, 'closeChat']);
     Route::post('/convert-markdown', [ChatController::class, 'convertMarkdownToHtml']);

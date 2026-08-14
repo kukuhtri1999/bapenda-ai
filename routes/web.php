@@ -91,7 +91,22 @@ Route::middleware([
     // Admin Feedback Management
     Route::get('/admin/feedback', [FeedbackController::class, 'index'])->name('admin.feedback.index');
     Route::get('/admin/feedback/{feedback}', [FeedbackController::class, 'show'])->name('admin.feedback.show');
+    Route::post('/admin/feedback/{feedback}/draft-kb', [FeedbackController::class, 'draftKnowledgeBase'])->name('admin.feedback.draft-kb');
     Route::get('/admin/feedback/export/csv', [FeedbackController::class, 'export'])->name('admin.feedback.export');
+
+    // Admin Knowledge Gaps Management
+    Route::get('/admin/knowledge-gaps', [App\Http\Controllers\Admin\KnowledgeGapController::class, 'index'])->name('admin.knowledge-gaps.index');
+    Route::post('/admin/knowledge-gaps/{knowledgeGap}/draft', [App\Http\Controllers\Admin\KnowledgeGapController::class, 'generateDraft'])->name('admin.knowledge-gaps.draft');
+    Route::post('/admin/knowledge-gaps/{knowledgeGap}/dismiss', [App\Http\Controllers\Admin\KnowledgeGapController::class, 'dismiss'])->name('admin.knowledge-gaps.dismiss');
+    Route::post('/admin/knowledge-gaps/{knowledgeGap}/resolve', [App\Http\Controllers\Admin\KnowledgeGapController::class, 'resolve'])->name('admin.knowledge-gaps.resolve');
+    Route::delete('/admin/knowledge-gaps/{knowledgeGap}', [App\Http\Controllers\Admin\KnowledgeGapController::class, 'destroy'])->name('admin.knowledge-gaps.destroy');
+
+    // Admin RAG Evaluation Suite
+    Route::get('/admin/rag-evaluation', [App\Http\Controllers\Admin\RagEvaluationController::class, 'index'])->name('admin.rag-evaluation.index');
+    Route::post('/admin/rag-evaluation/run', [App\Http\Controllers\Admin\RagEvaluationController::class, 'runBenchmark'])->name('admin.rag-evaluation.run');
+    Route::post('/admin/rag-evaluation/tests', [App\Http\Controllers\Admin\RagEvaluationController::class, 'storeTest'])->name('admin.rag-evaluation.tests.store');
+    Route::put('/admin/rag-evaluation/tests/{ragEvalTest}', [App\Http\Controllers\Admin\RagEvaluationController::class, 'updateTest'])->name('admin.rag-evaluation.tests.update');
+    Route::delete('/admin/rag-evaluation/tests/{ragEvalTest}', [App\Http\Controllers\Admin\RagEvaluationController::class, 'destroyTest'])->name('admin.rag-evaluation.tests.destroy');
 
     // Admin Chat Import (XLSX) routes
     Route::get('/admin/chat-import', function () {

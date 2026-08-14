@@ -215,9 +215,20 @@
           </template>
 
           <template v-slot:item.actions="{ item }">
-            <button class="fb-view-btn" @click="viewDetail(item.id)">
-              <VIcon size="16">mdi-eye</VIcon>
-            </button>
+            <div class="d-flex align-center gap-1 justify-end">
+              <button
+                v-if="item.rating <= 3"
+                class="fb-draft-btn"
+                title="Draf Solusi KB dengan AI"
+                @click="draftFromFeedback(item)"
+                :disabled="draftingFeedbackId === item.id"
+              >
+                <VIcon size="16" color="#1261e0">mdi-robot-outline</VIcon>
+              </button>
+              <button class="fb-view-btn" title="Lihat Detail" @click="viewDetail(item.id)">
+                <VIcon size="16">mdi-eye</VIcon>
+              </button>
+            </div>
           </template>
         </VDataTable>
 
@@ -402,6 +413,32 @@ const changePage = (page) => {
       preserveState: true,
     },
   );
+};
+
+const draftingFeedbackId = ref(null);
+
+const draftFromFeedback = async (item) => {
+  draftingFeedbackId.value = item.id;
+  try {
+    const res = await axios.post(route('admin.feedback.draft-kb', item.id));
+    if (res.data.success && res.data.draft) {
+      const d = res.data.draft;
+      router.get(route('knowledge-base.create'), {
+        prefill_title: d.title,
+        prefill_question: d.question,
+        prefill_answer: d.answer,
+        prefill_content: d.content,
+        prefill_category: d.category,
+        prefill_type: d.type,
+        prefill_tags: d.tags,
+        prefill_ai_instructions: d.ai_instructions,
+      });
+    }
+  } catch (e) {
+    console.error('Failed to generate draft from feedback', e);
+  } finally {
+    draftingFeedbackId.value = null;
+  }
 };
 
 const viewDetail = (feedbackId) => {

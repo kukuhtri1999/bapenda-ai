@@ -38,6 +38,18 @@ const formState = reactive({
   success: false,
 });
 
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('prefill_title')) form.title = params.get('prefill_title') || '';
+    if (params.has('prefill_content')) form.content = params.get('prefill_content') || '';
+    if (params.has('prefill_ai_instructions')) form.ai_instructions = params.get('prefill_ai_instructions') || '';
+    if (params.has('prefill_category')) form.category = params.get('prefill_category') || 'pajak';
+    if (params.has('prefill_type')) form.type = params.get('prefill_type') || 'faq';
+    if (params.has('prefill_tags')) form.tags = params.get('prefill_tags') || '';
+  }
+});
+
 // ── Loading overlay state ──────────────────────────────────────────────────
 const STAGES = [
   {

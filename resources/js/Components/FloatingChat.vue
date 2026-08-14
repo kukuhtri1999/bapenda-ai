@@ -557,6 +557,19 @@ const maximizeChat = () => {
   scrollToBottom();
 };
 
+// Google reCAPTCHA v3 helper
+const getRecaptchaToken = async (action = 'chat_message') => {
+  const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6Ld4LYQtAAAAACEQjznEQrI0x5v34bAZ49OvQleG';
+  if (typeof window !== 'undefined' && window.grecaptcha && window.grecaptcha.execute) {
+    try {
+      return await window.grecaptcha.execute(siteKey, { action });
+    } catch (err) {
+      console.warn('reCAPTCHA execution error:', err);
+    }
+  }
+  return null;
+};
+
 // Send message
 const sendMessage = async () => {
   if (!currentMessage.value.trim() || isLoading.value) return;
@@ -578,9 +591,12 @@ const sendMessage = async () => {
     isLoading.value = true;
     isTyping.value = true;
 
+    const recaptchaToken = await getRecaptchaToken('chat_message');
+
     const response = await axios.post('/api/chat/message', {
       session_id: getSessionId(),
       message: messageText,
+      recaptcha_token: recaptchaToken,
     });
 
     isTyping.value = false;
@@ -599,9 +615,10 @@ const sendMessage = async () => {
     isTyping.value = false;
     console.error('Error sending message:', error);
 
+    const msgText = error.response?.data?.message || 'Maaf, terjadi kesalahan. Silakan coba lagi.';
     const errorMsg = {
       role: 'assistant',
-      content: 'Maaf, terjadi kesalahan. Silakan coba lagi.',
+      content: msgText,
       sent_at: new Date().toISOString(),
     };
     messages.value.push(errorMsg);

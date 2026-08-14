@@ -545,4 +545,66 @@ class ChatController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Stream AI chat response in real-time via Server-Sent Events (SSE).
+     */
+    public function streamMessage(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $request->validate([
+            'session_id' => 'required|string',
+            'message' => 'required|string|max:2000',
+        ]);
+
+        $chat = Chat::where('session_id', $request->session_id)->firstOrFail();
+
+        $userMessage = ChatMessage::create([
+            'chat_id' => $chat->id,
+            'role' => 'user',
+            'content' => $request->message,
+            'sent_at' => now(),
+        ]);
+
+        $chat->updateLastActivity();
+
+        $recentMessages = $chat->messages()
+            ->whereIn('role', ['user', 'assistant'])
+            ->orderBy('sent_at', 'desc')
+            ->limit(10)
+            ->get()
+            ->reverse()
+            ->flatMap(fn($m) => [
+                ['role' => $m->role, 'content' => $m->content],
+                ...(!empty($m->answer) ? [['role' => 'assistant', 'content' => $m->answer]] : [])
+            ])
+            ->values()
+            ->toArray();
+
+        return response()->stream(function () use ($recentMessages, $userMessage, $request) {
+            $completeText = '';
+            try {
+                $completeText = $this->openAIService->generateCustomerServiceStream(
+                    $recentMessages,
+                    function ($chunk) {
+                        echo "data: " . json_encode(['chunk' => $chunk]) . "\n\n";
+                        if (ob_get_level() > 0) ob_flush();
+                        flush();
+                    },
+                    "Session ID: {$request->session_id}"
+                );
+
+                $userMessage->update(['answer' => $completeText]);
+                echo "data: " . json_encode(['done' => true, 'complete' => $completeText]) . "\n\n";
+            } catch (\Throwable $e) {
+                echo "data: " . json_encode(['error' => $e->getMessage()]) . "\n\n";
+            }
+            if (ob_get_level() > 0) ob_flush();
+            flush();
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
 }

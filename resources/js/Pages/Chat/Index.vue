@@ -587,6 +587,19 @@ const resetIdleTimer = () => {
   }, IDLE_TIMEOUT);
 };
 
+// Google reCAPTCHA v3 helper
+const getRecaptchaToken = async (action = 'chat_message') => {
+  const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6Ld4LYQtAAAAACEQjznEQrI0x5v34bAZ49OvQleG';
+  if (typeof window !== 'undefined' && window.grecaptcha && window.grecaptcha.execute) {
+    try {
+      return await window.grecaptcha.execute(siteKey, { action });
+    } catch (err) {
+      console.warn('reCAPTCHA execution error:', err);
+    }
+  }
+  return null;
+};
+
 // Initialize chat
 const initializeChat = async () => {
   try {
@@ -599,8 +612,11 @@ const initializeChat = async () => {
     isSubmittingFeedback.value = false;
     feedbackSubmitted.value = false;
 
+    const recaptchaToken = await getRecaptchaToken('start_chat');
+
     const response = await axios.post('/api/chat/start', {
       session_id: getSessionId(),
+      recaptcha_token: recaptchaToken,
     });
 
     if (response.data.success) {
@@ -631,9 +647,11 @@ const startNewChat = async () => {
     feedbackSubmitted.value = false;
 
     const sessionId = getSessionId(true); // Force new session
+    const recaptchaToken = await getRecaptchaToken('start_chat');
 
     const response = await axios.post('/api/chat/start', {
       session_id: sessionId,
+      recaptcha_token: recaptchaToken,
     });
 
     if (response.data.success) {
@@ -682,10 +700,13 @@ const sendMessage = async (messageText = null, isContext = false) => {
     isLoading.value = true;
     isTyping.value = true;
 
+    const recaptchaToken = await getRecaptchaToken('chat_message');
+
     const response = await axios.post('/api/chat/message', {
       session_id: getSessionId(),
       message: text,
       is_context: isContext,
+      recaptcha_token: recaptchaToken,
     });
 
     isTyping.value = false;
@@ -709,7 +730,8 @@ const sendMessage = async (messageText = null, isContext = false) => {
   } catch (error) {
     isTyping.value = false;
     console.error('Error sending message:', error);
-    showErrorMessage('Gagal mengirim pesan. Silakan coba lagi.');
+    const msg = error.response?.data?.message || 'Gagal mengirim pesan. Silakan coba lagi.';
+    showErrorMessage(msg);
   } finally {
     isLoading.value = false;
   }

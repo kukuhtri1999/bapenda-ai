@@ -4,18 +4,29 @@
     <!-- Header with Back Button -->
     <VRow class="mb-4">
       <VCol cols="12">
-        <div class="d-flex align-center mb-3">
-          <VBtn @click="goBack" icon variant="text" class="me-3">
-            <VIcon>mdi-arrow-left</VIcon>
-          </VBtn>
-          <div>
-            <h1 class="text-h4 font-weight-bold text-grey-800 mb-1">
-              📋 Feedback Detail
-            </h1>
-            <p class="text-body-2 text-grey-600 mb-0">
-              Session ID: {{ feedback.session_id }}
-            </p>
+        <div class="d-flex align-center justify-space-between mb-3">
+          <div class="d-flex align-center">
+            <VBtn @click="goBack" icon variant="text" class="me-3">
+              <VIcon>mdi-arrow-left</VIcon>
+            </VBtn>
+            <div>
+              <h1 class="text-h4 font-weight-bold text-grey-800 mb-1">
+                📋 Feedback Detail
+              </h1>
+              <p class="text-body-2 text-grey-600 mb-0">
+                Session ID: {{ feedback.session_id }}
+              </p>
+            </div>
           </div>
+          <VBtn
+            color="primary"
+            variant="flat"
+            prepend-icon="mdi-robot-outline"
+            @click="draftKbFromFeedback"
+            :loading="isDrafting"
+          >
+            Draf Solusi KB dengan AI
+          </VBtn>
         </div>
       </VCol>
     </VRow>
@@ -345,6 +356,32 @@ const exportSingleFeedback = () => {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+};
+
+const isDrafting = ref(false);
+
+const draftKbFromFeedback = async () => {
+  isDrafting.value = true;
+  try {
+    const res = await axios.post(route('admin.feedback.draft-kb', props.feedback.id));
+    if (res.data.success && res.data.draft) {
+      const d = res.data.draft;
+      router.get(route('knowledge-base.create'), {
+        prefill_title: d.title,
+        prefill_question: d.question,
+        prefill_answer: d.answer,
+        prefill_content: d.content,
+        prefill_category: d.category,
+        prefill_type: d.type,
+        prefill_tags: d.tags,
+        prefill_ai_instructions: d.ai_instructions,
+      });
+    }
+  } catch (e) {
+    console.error('Failed to generate draft from feedback', e);
+  } finally {
+    isDrafting.value = false;
+  }
 };
 
 const goBack = () => {

@@ -162,4 +162,48 @@ class FeedbackController extends Controller
 
     return response()->stream($callback, 200, $headers);
   }
+
+  /**
+   * Generate a Knowledge Base draft from a feedback session.
+   */
+  public function draftKnowledgeBase(ChatFeedback $feedback, \App\Services\OpenAIService $openAIService): \Illuminate\Http\JsonResponse
+  {
+    try {
+      // Find chat messages associated with this feedback
+      $chat = Chat::where('session_id', $feedback->session_id)->with('messages')->first();
+      $conversationText = '';
+      if ($chat && $chat->messages) {
+        foreach ($chat->messages as $msg) {
+          $conversationText .= "User: " . ($msg->content ?? '') . "\n";
+          if (!empty($msg->answer)) {
+            $conversationText .= "AI: " . $msg->answer . "\n";
+          }
+        }
+      }
+
+      $queryText = $feedback->feedback_text ?: ($chat->messages->first()?->content ?? 'Pertanyaan dari feedback sesi ' . $feedback->session_id);
+      $context = "Rating: {$feedback->rating}/5 stars.\nFeedback: {$feedback->feedback_text}\n\nPercakapan:\n" . mb_substr($conversationText, 0, 1500);
+
+      $draft = $openAIService->generateKnowledgeBaseDraft($queryText, $context);
+
+      if (!$draft['success']) {
+        return response()->json([
+          'success' => false,
+          'message' => $draft['error'] ?? 'Gagal membuat draf dengan AI.'
+        ], 422);
+      }
+
+      return response()->json([
+        'success' => true,
+        'draft' => $draft['data']
+      ]);
+    } catch (\Throwable $e) {
+      Log::error('FeedbackController::draftKnowledgeBase error: ' . $e->getMessage());
+      return response()->json([
+        'success' => false,
+        'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+      ], 500);
+    }
+  }
 }
+

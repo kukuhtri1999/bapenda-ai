@@ -33,13 +33,18 @@ return [
 
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
-        // Default chat model to gpt-5-mini; override with OPENAI_MODEL in .env
+        // Default workhorse chat model (fast, sub-second, highly cost-effective)
         'model' => env('OPENAI_MODEL', 'gpt-5-mini'),
-        // Analytics model can be overridden separately; defaults set in service code
+        // High-reasoning complex fallback model for complex tax calculation disputes
+        'complex_model' => env('OPENAI_COMPLEX_MODEL', 'gpt-5'),
+        // Analytics model for batch processing and seeder analytics
         'analytics_model' => env('OPENAI_ANALYTICS_MODEL', 'gpt-5-mini'),
         'max_tokens' => env('OPENAI_MAX_TOKENS', 4000),
         'temperature' => env('OPENAI_TEMPERATURE', 0.7),
         'request_timeout' => env('OPENAI_REQUEST_TIMEOUT', 30), // seconds
+        // Response caching configuration for zero-latency / zero-cost repeated queries
+        'cache_enabled' => env('OPENAI_CACHE_ENABLED', true),
+        'cache_ttl' => env('OPENAI_CACHE_TTL', 3600), // Cache TTL in seconds (default 1 hour)
         // Embedding model for vector database
         'embedding_model' => env('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
     ],
@@ -50,6 +55,21 @@ return [
         'index_name' => env('PINECONE_INDEX_NAME', 'bapenda-kb'),
         'dimension' => env('PINECONE_DIMENSION', 1536), // For text-embedding-3-small
         'metric' => env('PINECONE_METRIC', 'cosine'),
+    ],
+
+    'recaptcha' => [
+        'site_key' => env('RECAPTCHA_SITE_KEY', '6Ld4LYQtAAAAACEQjznEQrI0x5v34bAZ49OvQleG'),
+        'secret_key' => env('RECAPTCHA_SECRET_KEY', '6Ld4LYQtAAAAAOBSlpev0KYqTN84X363kAGXhIHL'),
+        'enabled' => env('RECAPTCHA_ENABLED', true),
+        'min_score' => env('RECAPTCHA_MIN_SCORE', 0.5),
+    ],
+
+    'circuit_breaker' => [
+        'enabled' => env('AI_CIRCUIT_BREAKER_ENABLED', true),
+        'max_failures' => env('AI_CIRCUIT_BREAKER_MAX_FAILURES', 3),
+        'reset_timeout' => env('AI_CIRCUIT_BREAKER_RESET_TIMEOUT', 60), // seconds
+        'rate_limit_ip' => env('AI_RATE_LIMIT_IP_PER_MINUTE', 30),
+        'rate_limit_session' => env('AI_RATE_LIMIT_SESSION_PER_MINUTE', 15),
     ],
 
 ];

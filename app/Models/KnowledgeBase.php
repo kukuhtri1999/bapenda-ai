@@ -86,16 +86,22 @@ class KnowledgeBase extends Model
             $model->increment('view_count', 0); // Initialize view count
             // Index to vector database after creation
             $model->indexToVectorDatabase();
+            // Clear AI response cache to ensure fresh KB context is used
+            \App\Services\OpenAIService::clearResponseCache();
         });
 
         static::updated(function ($model) {
             // Update vector database when model is updated
             $model->updateVectorDatabase();
+            // Clear AI response cache to ensure fresh KB context is used
+            \App\Services\OpenAIService::clearResponseCache();
         });
 
         static::deleted(function ($model) {
             // Remove from vector database when deleted
             $model->removeFromVectorDatabase();
+            // Clear AI response cache to ensure fresh KB context is used
+            \App\Services\OpenAIService::clearResponseCache();
         });
     }
 

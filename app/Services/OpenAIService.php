@@ -16,6 +16,8 @@ class OpenAIService
     private float $temperature;
     private int $defaultTimeout;
     private bool $debug;
+    private SecurityGuardrailService $guardrails;
+    private AiCircuitBreakerService $circuitBreaker;
 
     // OPTIMIZATION: Simple in-memory cache for frequent queries
     private static array $queryCache = [];
@@ -25,11 +27,13 @@ class OpenAIService
     {
         $this->client = \OpenAI::client((string) config('services.openai.api_key'));
         $this->model = config('services.openai.model', 'gpt-5-mini');
-        $this->maxTokens = config('services.openai.max_tokens', 1500);
+        $this->maxTokens = config('services.openai.max_tokens', 4000);
         $this->temperature = config('services.openai.temperature', 0.7);
         $this->defaultTimeout = 30;
         $ragDebug = $_ENV['RAG_DEBUG'] ?? $_SERVER['RAG_DEBUG'] ?? false;
         $this->debug = (bool) (config('app.debug', false) || filter_var($ragDebug, FILTER_VALIDATE_BOOLEAN));
+        $this->guardrails = app(SecurityGuardrailService::class);
+        $this->circuitBreaker = app(AiCircuitBreakerService::class);
     }
 
 
@@ -755,11 +759,34 @@ REQUIREMENTS:
     /**
      * Generate AI response for customer service chat with RAG
      */
+    /**
+     * Clear all cached AI customer service responses.
+     */
+    public static function clearResponseCache(): void
+    {
+        try {
+            if (method_exists(\Illuminate\Support\Facades\Cache::getStore(), 'tags')) {
+                \Illuminate\Support\Facades\Cache::tags(['ai_responses'])->flush();
+            }
+            $keys = \Illuminate\Support\Facades\Cache::get('ai_response_cache_keys', []);
+            if (is_array($keys)) {
+                foreach ($keys as $k) {
+                    \Illuminate\Support\Facades\Cache::forget($k);
+                }
+            }
+            \Illuminate\Support\Facades\Cache::forget('ai_response_cache_keys');
+            Log::info('OpenAI response cache cleared successfully.');
+        } catch (\Throwable $e) {
+            Log::warning('Failed to clear OpenAI response cache: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Generate AI response for customer service chat with RAG, Caching, and Tiered Model Routing
+     */
     public function generateCustomerServiceResponse(array $messages, ?string $context = null): array
     {
         try {
-            if ($this->debug) Log::info('OpenAI chat start', ['model' => $this->model]);
-
             // Get latest user message
             $latestUser = null;
             for ($i = count($messages) - 1; $i >= 0; $i--) {
@@ -779,6 +806,42 @@ REQUIREMENTS:
             }
 
             $userQuery = (string)($latestUser['content'] ?? '');
+            $userQueryClean = trim($userQuery);
+
+            // ── Response Caching Check (Sub-50ms Latency & $0 Cost) ────────────
+            $cacheEnabled = config('services.openai.cache_enabled', true);
+            $cacheTtl = (int) config('services.openai.cache_ttl', 3600);
+            $normalizedQuery = mb_strtolower(preg_replace('/[^\p{L}\p{N}\s]/u', '', $userQueryClean));
+            $cacheKey = 'ai_response_cache:' . md5($normalizedQuery);
+
+            if ($cacheEnabled && strlen($normalizedQuery) > 3) {
+                if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+                    $cachedResult = \Illuminate\Support\Facades\Cache::get($cacheKey);
+                    if (is_array($cachedResult) && !empty($cachedResult['message'])) {
+                        if ($this->debug) {
+                            Log::info('AI response served from cache', ['query' => $userQueryClean, 'cache_key' => $cacheKey]);
+                        }
+                        $cachedResult['cached'] = true;
+                        return $cachedResult;
+                    }
+                }
+            }
+
+            // ── Tiered Model Selection ─────────────────────────────────────────
+            // Determine whether to use standard workhorse (gpt-5-mini) or complex reasoning model (gpt-5)
+            $complexModel = config('services.openai.complex_model', 'gpt-5');
+            $selectedModel = $this->model; // Default: gpt-5-mini / gpt-4o-mini
+            
+            // Check for complex dispute / multi-year tax penalty signals
+            $complexKeywords = ['sengketa', 'hukum', 'sengketa pajak', 'gugatan', 'perhitungan denda 5 tahun', 'mutasi luar provinsi'];
+            foreach ($complexKeywords as $ck) {
+                if (mb_strpos($normalizedQuery, $ck) !== false) {
+                    $selectedModel = $complexModel;
+                    break;
+                }
+            }
+
+            if ($this->debug) Log::info('OpenAI chat start', ['model' => $selectedModel, 'query' => $userQueryClean]);
 
             // Get dynamic Indonesian calendar and holiday details
             $cal = $this->getCalendarDetails();
@@ -845,12 +908,28 @@ REQUIREMENTS:
                 $apiMessages[] = ['role' => $msg['role'], 'content' => $msg['content']];
             }
 
-            // Call OpenAI
-            $response = $this->client->chat()->create([
-                'model'       => $this->model,
-                'messages'    => $apiMessages,
-                'max_completion_tokens' => $this->maxTokens,
-            ]);
+            // Call OpenAI through Circuit Breaker with resilient failover
+            $response = $this->circuitBreaker->executeWithFallback(
+                primaryCall: function () use ($selectedModel, $apiMessages) {
+                    return $this->client->chat()->create([
+                        'model'       => $selectedModel,
+                        'messages'    => $apiMessages,
+                        'max_completion_tokens' => $this->maxTokens,
+                    ]);
+                },
+                fallbackCall: function (\Throwable $e) use ($userQuery) {
+                    Log::warning('Circuit breaker fallback triggered in customer service: ' . $e->getMessage());
+                    return (object) [
+                        'choices' => [
+                            (object) [
+                                'message' => (object) ['content' => $this->generateFallbackResponse($userQuery)],
+                                'finishReason' => 'stop',
+                            ]
+                        ],
+                        'usage' => null,
+                    ];
+                }
+            );
 
             $choice       = $response->choices[0] ?? null;
             $finishReason = $choice?->finishReason ?? 'unknown';
@@ -860,6 +939,7 @@ REQUIREMENTS:
             // Log finish_reason so we can detect future truncation issues
             if ($this->debug || $finishReason === 'length' || $answerText === '') {
                 Log::warning('OpenAI generateCustomerServiceResponse', [
+                    'model'         => $selectedModel,
                     'finish_reason' => $finishReason,
                     'content_empty' => $answerText === '',
                     'usage'         => $normUsage,
@@ -883,12 +963,41 @@ REQUIREMENTS:
                 ];
             }
 
-            return [
+            $result = [
                 'success'        => true,
                 'message'        => $answerText,
                 'usage'          => $normUsage,
-                'knowledge_used' => count($relevantKnowledge)
+                'knowledge_used' => count($relevantKnowledge),
+                'cached'         => false,
+                'model_used'     => $selectedModel
             ];
+
+            // ── Cache Result for Zero-Latency & Zero-Cost Repeated Requests ───
+            if ($cacheEnabled && strlen($normalizedQuery) > 3) {
+                try {
+                    \Illuminate\Support\Facades\Cache::put($cacheKey, $result, $cacheTtl);
+                    $keys = \Illuminate\Support\Facades\Cache::get('ai_response_cache_keys', []);
+                    if (is_array($keys) && !in_array($cacheKey, $keys, true)) {
+                        $keys[] = $cacheKey;
+                        if (count($keys) > 1000) {
+                            array_shift($keys);
+                        }
+                        \Illuminate\Support\Facades\Cache::put('ai_response_cache_keys', $keys, 86400 * 30);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to store AI response in cache: ' . $e->getMessage());
+                }
+            }
+
+            // ── Track Knowledge Gap if retrieved knowledge is weak (score < 0.50 or empty) ──
+            $topScore = !empty($relevantKnowledge) ? (float) max(array_column($relevantKnowledge, 'score')) : 0.0;
+            if ($topScore < 0.50) {
+                preg_match('/Session ID:\s*([^\s,]+)/', (string)$context, $sessMatch);
+                $sessionId = $sessMatch[1] ?? null;
+                $this->logKnowledgeGap($userQueryClean, 'low_confidence', $topScore, $sessionId);
+            }
+
+            return $result;
         } catch (Exception $e) {
             Log::error('OpenAI API Error: ' . $e->getMessage());
             return [
@@ -896,6 +1005,174 @@ REQUIREMENTS:
                 'message' => 'Maaf, terjadi kesalahan sistem. Silakan coba lagi atau hubungi petugas kami.',
                 'error'   => $e->getMessage()
             ];
+        }
+    }
+
+    /**
+     * Stream response tokens in real-time via Server-Sent Events (SSE).
+     *
+     * @param array $messages
+     * @param callable $onChunk Callable receiving each token string chunk
+     * @param string|null $context
+     * @return string Complete synthesized response
+     */
+    public function generateCustomerServiceStream(array $messages, callable $onChunk, ?string $context = null): string
+    {
+        $lastUserMsg = '';
+        foreach (array_reverse($messages) as $m) {
+            if (isset($m['role']) && $m['role'] === 'user') {
+                $lastUserMsg = (string)($m['content'] ?? '');
+                break;
+            }
+        }
+
+        $cal = $this->getCalendarDetails();
+        $relevantKnowledge = $this->getVectorKnowledge($lastUserMsg, $cal);
+
+        /** @var \App\Services\SalmaPromptService $salmaPrompt */
+        $salmaPrompt = app(\App\Services\SalmaPromptService::class);
+        $kbChunks = $salmaPrompt->formatKbChunks($relevantKnowledge);
+        $fullContext = ($context ? $context . "\n" : "") . $this->getCalendarContextString($cal);
+
+        $systemPrompt = $salmaPrompt->buildPrompt($kbChunks, $fullContext);
+
+        $apiMessages = [['role' => 'system', 'content' => $systemPrompt]];
+        $history = array_slice(array_filter($messages, fn($m) => isset($m['role'], $m['content'])), -6);
+        foreach ($history as $msg) {
+            $apiMessages[] = ['role' => $msg['role'], 'content' => $msg['content']];
+        }
+
+        $completeText = '';
+        $stream = $this->client->chat()->createStreamed([
+            'model' => $this->model,
+            'messages' => $apiMessages,
+            'max_completion_tokens' => $this->maxTokens,
+        ]);
+
+        foreach ($stream as $response) {
+            $delta = $response->choices[0]->delta->content ?? '';
+            if ($delta !== '') {
+                $completeText .= $delta;
+                $onChunk($delta);
+            }
+        }
+
+        return $completeText;
+    }
+
+    /**
+     * Log an unanswered or low-confidence query to the knowledge_gaps table.
+     */
+    public function logKnowledgeGap(string $query, string $source = 'low_confidence', ?float $similarityScore = null, ?string $sessionId = null): void
+    {
+        try {
+            $clean = trim($query);
+            if (mb_strlen($clean) < 4) return;
+
+            $normalized = mb_strtolower(preg_replace('/[^\p{L}\p{N}\s]/u', '', $clean));
+            $normalized = trim(preg_replace('/\s+/u', ' ', $normalized));
+            if (empty($normalized)) return;
+
+            $gap = \App\Models\KnowledgeGap::where('normalized_query', $normalized)->first();
+            if ($gap) {
+                $gap->increment('frequency');
+                $gap->update([
+                    'last_seen_at' => now(),
+                    'similarity_score' => $similarityScore !== null ? min((float)$gap->similarity_score, $similarityScore) : $gap->similarity_score,
+                ]);
+            } else {
+                \App\Models\KnowledgeGap::create([
+                    'query' => $clean,
+                    'normalized_query' => mb_substr($normalized, 0, 255),
+                    'source' => $source,
+                    'similarity_score' => $similarityScore,
+                    'frequency' => 1,
+                    'session_id' => $sessionId,
+                    'status' => 'pending',
+                    'last_seen_at' => now(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Failed to log knowledge gap: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Generate a complete, publication-ready Knowledge Base draft using OpenAI from a user query or gap.
+     * Returns: ['success' => bool, 'data' => array|null, 'error' => string|null]
+     */
+    public function generateKnowledgeBaseDraft(string $query, ?string $context = null): array
+    {
+        try {
+            $systemPrompt = <<<PROMPT
+Anda adalah Tenaga Ahli Kurator Konten dan Kebijakan Pelayanan Bapenda (Badan Pendapatan Daerah) Samsat Jawa Timur.
+Tugas Anda: Membuat draf artikel Knowledge Base yang lengkap, profesional, akurat, dan ramah pengguna berdasarkan pertanyaan/isu wajib pajak.
+
+Panduan:
+- Tuliskan jawaban dalam Bahasa Indonesia yang profesional, jelas, terstruktur (gunakan bullet points atau penomoran markdown).
+- Jangan halusinasi tarif/nominal uang sembarangan jika tidak ada kepastian, jelaskan komponen biaya (PKB pokok, SWDKLLJ, biaya administrasi STNK/TNKB sesuai PP PNBP Polri).
+- Tentukan kategori yang paling tepat: pajak, jadwal, lokasi, persyaratan, panduan, denda, atau umum.
+- Tentukan tipe dokumen: faq, regulation, guide, announcement, atau operational_hour.
+- Buat daftar tag yang relevan dipisahkan dengan koma.
+- Berikan instruksi khusus AI (ai_instructions) jika relevan untuk memandu AI chatbot saat merujuk artikel ini.
+
+Kembalikan respon HANYA dalam format JSON valid dengan struktur berikut:
+{
+  "title": "Judul Artikel yang Menarik & Informatif",
+  "question": "Pertanyaan Lengkap Wajib Pajak",
+  "answer": "Jawaban Ringkas & Jelas (1-2 paragraf)",
+  "content": "Konten Lengkap & Detail dengan Panduan Langkah/Syarat (Markdown)",
+  "category": "pajak|jadwal|lokasi|persyaratan|panduan|denda|umum",
+  "type": "faq|regulation|guide|announcement|operational_hour",
+  "tags": "tag1, tag2, tag3",
+  "ai_instructions": "Petunjuk taktis untuk chatbot AI saat membaca artikel ini"
+}
+PROMPT;
+
+            $userContent = "Pertanyaan/Isu Wajib Pajak:\n" . $query;
+            if (!empty($context)) {
+                $userContent .= "\n\nKonteks Percakapan/Feedback Tambahan:\n" . $context;
+            }
+
+            $response = $this->retryRequest(function () use ($systemPrompt, $userContent) {
+                return $this->client->chat()->create([
+                    'model' => config('services.openai.model', 'gpt-5-mini'),
+                    'messages' => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user', 'content' => $userContent],
+                    ],
+                    'max_completion_tokens' => $this->maxTokens,
+                ]);
+            });
+
+            $text = trim($response->choices[0]->message->content ?? '');
+            $text = preg_replace('/^```(?:json)?\s*/i', '', $text);
+            $text = preg_replace('/\s*```$/', '', $text);
+
+            $parsed = json_decode($text, true);
+            if (!is_array($parsed) || empty($parsed['title'])) {
+                return [
+                    'success' => false,
+                    'error' => 'Gagal mengurai respon AI draf Knowledge Base: ' . mb_substr($text, 0, 200)
+                ];
+            }
+
+            return [
+                'success' => true,
+                'data' => [
+                    'title' => $parsed['title'] ?? $query,
+                    'question' => $parsed['question'] ?? $query,
+                    'answer' => $parsed['answer'] ?? '',
+                    'content' => $parsed['content'] ?? ($parsed['answer'] ?? ''),
+                    'category' => $parsed['category'] ?? 'pajak',
+                    'type' => $parsed['type'] ?? 'faq',
+                    'tags' => $parsed['tags'] ?? '',
+                    'ai_instructions' => $parsed['ai_instructions'] ?? '',
+                ]
+            ];
+        } catch (\Throwable $e) {
+            Log::error('OpenAIService::generateKnowledgeBaseDraft error: ' . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
         }
     }
     /**
