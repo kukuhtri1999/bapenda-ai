@@ -225,7 +225,7 @@ const enhanceItem = async (target) => {
   } catch (err) {
     enhanceError.value = err.response?.data?.message || err.message || 'Request failed';
     enhanceDialog.value = true;
-    if ($toast) $toast.error(err.response?.data?.message || 'Gagal meningkatkan konten dengan GPT-5.');
+    if ($toast) $toast.error(err.response?.data?.message || 'Gagal meningkatkan konten dengan GPT-5.6 Terra.');
   } finally {
     const s = new Set(enhancingItems.value);
     s.delete(id);
@@ -1225,8 +1225,8 @@ const { startTour } = useTour(kbSteps);
                 @click="window.open(route('knowledge-base.download', item.id))"
                 ><VIcon size="16">mdi-download</VIcon></VBtn
               >
-              <!-- Enhance with AI GPT-5 -->
-              <VTooltip text="Enhance dengan AI GPT-5" location="top">
+              <!-- Enhance with AI GPT-5.6 Terra -->
+              <VTooltip text="Enhance dengan AI GPT-5.6 Terra" location="top">
                 <template #activator="{ props: tip }">
                   <VBtn
                     v-bind="tip"

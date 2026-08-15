@@ -42,7 +42,7 @@ class RagEvaluationController extends Controller
             'latest_context_relevance' => $latestRun ? round($latestRun->avg_context_relevance_score * 100, 1) : 0,
             'latest_avg_latency' => $latestRun ? $latestRun->avg_latency_seconds : 0,
             'total_runs_count' => RagEvalRun::count(),
-            'model_name' => config('services.openai.model', 'gpt-5-mini'),
+            'model_name' => config('services.openai.model', 'gpt-5.6-luna'),
         ];
 
         return Inertia::render('Admin/RagEvaluation/Index', [

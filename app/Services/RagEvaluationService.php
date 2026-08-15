@@ -163,7 +163,7 @@ PROMPT;
             }
 
             $response = $this->client->chat()->create([
-                'model' => config('services.openai.model', 'gpt-5-mini'),
+                'model' => config('services.openai.complex_model', 'gpt-5.6-terra'),
                 'messages' => [
                     ['role' => 'system', 'content' => $judgePrompt],
                     ['role' => 'user', 'content' => $payload],
@@ -223,7 +223,7 @@ PROMPT;
         }
         $tests = $query->get();
 
-        $modelUsed = config('services.openai.model', 'gpt-5-mini');
+        $modelUsed = config('services.openai.model', 'gpt-5.6-luna');
 
         $run = RagEvalRun::create([
             'model_used' => $modelUsed,

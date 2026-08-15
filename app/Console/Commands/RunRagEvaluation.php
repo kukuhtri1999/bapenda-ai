@@ -31,7 +31,7 @@ class RunRagEvaluation extends Command
         $this->info("================================================================================");
         $this->info("             SALMA AI - AUTOMATED RAG TRIAD EVALUATION BENCHMARK               ");
         $this->info("================================================================================");
-        $this->line("Model: <fg=cyan>" . config('services.openai.model', 'gpt-5-mini') . "</>");
+        $this->line("Model: <fg=cyan>" . config('services.openai.model', 'gpt-5.6-luna') . "</>");
         if ($limit) {
             $this->line("Test Limit: <fg=yellow>{$limit}</> tests");
         }

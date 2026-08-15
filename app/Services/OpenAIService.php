@@ -26,7 +26,7 @@ class OpenAIService
     public function __construct()
     {
         $this->client = \OpenAI::client((string) config('services.openai.api_key'));
-        $this->model = config('services.openai.model', 'gpt-5-mini');
+        $this->model = config('services.openai.model', 'gpt-5.6-luna');
         $this->maxTokens = config('services.openai.max_tokens', 4000);
         $this->temperature = config('services.openai.temperature', 0.7);
         $this->defaultTimeout = 30;
@@ -71,7 +71,7 @@ class OpenAIService
         if (is_string($m) && strlen($m) > 0) {
             return $m;
         }
-        return 'gpt-5-mini';
+        return 'gpt-5.6-luna';
     }
 
     /**
@@ -828,9 +828,9 @@ REQUIREMENTS:
             }
 
             // ── Tiered Model Selection ─────────────────────────────────────────
-            // Determine whether to use standard workhorse (gpt-5-mini) or complex reasoning model (gpt-5)
-            $complexModel = config('services.openai.complex_model', 'gpt-5');
-            $selectedModel = $this->model; // Default: gpt-5-mini / gpt-4o-mini
+            // Determine whether to use standard workhorse (gpt-5.6-luna) or complex reasoning model (gpt-5.6-terra)
+            $complexModel = config('services.openai.complex_model', 'gpt-5.6-terra');
+            $selectedModel = $this->model; // Default: gpt-5.6-luna
             
             // Check for complex dispute / multi-year tax penalty signals
             $complexKeywords = ['sengketa', 'hukum', 'sengketa pajak', 'gugatan', 'perhitungan denda 5 tahun', 'mutasi luar provinsi'];
@@ -1136,7 +1136,7 @@ PROMPT;
 
             $response = $this->retryRequest(function () use ($systemPrompt, $userContent) {
                 return $this->client->chat()->create([
-                    'model' => config('services.openai.model', 'gpt-5-mini'),
+                    'model' => config('services.openai.complex_model', 'gpt-5.6-terra'),
                     'messages' => [
                         ['role' => 'system', 'content' => $systemPrompt],
                         ['role' => 'user', 'content' => $userContent],
@@ -1986,7 +1986,7 @@ LARANGAN:
         try {
             if (empty($chats)) return ['success' => true, 'message' => 'No chats', 'data' => []];
 
-            $model = config('services.openai.model', 'gpt-5-mini');
+            $model = config('services.openai.analytics_model', 'gpt-5.6-luna');
 
             $labels = [];
             foreach ($categoryLabels as $k => $lbl) {
@@ -2062,7 +2062,7 @@ PROMPT;
 
             $response = $this->retryRequest(function () use ($systemPrompt, $userContent) {
                 return $this->client->chat()->create([
-                    'model'                  => config('services.openai.model', 'gpt-5-mini'),
+                    'model'                  => config('services.openai.complex_model', 'gpt-5.6-terra'),
                     'messages'               => [
                         ['role' => 'system', 'content' => $systemPrompt],
                         ['role' => 'user',   'content' => $userContent],
@@ -2138,7 +2138,7 @@ PROMPT;
 
             $response = $this->retryRequest(function () use ($systemPrompt, $payload) {
                 return $this->client->chat()->create([
-                    'model'                 => config('services.openai.complex_model', 'gpt-5'),
+                    'model'                 => config('services.openai.complex_model', 'gpt-5.6-terra'),
                     'messages'              => [
                         ['role' => 'system', 'content' => $systemPrompt],
                         ['role' => 'user',   'content' => $payload],

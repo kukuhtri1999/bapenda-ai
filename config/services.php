@@ -33,12 +33,12 @@ return [
 
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
-        // Default workhorse chat model (fast, sub-second, highly cost-effective)
-        'model' => env('OPENAI_MODEL', 'gpt-5-mini'),
-        // High-reasoning complex fallback model for complex tax calculation disputes
-        'complex_model' => env('OPENAI_COMPLEX_MODEL', 'gpt-5'),
-        // Analytics model for batch processing and seeder analytics
-        'analytics_model' => env('OPENAI_ANALYTICS_MODEL', 'gpt-5-mini'),
+        // Default workhorse chat model (fast, ultra-low latency, highly cost-effective)
+        'model' => env('OPENAI_MODEL', 'gpt-5.6-luna'),
+        // High-reasoning balanced model for complex tax calculations, KB enhancer, and RAG evaluation
+        'complex_model' => env('OPENAI_COMPLEX_MODEL', 'gpt-5.6-terra'),
+        // Analytics model for batch processing, continuous learning, and gap clustering
+        'analytics_model' => env('OPENAI_ANALYTICS_MODEL', 'gpt-5.6-luna'),
         'max_tokens' => env('OPENAI_MAX_TOKENS', 4000),
         'temperature' => env('OPENAI_TEMPERATURE', 0.7),
         'request_timeout' => env('OPENAI_REQUEST_TIMEOUT', 30), // seconds
