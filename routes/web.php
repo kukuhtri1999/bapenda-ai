@@ -14,11 +14,13 @@ use App\Http\Controllers\Admin\FeedbackController;
 use App\Http\Controllers\Admin\LotreImportController;
 
 Route::get('/', function () {
+    $cms = \App\Models\HomepageContent::getAllGrouped();
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
+        'cms' => $cms,
     ]);
 });
 
@@ -108,6 +110,12 @@ Route::middleware([
     Route::post('/admin/rag-evaluation/tests', [App\Http\Controllers\Admin\RagEvaluationController::class, 'storeTest'])->name('admin.rag-evaluation.tests.store');
     Route::put('/admin/rag-evaluation/tests/{ragEvalTest}', [App\Http\Controllers\Admin\RagEvaluationController::class, 'updateTest'])->name('admin.rag-evaluation.tests.update');
     Route::delete('/admin/rag-evaluation/tests/{ragEvalTest}', [App\Http\Controllers\Admin\RagEvaluationController::class, 'destroyTest'])->name('admin.rag-evaluation.tests.destroy');
+
+    // Admin CMS (Homepage & Footer)
+    Route::get('/admin/cms', [\App\Http\Controllers\Admin\CmsController::class, 'index'])->name('admin.cms.index');
+    Route::post('/admin/cms/update', [\App\Http\Controllers\Admin\CmsController::class, 'update'])->name('admin.cms.update');
+    Route::post('/admin/cms/upload-image', [\App\Http\Controllers\Admin\CmsController::class, 'uploadImage'])->name('admin.cms.upload-image');
+    Route::post('/admin/cms/reset-defaults', [\App\Http\Controllers\Admin\CmsController::class, 'resetDefaults'])->name('admin.cms.reset-defaults');
 
     // Admin Chat Import (XLSX) routes
     Route::get('/admin/chat-import', function () {

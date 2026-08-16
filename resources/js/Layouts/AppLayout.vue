@@ -79,6 +79,12 @@ const navLinks = ref([
     href: route('admin.rag-evaluation.index'),
   },
   {
+    icon: 'mdi-view-dashboard-edit-outline',
+    title: 'CMS Beranda & Footer',
+    value: 'admin.cms.index',
+    href: route('admin.cms.index'),
+  },
+  {
     icon: 'mdi-gift',
     title: 'Lotre - Pengaturan',
     value: 'admin.lotre.settings',

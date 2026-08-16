@@ -1,206 +1,183 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { router, Head } from '@inertiajs/vue3';
 import FloatingChat from '@/Components/FloatingChat.vue';
 import PwaInstallButton from '@/Components/PwaInstallButton.vue';
 
-defineProps({
-  canLogin: {
-    type: Boolean,
-  },
-  canRegister: {
-    type: Boolean,
-  },
-  laravelVersion: {
-    type: String,
-    required: true,
-  },
-  phpVersion: {
-    type: String,
-    required: true,
-  },
+const props = defineProps({
+  canLogin: { type: Boolean },
+  canRegister: { type: Boolean },
+  laravelVersion: { type: String, required: true },
+  phpVersion: { type: String, required: true },
+  cms: { type: Object, default: () => ({}) },
 });
 
-// Reactive data
-const chatDialog = ref(false);
-const isChatPageOpen = ref(false);
-const servicesSection = ref(null);
-
 const logoUrl = import.meta.env.VITE_APP_LOGO;
+const isChatPageOpen = ref(false);
+const mobileMenu = ref(false);
+const navSolid = ref(false);
 
-// Popular questions data
-const popularQuestions = ref([
-  {
-    icon: 'mdi-credit-card',
-    title: 'Cara Bayar Pajak',
-    description: 'Informasi lengkap cara pembayaran pajak kendaraan bermotor',
-    text: 'Bagaimana cara bayar pajak kendaraan?',
-  },
-  {
-    icon: 'mdi-card-account-details',
-    title: 'Pengesahan STNK',
-    description: 'Syarat dan prosedur pengesahan STNK kendaraan',
-    text: 'Apa saja syarat untuk pengesahan STNK?',
-  },
-  {
-    icon: 'mdi-map-marker',
-    title: 'Lokasi Samsat',
-    description: 'Alamat lengkap dan jam operasional Samsat Lamongan',
-    text: 'Dimana lokasi Samsat Lamongan dan jam operasionalnya?',
-  },
-  {
-    icon: 'mdi-currency-usd',
-    title: 'Tarif Pajak',
-    description: 'Informasi perhitungan tarif pajak kendaraan bermotor',
-    text: 'Bagaimana perhitungan tarif pajak kendaraan bermotor?',
-  },
-  {
-    icon: 'mdi-account-switch',
-    title: 'Balik Nama',
-    description: 'Syarat dan prosedur balik nama kendaraan bermotor',
-    text: 'Apa syarat untuk balik nama kendaraan?',
-  },
-  {
-    icon: 'mdi-web',
-    title: 'Cek Pajak Online',
-    description: 'Cara mengecek pajak kendaraan secara online',
-    text: 'Bagaimana cara cek pajak kendaraan secara online?',
-  },
-]);
+// Helper getter with robust fallback
+const getCms = (key, fallback) => {
+  return props.cms && props.cms[key] !== undefined && props.cms[key] !== null && props.cms[key] !== ''
+    ? props.cms[key]
+    : fallback;
+};
 
-// Jadwal Samsat Keliling Pagi
+// ── Hero Section (Dynamic via CMS) ───────────────────────────────────────────
+const heroBadge = computed(() => getCms('hero_badge', 'Pelayanan Publik Resmi'));
+const heroTitle = computed(() => getCms('hero_title', "Layanan Pajak\nKendaraan Modern"));
+const heroSubtitle = computed(() => getCms('hero_subtitle', 'Bayar pajak kendaraan bermotor dari mana saja, kapan saja melalui berbagai kanal digital dan layanan resmi Samsat Lamongan.'));
+const heroCtaPrimaryText = computed(() => getCms('hero_cta_primary_text', 'Cara Bayar'));
+const heroCtaPrimaryTarget = computed(() => getCms('hero_cta_primary_target', 'pembayaran'));
+const heroCtaSecondaryText = computed(() => getCms('hero_cta_secondary_text', 'Hubungi Kami'));
+const heroCtaSecondaryTarget = computed(() => getCms('hero_cta_secondary_target', 'kontak'));
+const heroBackgrounds = computed(() => getCms('hero_backgrounds', [
+  'https://picsum.photos/id/1076/1920/800',
+  'https://picsum.photos/id/1048/1920/800',
+  'https://picsum.photos/id/180/1920/800',
+]));
+
+const activeSlide = ref(0);
+let slideInterval = null;
+
+const nextSlide = () => {
+  if (!heroBackgrounds.value || heroBackgrounds.value.length === 0) return;
+  activeSlide.value = (activeSlide.value + 1) % heroBackgrounds.value.length;
+};
+const prevSlide = () => {
+  if (!heroBackgrounds.value || heroBackgrounds.value.length === 0) return;
+  activeSlide.value = (activeSlide.value - 1 + heroBackgrounds.value.length) % heroBackgrounds.value.length;
+};
+const goToSlide = (idx) => {
+  activeSlide.value = idx;
+  resetSlideInterval();
+};
+const resetSlideInterval = () => {
+  clearInterval(slideInterval);
+  slideInterval = setInterval(nextSlide, 5000);
+};
+
+// ── Layanan Unggulan (Dynamic via CMS) ───────────────────────────────────────
+const servicesBadge = computed(() => getCms('services_badge', 'Layanan Kami'));
+const servicesTitle = computed(() => getCms('services_title', 'Layanan Unggulan'));
+const servicesTitleHighlight = computed(() => getCms('services_title_highlight', 'KB Samsat Lamongan'));
+const servicesDesc = computed(() => getCms('services_desc', 'Berbagai layanan perpajakan dan kesamsatan untuk memudahkan masyarakat Lamongan dan Jawa Timur'));
+const layananUnggulan = computed(() => getCms('services_list', [
+  { icon: 'mdi-car-side', title: 'Pajak Tahunan', desc: 'Pembayaran Pajak Kendaraan Bermotor (PKB) tahunan dengan mudah dan cepat tanpa antri lama.', color: '#C0392B' },
+  { icon: 'mdi-card-account-details-outline', title: 'STNK 5 Tahunan', desc: 'Perpanjangan masa berlaku STNK dan penggantian plat nomor kendaraan (TNKB) 5 tahunan.', color: '#1B2838' },
+  { icon: 'mdi-swap-horizontal-bold', title: 'Balik Nama (BBNKB)', desc: 'Proses Bea Balik Nama Kendaraan Bermotor antar pemilik pertama ke pemilik berikutnya.', color: '#2980B9' },
+  { icon: 'mdi-file-document-swap-outline', title: 'Mutasi Masuk / Keluar', desc: 'Proses administrasi perpindahan berkas kendaraan bermotor antar wilayah kabupaten atau provinsi.', color: '#27AE60' },
+  { icon: 'mdi-bus-clock', title: 'Samsat Keliling', desc: 'Layanan pembayaran pajak tahunan bergerak yang hadir di berbagai kecamatan di Lamongan.', color: '#8E44AD' },
+  { icon: 'mdi-weather-night', title: 'BELOK WANGI', desc: 'Beda Lokasi Wayah Bengi — Layanan Samsat Keliling Malam setiap pukul 18.00–20.00 WIB.', color: '#E67E22' },
+]));
+
+// ── Jadwal & Lokasi State (Dynamic via CMS) ──────────────────────────────────
+const schedulesBadge = computed(() => getCms('schedules_badge', 'Jadwal & Lokasi'));
+const schedulesTitle = computed(() => getCms('schedules_title', 'Jadwal Layanan'));
+const schedulesTitleHighlight = computed(() => getCms('schedules_title_highlight', '& Lokasi Samsat'));
+const schedulesDesc = computed(() => getCms('schedules_desc', 'Pilih lokasi layanan untuk melihat peta dan petunjuk arah langsung'));
+
+const activeServiceTab = ref(0);
 const activeKelilingDay = ref(0);
-const kelilingPagiSchedule = [
-  {
-    day: 'Senin',
-    short: 'Sen',
-    locations: [
-      'Pertigaan Sambopinggir (Karangbinangun)',
-      'Depan Pantai Lorena (Paciran)',
-      'Depan Terminal MPU Sukodadi',
-    ],
-  },
-  {
-    day: 'Selasa',
-    short: 'Sel',
-    locations: [
-      'Depan Kantor Kec. Karanggeneng',
-      'Jl. Raya Pangean (Maduran)',
-      'Depan Kantor Kec. Kembangbahu',
-    ],
-  },
-  {
-    day: 'Rabu',
-    short: 'Rab',
-    locations: [
-      'Depan Kantor Kec. Mantup',
-      'Balai Desa Sugio',
-      'Jl. Raya Pangean (Maduran)',
-    ],
-  },
-  {
-    day: 'Kamis',
-    short: 'Kam',
-    locations: [
-      'Desa Kandangrejo (Kedungpring)',
-      'Kantor Kec. Modo',
-      'Depan Masjid Moropelang (Babat)',
-    ],
-  },
-  {
-    day: 'Jumat',
-    short: 'Jum',
-    locations: [
-      'Balai Desa Puter (Kembangbahu)',
-      'Depan Pantai Lorena (Paciran)',
-      'Samping Koramil Sugio',
-    ],
-  },
-  {
-    day: 'Sabtu',
-    short: 'Sab',
-    locations: [
-      'Depan Kantor Kec. Mantup',
-      'Kantor Kec. Karanggeneng',
-      'Pertigaan Lonjong (Glagah)',
-    ],
-  },
-];
+const selectedKelilingLoc = ref(0);
+const selectedMenetapLoc = ref(0);
+const selectedBelokLoc = ref(0);
 
-// Layanan Menetap (Payment Point)
-const layananMenetap = [
-  {
-    name: 'Samsat Walkthru',
-    address: 'Jl. Veteran No. 2, Lamongan',
-    hours: 'Senin – Sabtu',
-    icon: 'mdi-office-building-marker',
-    color: '#6C33A0',
-  },
-  {
-    name: 'Mal Pelayanan Publik (MPP)',
-    address: 'Jl. Lamongrejo No. 120, Lamongan',
-    hours: 'Senin – Jumat',
-    icon: 'mdi-domain',
-    color: '#C68EFD',
-  },
-  {
-    name: 'Payment Point Ngimbang',
-    address: 'Kantor Kec. Ngimbang',
-    hours: 'Senin – Jumat',
-    icon: 'mdi-map-marker-radius-outline',
-    color: '#8F87F1',
-  },
-  {
-    name: 'Payment Point Babat',
-    address: 'Bank Jatim KCP Babat',
-    hours: 'Senin – Jumat',
-    icon: 'mdi-map-marker-radius-outline',
-    color: '#8F87F1',
-  },
-  {
-    name: 'Payment Point Brondong',
-    address: 'Bank Jatim KCP Brondong',
-    hours: 'Senin – Jumat',
-    icon: 'mdi-map-marker-radius-outline',
-    color: '#8F87F1',
-  },
-];
+const kelilingPagiSchedule = computed(() => getCms('keliling_schedules', [
+  { day: 'Senin', short: 'Sen', locations: ['Pertigaan Sambopinggir (Karangbinangun)', 'Depan Pantai Lorena (Paciran)', 'Depan Terminal MPU Sukodadi'] },
+  { day: 'Selasa', short: 'Sel', locations: ['Depan Kantor Kec. Karanggeneng', 'Jl. Raya Pangean (Maduran)', 'Depan Kantor Kec. Kembangbahu'] },
+  { day: 'Rabu', short: 'Rab', locations: ['Depan Kantor Kec. Mantup', 'Balai Desa Sugio', 'Jl. Raya Pangean (Maduran)'] },
+  { day: 'Kamis', short: 'Kam', locations: ['Desa Kandangrejo (Kedungpring)', 'Kantor Kec. Modo', 'Depan Masjid Moropelang (Babat)'] },
+  { day: 'Jumat', short: 'Jum', locations: ['Balai Desa Puter (Kembangbahu)', 'Depan Pantai Lorena (Paciran)', 'Samping Koramil Sugio'] },
+  { day: 'Sabtu', short: 'Sab', locations: ['Depan Kantor Kec. Mantup', 'Kantor Kec. Karanggeneng', 'Pertigaan Lonjong (Glagah)'] },
+]));
 
-// BELOK WANGI – Samsat Keliling Malam
-const belokWangiSchedule = [
-  {
-    days: 'Senin & Kamis',
-    location: 'Depan Kantor KB Samsat',
-    icon: 'mdi-office-building',
-  },
-  {
-    days: 'Selasa & Jumat',
-    location: 'Alun-Alun Lamongan',
-    icon: 'mdi-city-variant-outline',
-  },
-  { days: 'Rabu', location: 'Terminal Sukodadi', icon: 'mdi-bus-stop' },
-];
+const layananMenetap = computed(() => getCms('layanan_menetap', [
+  { name: 'Samsat Walkthru', address: 'Jl. Veteran No. 2, Lamongan', hours: 'Senin – Sabtu', icon: 'mdi-office-building-marker', color: '#C0392B' },
+  { name: 'Mal Pelayanan Publik (MPP)', address: 'Jl. Lamongrejo No. 120, Lamongan', hours: 'Senin – Jumat', icon: 'mdi-domain', color: '#1B2838' },
+  { name: 'Payment Point Ngimbang', address: 'Kantor Kec. Ngimbang, Lamongan', hours: 'Senin – Jumat', icon: 'mdi-map-marker-radius-outline', color: '#2980B9' },
+  { name: 'Payment Point Babat', address: 'Bank Jatim KCP Babat, Lamongan', hours: 'Senin – Jumat', icon: 'mdi-map-marker-radius-outline', color: '#2980B9' },
+  { name: 'Payment Point Brondong', address: 'Bank Jatim KCP Brondong, Lamongan', hours: 'Senin – Jumat', icon: 'mdi-map-marker-radius-outline', color: '#2980B9' },
+]));
 
-// Pembayaran Digital
+const belokWangiSchedule = computed(() => getCms('belok_wangi_schedules', [
+  { days: 'Senin & Kamis', location: 'Depan Kantor KB Samsat Lamongan', icon: 'mdi-office-building' },
+  { days: 'Selasa & Jumat', location: 'Alun-Alun Lamongan', icon: 'mdi-city-variant-outline' },
+  { days: 'Rabu', location: 'Terminal Sukodadi Lamongan', icon: 'mdi-bus-stop' },
+]));
+
+// Computed Maps Queries
+const currentKelilingMapQuery = computed(() => {
+  const daySchedule = kelilingPagiSchedule.value[activeKelilingDay.value];
+  if (!daySchedule || !daySchedule.locations || !daySchedule.locations[selectedKelilingLoc.value]) {
+    return 'KB Samsat Lamongan';
+  }
+  const loc = daySchedule.locations[selectedKelilingLoc.value];
+  return `${loc}, Lamongan, Jawa Timur`;
+});
+
+const currentKelilingLocName = computed(() => {
+  const daySchedule = kelilingPagiSchedule.value[activeKelilingDay.value];
+  return daySchedule?.locations?.[selectedKelilingLoc.value] || 'Lokasi Samsat Keliling';
+});
+
+const currentMenetapMapQuery = computed(() => {
+  const item = layananMenetap.value[selectedMenetapLoc.value];
+  return item ? `${item.name}, ${item.address}` : 'KB Samsat Lamongan';
+});
+
+const currentMenetapLocName = computed(() => {
+  const item = layananMenetap.value[selectedMenetapLoc.value];
+  return item ? `${item.name} — ${item.address}` : 'Layanan Payment Point';
+});
+
+const currentBelokMapQuery = computed(() => {
+  const item = belokWangiSchedule.value[selectedBelokLoc.value];
+  return item ? `${item.location}, Lamongan, Jawa Timur` : 'KB Samsat Lamongan';
+});
+
+const currentBelokLocName = computed(() => {
+  const item = belokWangiSchedule.value[selectedBelokLoc.value];
+  return item ? `${item.location} (${item.days})` : 'Lokasi BELOK WANGI';
+});
+
+const handleSelectKelilingDay = (idx) => {
+  activeKelilingDay.value = idx;
+  selectedKelilingLoc.value = 0;
+};
+
+// ── SALMA AI Showcase (Dynamic via CMS) ──────────────────────────────────────
+const salmaBadge = computed(() => getCms('salma_badge', 'AI-Powered'));
+const salmaTitle = computed(() => getCms('salma_title', 'SALMA AI'));
+const salmaFullName = computed(() => getCms('salma_full_name', 'Samsat Lamongan Modern Assistant'));
+const salmaDesc = computed(() => getCms('salma_desc', 'Asisten cerdas berbasis kecerdasan buatan yang siap menjawab seluruh pertanyaan Anda seputar pajak kendaraan bermotor, prosedur STNK, jadwal Samsat, dan informasi resmi lainnya secara instan — kapan saja, di mana saja.'));
+const salmaFeatures = computed(() => getCms('salma_features', [
+  { icon: 'mdi-clock-fast', text: 'Respon Instan 24/7' },
+  { icon: 'mdi-shield-check', text: 'Informasi Resmi & Akurat' },
+  { icon: 'mdi-brain', text: 'Didukung GPT-5.6 AI' },
+  { icon: 'mdi-translate', text: 'Bahasa Indonesia & Jawa' },
+]));
+const salmaMascotImage = computed(() => getCms('salma_mascot_image', '/images/salma2.gif'));
+const salmaCtaText = computed(() => getCms('salma_cta_text', 'Mulai Percakapan dengan SALMA'));
+
+// ── Pembayaran Digital (Dynamic via CMS) ─────────────────────────────────────
+const paymentBadge = computed(() => getCms('payment_badge', 'E-Samsat'));
+const paymentTitle = computed(() => getCms('payment_title', 'Pembayaran Digital'));
+const paymentTitleHighlight = computed(() => getCms('payment_title_highlight', 'Pajak Kendaraan'));
+const paymentDesc = computed(() => getCms('payment_desc', 'Bayar pajak kendaraan kapan saja dan di mana saja tanpa perlu antri'));
+
 const activePaymentTab = ref(0);
-const paymentCategories = [
+const paymentCategories = computed(() => getCms('payment_categories', [
   {
     name: 'E-Commerce',
     icon: 'mdi-shopping-outline',
     color: '#00AA5B',
     platforms: [
-      {
-        name: 'Tokopedia',
-        logo: '/images/payment/tokopedia.png',
-        bg: '#FFFFFF',
-      },
+      { name: 'Tokopedia', logo: '/images/payment/tokopedia.png', bg: '#FFFFFF' },
       { name: 'Shopee', logo: '/images/payment/shopee.png', bg: '#ffffff' },
       { name: 'Alfamart', logo: '/images/payment/alfamart.png', bg: '#CC192B' },
-      {
-        name: 'Indomaret',
-        logo: '/images/payment/indomaret.png',
-        bg: '#003F8E',
-      },
+      { name: 'Indomaret', logo: '/images/payment/indomaret.png', bg: '#003F8E' },
     ],
   },
   {
@@ -219,845 +196,632 @@ const paymentCategories = [
     icon: 'mdi-bank-outline',
     color: '#003087',
     platforms: [
-      {
-        name: 'Bank Jatim',
-        logo: '/images/payment/bankjatim.png',
-        bg: '#FFFFFF',
-      },
-      {
-        name: 'Bukopin',
-        logo: '/images/payment/new/bank-bukopin.png',
-        bg: '#FFFFFF',
-      },
+      { name: 'Bank Jatim', logo: '/images/payment/bankjatim.png', bg: '#FFFFFF' },
+      { name: 'Bukopin', logo: '/images/payment/new/bank-bukopin.png', bg: '#FFFFFF' },
       { name: 'BTN', logo: '/images/payment/btn.png', bg: '#FFFFFF' },
-      {
-        name: 'Pos Indonesia',
-        logo: '/images/payment/pos-indonesia.png',
-        bg: '#Ffffff',
-      },
+      { name: 'Pos Indonesia', logo: '/images/payment/pos-indonesia.png', bg: '#Ffffff' },
     ],
   },
+]));
+
+// ── Kontak & Jam Operasional (Dynamic via CMS) ────────────────────────────────
+const contactBadge = computed(() => getCms('contact_badge', 'Hubungi Kami'));
+const contactTitle = computed(() => getCms('contact_title', 'Kontak &'));
+const contactTitleHighlight = computed(() => getCms('contact_title_highlight', 'KB Samsat Lamongan'));
+const contactAddress = computed(() => getCms('contact_address', 'Jl. Veteran No. 1A, Tumenggungan, Lamongan'));
+const contactCityPostal = computed(() => getCms('contact_city_postal', 'Kabupaten Lamongan, Jawa Timur 62211'));
+const contactHoursWeekday = computed(() => getCms('contact_hours_weekday', 'Senin – Kamis, Sabtu: 08.00 – 12.00 WIB'));
+const contactHoursFriday = computed(() => getCms('contact_hours_friday', 'Jumat: 08.00 – 11.00 WIB'));
+const contactPhone = computed(() => getCms('contact_phone', '(0322) 311234'));
+const contactHelpCardTitle = computed(() => getCms('contact_help_card_title', 'Butuh Bantuan?'));
+const contactHelpCardDesc = computed(() => getCms('contact_help_card_desc', 'Tanyakan apa saja kepada SALMA AI — Asisten pintar yang siap membantu Anda 24 jam nonstop.'));
+
+// ── Footer & Branding (Dynamic via CMS) ──────────────────────────────────────
+const footerAgencyName = computed(() => getCms('footer_agency_name', 'KB Samsat Lamongan'));
+const footerAgencySub = computed(() => getCms('footer_agency_sub', 'Badan Pendapatan Daerah Provinsi Jawa Timur'));
+const footerAgencyDesc = computed(() => getCms('footer_agency_desc', 'Kantor Bersama Samsat Lamongan melayani pembayaran Pajak Kendaraan Bermotor, pengesahan STNK, dan layanan kesamsatan lainnya bagi masyarakat Kabupaten Lamongan dan Jawa Timur.'));
+const footerSocialLinks = computed(() => getCms('footer_social_links', [
+  { platform: 'instagram', icon: 'mdi-instagram', url: 'https://instagram.com' },
+  { platform: 'facebook', icon: 'mdi-facebook', url: 'https://facebook.com' },
+  { platform: 'youtube', icon: 'mdi-youtube', url: 'https://youtube.com' },
+]));
+const footerCopyrightText = computed(() => getCms('footer_copyright_text', '© 2026 KB Samsat Lamongan — Bapenda Provinsi Jawa Timur. All rights reserved.'));
+
+// ── Navigation & Actions ─────────────────────────────────────────────────────
+const navLinks = [
+  { label: 'Beranda', target: 'hero' },
+  { label: 'Layanan', target: 'layanan' },
+  { label: 'Jadwal & Lokasi', target: 'jadwal' },
+  { label: 'SALMA AI', target: 'salma' },
+  { label: 'Pembayaran', target: 'pembayaran' },
+  { label: 'Kontak', target: 'kontak' },
 ];
 
-// Methods
-const startChat = () => {
-  // Navigate to wajib pajak form first
-  router.visit('/wajib-pajak');
-};
-
-const askQuestion = (question) => {
-  // Store question in localStorage and navigate to wajib pajak form
-  localStorage.setItem('initial_question', question);
-  router.visit('/wajib-pajak');
-};
-
-const scrollToServices = () => {
-  if (servicesSection.value) {
-    servicesSection.value.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
+const scrollTo = (id) => {
+  mobileMenu.value = false;
+  if (id === 'hero') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
   }
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
-const getCardColor = (index) => {
-  const colors = ['#E9A5F1', '#C68EFD', '#8F87F1'];
-  return colors[index % colors.length];
+const startChat = () => {
+  router.visit('/wajib-pajak');
 };
 
-const getIconColor = (index) => {
-  const colors = ['#C68EFD', '#8F87F1', '#E9A5F1'];
-  return colors[index % colors.length];
-};
-
-const getServiceColor = (index) => {
-  const colors = ['#E9A5F1', '#C68EFD', '#8F87F1'];
-  return colors[index % colors.length];
-};
-
-const todayDayIndex = new Date().getDay(); // 0=Sunday, 1=Monday...
-// Map JS day (0-6) to schedule index (0=Senin..5=Sabtu)
+// ── Today's schedule highlight ───────────────────────────────────────────────
+const todayDayIndex = new Date().getDay();
 const todayKelilingIndex = todayDayIndex >= 1 && todayDayIndex <= 6 ? todayDayIndex - 1 : 0;
+
+// ── Lifecycle ────────────────────────────────────────────────────────────────
+let scrollHandler = null;
 
 onMounted(() => {
   document.documentElement.style.scrollBehavior = 'smooth';
   activeKelilingDay.value = todayKelilingIndex;
+
+  // Start hero auto-slide
+  slideInterval = setInterval(nextSlide, 5000);
+
+  // Navbar scroll solid
+  scrollHandler = () => {
+    navSolid.value = window.scrollY > 80;
+  };
+  window.addEventListener('scroll', scrollHandler, { passive: true });
 });
 
-function handleImageError() {
-  document.getElementById('screenshot-container')?.classList.add('!hidden');
-  document.getElementById('docs-card')?.classList.add('!row-span-1');
-  document.getElementById('docs-card-content')?.classList.add('!flex-row');
-  document.getElementById('background')?.classList.add('!hidden');
-}
+onUnmounted(() => {
+  clearInterval(slideInterval);
+  if (scrollHandler) window.removeEventListener('scroll', scrollHandler);
+});
 </script>
 
 <template>
   <VApp>
-    <Head title="Selamat Datang" />
+    <Head title="KB Samsat Lamongan — Pelayanan Publik Pajak Kendaraan Bermotor" />
 
-    <!-- Hero Section -->
-    <VAppBar app :elevation="0" color="transparent" class="landing-navbar">
-      <VContainer class="px-2 px-sm-4">
-        <VRow align="center" no-gutters>
-          <VCol cols="auto">
-            <div class="d-flex align-center">
-              <VImg :src="logoUrl" alt="Logo" contain width="36" class="me-2" />
-              <VImg
-                src="/images/logo-jatim.png"
-                alt="Logo Jatim"
-                contain
-                height="36"
-                width="36"
-                aspect-ratio="1"
-                class="me-2 d-none d-sm-flex"
-              />
-              <VImg
-                src="/images/Lambang_Polda_Jatim.png"
-                alt="Logo Polri"
-                contain
-                height="36"
-                width="36"
-                aspect-ratio="1"
-                class="me-2 d-none d-sm-flex"
-              />
-              <VImg
-                src="/images/jasa-raharja.png"
-                alt="Jasa Raharja"
-                contain
-                height="36"
-                width="36"
-                aspect-ratio="1"
-                class="me-2 d-none d-md-flex"
-              />
-              <span class="navbar-brand-text text-white font-weight-bold"
-                >SALMA AI</span
-              >
+    <!-- ═══ STICKY NAVBAR ═══ -->
+    <header class="gov-navbar" :class="{ 'gov-navbar--solid': navSolid }">
+      <div class="gov-navbar__inner">
+        <!-- Logo cluster -->
+        <div class="gov-navbar__brand" @click="scrollTo('hero')">
+          <VImg :src="logoUrl" alt="Logo Bapenda" contain width="34" height="34" class="me-2" />
+          <VImg src="/images/logo-jatim.png" alt="Jawa Timur" contain width="34" height="34" class="me-2 d-none d-sm-block" />
+          <VImg src="/images/Lambang_Polda_Jatim.png" alt="Polri" contain width="34" height="34" class="me-2 d-none d-md-block" />
+          <VImg src="/images/jasa-raharja.png" alt="Jasa Raharja" contain width="34" height="34" class="me-2 d-none d-md-block" />
+          <div class="gov-navbar__title">
+            <span class="gov-navbar__name">KB Samsat Lamongan</span>
+            <span class="gov-navbar__sub d-none d-md-block">Bapenda Provinsi Jawa Timur</span>
+          </div>
+        </div>
+
+        <!-- Desktop Nav Links -->
+        <nav class="gov-navbar__links d-none d-lg-flex">
+          <a v-for="link in navLinks" :key="link.target" @click.prevent="scrollTo(link.target)" class="gov-navbar__link">
+            {{ link.label }}
+          </a>
+        </nav>
+
+        <!-- CTA + Mobile toggle -->
+        <div class="gov-navbar__actions">
+          <VBtn v-if="$page.props.auth?.user" color="white" variant="outlined" size="small" class="me-2 d-none d-sm-flex" :href="route('dashboard')">Dashboard</VBtn>
+          <VBtn color="#C0392B" variant="flat" size="small" class="gov-navbar__cta" @click="startChat">
+            <VIcon size="18" class="me-1">mdi-chat-processing</VIcon>
+            <span class="d-none d-sm-inline">Tanya SALMA</span>
+            <span class="d-sm-none">Chat</span>
+          </VBtn>
+          <VBtn icon variant="text" color="white" class="d-lg-none ms-1" @click="mobileMenu = !mobileMenu">
+            <VIcon>{{ mobileMenu ? 'mdi-close' : 'mdi-menu' }}</VIcon>
+          </VBtn>
+        </div>
+      </div>
+
+      <!-- Mobile Dropdown Menu -->
+      <Transition name="slide-down">
+        <div v-if="mobileMenu" class="gov-navbar__mobile">
+          <a v-for="link in navLinks" :key="link.target" @click.prevent="scrollTo(link.target)" class="gov-navbar__mobile-link">
+            {{ link.label }}
+          </a>
+        </div>
+      </Transition>
+    </header>
+
+    <VMain class="pa-0" style="padding-top: 0 !important;">
+      <!-- ═══ SECTION 1: HERO IMAGE SLIDER ═══ -->
+      <section id="hero" class="hero-slider">
+        <div class="hero-slider__track">
+          <div
+            v-for="(bgImage, idx) in heroBackgrounds"
+            :key="idx"
+            class="hero-slider__slide"
+            :class="{ 'hero-slider__slide--active': activeSlide === idx }"
+            :style="{ backgroundImage: `url(${bgImage})` }"
+          >
+            <div class="hero-slider__overlay"></div>
+          </div>
+        </div>
+
+        <!-- Static Content Overlay -->
+        <div class="hero-slider__content">
+          <VContainer>
+            <VRow align="center" style="min-height: 85vh;">
+              <VCol cols="12" md="7" lg="6">
+                <div class="hero-slider__text">
+                  <div class="hero-slider__badge">
+                    <VIcon size="14" color="white" class="me-1">mdi-shield-check</VIcon>
+                    {{ heroBadge }}
+                  </div>
+                  <h1 class="hero-slider__title whitespace-pre-line">{{ heroTitle }}</h1>
+                  <p class="hero-slider__subtitle">{{ heroSubtitle }}</p>
+                  <div class="hero-slider__btns">
+                    <VBtn size="large" color="#C0392B" variant="flat" class="hero-btn me-3 mb-3" @click="scrollTo(heroCtaPrimaryTarget)">
+                      {{ heroCtaPrimaryText }}
+                      <VIcon end>mdi-arrow-right</VIcon>
+                    </VBtn>
+                    <VBtn size="large" variant="outlined" color="white" class="hero-btn mb-3" @click="scrollTo(heroCtaSecondaryTarget)">
+                      <VIcon start>mdi-phone</VIcon>
+                      {{ heroCtaSecondaryText }}
+                    </VBtn>
+                  </div>
+                </div>
+              </VCol>
+            </VRow>
+          </VContainer>
+        </div>
+
+        <!-- Slider Controls -->
+        <button class="hero-slider__arrow hero-slider__arrow--prev" @click="prevSlide(); resetSlideInterval()" aria-label="Slide sebelumnya">
+          <VIcon color="white" size="28">mdi-chevron-left</VIcon>
+        </button>
+        <button class="hero-slider__arrow hero-slider__arrow--next" @click="nextSlide(); resetSlideInterval()" aria-label="Slide berikutnya">
+          <VIcon color="white" size="28">mdi-chevron-right</VIcon>
+        </button>
+
+        <!-- Dots -->
+        <div class="hero-slider__dots">
+          <button
+            v-for="(_, idx) in heroBackgrounds"
+            :key="idx"
+            class="hero-slider__dot"
+            :class="{ 'hero-slider__dot--active': activeSlide === idx }"
+            @click="goToSlide(idx)"
+            :aria-label="`Pergi ke slide ${idx + 1}`"
+          ></button>
+        </div>
+
+        <!-- Diagonal clip -->
+        <div class="hero-slider__clip"></div>
+      </section>
+
+      <!-- ═══ SECTION 2: LAYANAN UNGGULAN ═══ -->
+      <section id="layanan" class="section-layanan">
+        <VContainer>
+          <div class="section-header">
+            <div class="section-header__badge">
+              <VIcon size="16" class="me-1">mdi-star-four-points</VIcon>
+              {{ servicesBadge }}
             </div>
-          </VCol>
-          <VSpacer></VSpacer>
-          <VCol cols="auto" v-if="canLogin">
-            <template v-if="$page.props.auth.user">
-              <VBtn
-                color="white"
-                variant="outlined"
-                size="small"
-                class="me-2"
-                :href="route('dashboard')"
-              >
-                Dashboard
-              </VBtn>
-            </template>
-            <VBtn
-              color="white"
-              variant="flat"
-              size="small"
-              class="ms-1"
-              @click="startChat"
-            >
-              <VIcon size="18" class="me-1">mdi-robot</VIcon>
-              <span class="d-none d-sm-inline">Mulai Chat</span>
-              <span class="d-sm-none">Chat</span>
-            </VBtn>
-          </VCol>
-        </VRow>
-      </VContainer>
-    </VAppBar>
-
-    <VMain class="pa-0">
-      <!-- Hero Section -->
-      <section class="hero-section align-content-center">
-        <VContainer class="fill-height">
-          <VRow align="center" justify="center" class="text-center">
-            <VCol cols="12" md="8" lg="8">
-              <div class="hero-content">
-                <div
-                  class="salma-msg-avatar me-2 mt-1 flex-shrink-0 place-items-center"
-                >
-                  <img
-                    src="/images/salma2.gif"
-                    alt="SALMA"
-                    loading="lazy"
-                    class="salma-mascot"
-                  />
+            <h2 class="section-header__title">
+              {{ servicesTitle }}<br><span>{{ servicesTitleHighlight }}</span>
+            </h2>
+            <p class="section-header__desc">{{ servicesDesc }}</p>
+          </div>
+          <VRow>
+            <VCol v-for="(item, idx) in layananUnggulan" :key="idx" cols="12" sm="6" lg="4">
+              <div class="service-card">
+                <div class="service-card__icon" :style="{ backgroundColor: item.color + '12', color: item.color }">
+                  <VIcon :color="item.color" size="28">{{ item.icon }}</VIcon>
                 </div>
-                <h1 class="display-1 text-h2 font-weight-bold text-white mb-6">
-                  SALMA AI <br />
-                  <span class="text-3xl">Samsat Lamongan Modern Assistant</span>
-                </h1>
-                <p class="text-xl text-white-80 mb-8">
-                  Dapatkan informasi lengkap seputar pajak kendaraan, STNK, dan
-                  layanan Samsat dengan bantuan AI yang cerdas dan responsif
-                  24/7
-                </p>
-
-                <div class="hero-actions">
-                  <VBtn
-                    size="x-large"
-                    color="white"
-                    variant="flat"
-                    class="me-4 mb-4"
-                    @click="startChat"
-                  >
-                    <VIcon left size="24">mdi-robot</VIcon>
-                    Tanya AI Sekarang
-                  </VBtn>
-                  <!-- <v-btn
-                                        size="x-large"
-                                        color="white"
-                                        variant="outlined"
-                                        class="me-4 mb-4"
-                                        :href="route('pkb.index')"
-                                    >
-                                        <v-icon left>mdi-car</v-icon>
-                                        Cek PKB
-                                    </v-btn> -->
-                  <VBtn
-                    size="x-large"
-                    color="white"
-                    variant="outlined"
-                    class="mb-4"
-                    @click="scrollToServices"
-                  >
-                    <VIcon left>mdi-information</VIcon>
-                    Lihat Layanan
-                  </VBtn>
-                </div>
-
-                <!-- Stats -->
-                <!-- <VRow class="mt-8">
-                  <VCol cols="4">
-                    <div class="stat-item">
-                      <h3 class="text-h4 font-weight-bold text-white">24/7</h3>
-                      <p class="text-white-70">Layanan Online</p>
-                    </div>
-                  </VCol>
-                  <VCol cols="4">
-                    <div class="stat-item">
-                      <h3 class="text-h4 font-weight-bold text-white">1000+</h3>
-                      <p class="text-white-70">FAQ Tersedia</p>
-                    </div>
-                  </VCol>
-                  <VCol cols="4">
-                    <div class="stat-item">
-                      <h3 class="text-h4 font-weight-bold text-white">
-                        Instan
-                      </h3>
-                      <p class="text-white-70">Respon Cepat</p>
-                    </div>
-                  </VCol>
-                </VRow> -->
+                <h3 class="service-card__title">{{ item.title }}</h3>
+                <p class="service-card__desc">{{ item.desc }}</p>
               </div>
             </VCol>
           </VRow>
         </VContainer>
-
-        <!-- Floating Elements -->
-        <div class="floating-elements">
-          <!-- Animated Geometric Shapes -->
-          <div class="geometric-shape shape-1"></div>
-          <div class="geometric-shape shape-2"></div>
-          <div class="geometric-shape shape-3"></div>
-          <div class="geometric-shape shape-4"></div>
-          <div class="geometric-shape shape-5"></div>
-          <div class="geometric-shape shape-6"></div>
-
-          <!-- Floating Particles -->
-          <div class="particles-container">
-            <div class="particle particle-1"></div>
-            <div class="particle particle-2"></div>
-            <div class="particle particle-3"></div>
-            <div class="particle particle-4"></div>
-            <div class="particle particle-5"></div>
-            <div class="particle particle-6"></div>
-            <div class="particle particle-7"></div>
-            <div class="particle particle-8"></div>
-            <div class="particle particle-9"></div>
-            <div class="particle particle-10"></div>
-          </div>
-
-          <!-- Gradient Orbs -->
-          <div class="gradient-orb orb-1"></div>
-          <div class="gradient-orb orb-2"></div>
-          <div class="gradient-orb orb-3"></div>
-
-          <!-- Tech Grid Lines -->
-          <div class="tech-grid">
-            <div class="grid-line horizontal line-1"></div>
-            <div class="grid-line horizontal line-2"></div>
-            <div class="grid-line vertical line-3"></div>
-            <div class="grid-line vertical line-4"></div>
-          </div>
-
-          <!-- Animated Dots Pattern -->
-          <div class="dots-pattern">
-            <div class="dot-row row-1">
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-            </div>
-            <div class="dot-row row-2">
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-            </div>
-            <div class="dot-row row-3">
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-            </div>
-          </div>
-        </div>
       </section>
 
-      <!-- Quick Actions Section -->
-      <section class="quick-actions-section py-16">
+      <!-- ═══ SECTION 3: JADWAL & LOKASI (WITH GOOGLE MAPS WIDGET) ═══ -->
+      <section id="jadwal" class="section-jadwal">
         <VContainer>
-          <VRow>
-            <VCol cols="12" class="text-center mb-8">
-              <h2 class="text-h3 font-weight-bold text-primary mb-4">
-                Pertanyaan Populer
-              </h2>
-              <p class="text-h6 text-grey-700">
-                Klik untuk langsung mendapatkan jawaban dari AI Assistant
-              </p></VCol
-            >
-          </VRow>
+          <div class="section-header">
+            <div class="section-header__badge section-header__badge--alt">
+              <VIcon size="16" class="me-1">mdi-calendar-clock</VIcon>
+              {{ schedulesBadge }}
+            </div>
+            <h2 class="section-header__title">
+              {{ schedulesTitle }}<br><span>{{ schedulesTitleHighlight }}</span>
+            </h2>
+            <p class="section-header__desc">{{ schedulesDesc }}</p>
+          </div>
 
-          <VRow>
-            <VCol
-              v-for="(question, index) in popularQuestions"
-              :key="index"
-              cols="12"
-              md="6"
-              lg="4"
-            >
-              <VCard
-                class="question-card h-100"
-                :color="getCardColor(index)"
-                variant="flat"
-                @click="askQuestion(question.text)"
-              >
-                <VCardText class="pa-6">
-                  <div class="d-flex align-center mb-4">
-                    <VAvatar
-                      :color="getIconColor(index)"
-                      size="48"
-                      class="me-3"
-                    >
-                      <VIcon
-                        :icon="question.icon"
-                        color="white"
-                        size="24"
-                      ></VIcon>
-                    </VAvatar>
-                    <h4 class="text-h6 font-weight-bold text-white">
-                      {{ question.title }}
-                    </h4>
-                  </div>
-                  <p class="text-white-80 mb-0">
-                    {{ question.description }}
-                  </p>
-                </VCardText>
-              </VCard>
-            </VCol>
-          </VRow>
-        </VContainer>
-      </section>
+          <!-- Service Tabs -->
+          <VTabs v-model="activeServiceTab" color="#C0392B" bg-color="transparent" align-tabs="center" class="jadwal-tabs mb-8">
+            <VTab :value="0"><VIcon start size="18">mdi-bus-clock</VIcon> Samsat Keliling</VTab>
+            <VTab :value="1"><VIcon start size="18">mdi-map-marker-multiple</VIcon> Payment Point</VTab>
+            <VTab :value="2"><VIcon start size="18">mdi-weather-night</VIcon> BELOK WANGI</VTab>
+          </VTabs>
 
-      <!-- Services Section -->
-      <section ref="servicesSection" class="services-section py-16">
-        <VContainer>
-          <!-- Header -->
-          <VRow>
-            <VCol cols="12" class="text-center mb-2">
-              <VChip
-                color="primary"
-                variant="flat"
-                size="small"
-                class="mb-4 px-4"
-              >
-                <VIcon start size="14">mdi-map-marker-check</VIcon>
-                Layanan Kami
-              </VChip>
-              <h2 class="text-h3 font-weight-bold text-primary mb-3">
-                Layanan Samsat Lamongan
-              </h2>
-              <p class="text-body-1 text-grey-700 max-width-700 mx-auto">
-                Temukan jadwal dan lokasi layanan pajak kendaraan yang paling
-                dekat dan nyaman untuk Anda
-              </p>
-            </VCol>
-          </VRow>
-
-          <!-- 1. Jadwal Samsat Keliling Pagi -->
-          <VRow class="mt-10">
-            <VCol cols="12">
-              <VCard
-                class="service-block-card service-block-keliling"
-                elevation="0"
-              >
-                <VCardText class="pa-0">
-                  <div
-                    class="service-block-header service-block-header--keliling pa-5 pa-md-6"
-                  >
-                    <div class="d-flex align-center gap-3 flex-wrap">
-                      <div class="service-block-icon-wrap">
-                        <VIcon color="white" size="28">mdi-bus-clock</VIcon>
-                      </div>
-                      <div>
-                        <div
-                          class="text-caption text-white-70 text-uppercase font-weight-medium letter-spacing-1 mb-1"
-                        >
-                          Samsat Keliling
-                        </div>
-                        <h3 class="text-h5 font-weight-bold text-white mb-0">
-                          Jadwal Samsat Keliling Pagi
-                        </h3>
-                      </div>
-                      <VSpacer />
-                      <VChip
-                        color="white"
-                        text-color="primary"
-                        variant="flat"
-                        size="small"
-                        class="ms-auto"
-                      >
-                        <VIcon start size="12" color="success"
-                          >mdi-circle</VIcon
-                        >
-                        Aktif
-                      </VChip>
+          <VWindow v-model="activeServiceTab">
+            <!-- Tab 1: Keliling Pagi -->
+            <VWindowItem :value="0">
+              <VCard class="jadwal-card" elevation="0">
+                <div class="jadwal-card__header jadwal-card__header--keliling">
+                  <div class="d-flex align-center gap-3 flex-wrap">
+                    <div class="jadwal-card__icon-wrap"><VIcon color="white" size="24">mdi-bus-clock</VIcon></div>
+                    <div>
+                      <div class="text-caption text-white text-uppercase font-weight-medium" style="letter-spacing:.08em;opacity:.8">Samsat Keliling</div>
+                      <h3 class="text-h6 font-weight-bold text-white mb-0">Jadwal Samsat Keliling Pagi</h3>
                     </div>
-                    <p class="text-white-70 text-body-2 mt-3 mb-0">
-                      Layanan berpindah setiap hari ke berbagai kecamatan di
-                      Lamongan
-                    </p>
+                    <VSpacer />
+                    <VChip color="white" variant="flat" size="small"><VIcon start size="12" color="success">mdi-circle</VIcon> Aktif</VChip>
                   </div>
-
+                  <p class="text-white text-body-2 mt-2 mb-0" style="opacity:.75">Klik pada lokasi untuk melihat letak titik layanan pada peta Google Maps</p>
+                </div>
+                <VCardText class="pa-4 pa-md-6">
                   <!-- Day Tabs -->
-                  <div class="pa-4 pa-md-6">
-                    <VTabs
-                      v-model="activeKelilingDay"
-                      color="primary"
-                      bg-color="transparent"
-                      show-arrows
-                      density="compact"
-                      class="keliling-day-tabs mb-5"
-                    >
-                      <VTab
-                        v-for="(schedule, idx) in kelilingPagiSchedule"
-                        :key="idx"
-                        :value="idx"
-                        class="keliling-day-tab text-body-2 font-weight-semibold"
-                      >
-                        <span class="d-none d-sm-inline">{{
-                          schedule.day
-                        }}</span>
-                        <span class="d-sm-none">{{ schedule.short }}</span>
-                      </VTab>
-                    </VTabs>
+                  <VTabs
+                    :model-value="activeKelilingDay"
+                    @update:model-value="handleSelectKelilingDay"
+                    color="#C0392B"
+                    bg-color="transparent"
+                    show-arrows
+                    density="compact"
+                    class="keliling-tabs mb-5"
+                  >
+                    <VTab v-for="(s, idx) in kelilingPagiSchedule" :key="idx" :value="idx" class="text-body-2 font-weight-semibold">
+                      <span class="d-none d-sm-inline">{{ s.day }}</span>
+                      <span class="d-sm-none">{{ s.short }}</span>
+                    </VTab>
+                  </VTabs>
 
-                    <VWindow v-model="activeKelilingDay">
-                      <VWindowItem
-                        v-for="(schedule, idx) in kelilingPagiSchedule"
-                        :key="idx"
-                        :value="idx"
+                  <!-- Locations List -->
+                  <VRow>
+                    <VCol
+                      v-for="(loc, li) in kelilingPagiSchedule[activeKelilingDay]?.locations || []"
+                      :key="li"
+                      cols="12"
+                      sm="6"
+                      md="4"
+                    >
+                      <div
+                        class="loc-card"
+                        :class="{ 'loc-card--active': selectedKelilingLoc === li }"
+                        @click="selectedKelilingLoc = li"
                       >
-                        <VRow>
-                          <VCol
-                            v-for="(loc, locIdx) in schedule.locations"
-                            :key="locIdx"
-                            cols="12"
-                            sm="6"
-                            md="4"
-                          >
-                            <div class="location-card">
-                              <div class="location-number">
-                                {{ locIdx + 1 }}
-                              </div>
-                              <div class="location-info">
-                                <VIcon
-                                  size="16"
-                                  color="primary"
-                                  class="me-2 flex-shrink-0 mt-1"
-                                  >mdi-map-marker</VIcon
-                                >
-                                <span
-                                  class="text-body-2 font-weight-medium text-grey-800"
-                                  >{{ loc }}</span
-                                >
-                              </div>
-                            </div>
-                          </VCol>
-                        </VRow>
-                      </VWindowItem>
-                    </VWindow>
+                        <div class="loc-card__num">{{ li + 1 }}</div>
+                        <div class="loc-card__text">
+                          <div class="font-weight-medium text-grey-900">{{ loc }}</div>
+                          <div class="text-caption" :class="selectedKelilingLoc === li ? 'text-primary font-weight-bold' : 'text-grey-600'">
+                            {{ selectedKelilingLoc === li ? '● Lokasi Terpilih di Peta' : 'Klik untuk tampilkan peta' }}
+                          </div>
+                        </div>
+                      </div>
+                    </VCol>
+                  </VRow>
+
+                  <!-- Google Maps Widget Box -->
+                  <div class="gmaps-widget mt-6">
+                    <div class="gmaps-widget__header">
+                      <div class="d-flex align-center gap-2">
+                        <VIcon color="#C0392B" size="20">mdi-map-marker-radius</VIcon>
+                        <span class="gmaps-widget__title">{{ currentKelilingLocName }}</span>
+                      </div>
+                      <a
+                        :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentKelilingMapQuery)}`"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="gmaps-widget__direct-link"
+                      >
+                        <VIcon size="14" class="me-1">mdi-open-in-new</VIcon>
+                        Petunjuk Arah Maps
+                      </a>
+                    </div>
+                    <div class="gmaps-widget__frame-wrap">
+                      <iframe
+                        :src="`https://maps.google.com/maps?q=${encodeURIComponent(currentKelilingMapQuery)}&t=&z=15&ie=UTF8&iwloc=&output=embed`"
+                        class="gmaps-widget__iframe"
+                        loading="lazy"
+                        allowfullscreen
+                        title="Peta Samsat Keliling Lamongan"
+                      ></iframe>
+                    </div>
                   </div>
                 </VCardText>
               </VCard>
-            </VCol>
-          </VRow>
+            </VWindowItem>
 
-          <!-- 2. Layanan Menetap -->
-          <VRow class="mt-8">
-            <VCol cols="12">
-              <VCard class="service-block-card" elevation="0">
-                <VCardText class="pa-0">
-                  <div
-                    class="service-block-header service-block-header--menetap pa-5 pa-md-6"
-                  >
-                    <div class="d-flex align-center gap-3 flex-wrap">
-                      <div
-                        class="service-block-icon-wrap service-block-icon-wrap--menetap"
-                      >
-                        <VIcon color="white" size="28"
-                          >mdi-map-marker-multiple</VIcon
-                        >
-                      </div>
-                      <div>
-                        <div
-                          class="text-caption text-white-70 text-uppercase font-weight-medium letter-spacing-1 mb-1"
-                        >
-                          Lokasi Tetap
-                        </div>
-                        <h3 class="text-h5 font-weight-bold text-white mb-0">
-                          Layanan Payment Point 
-                        </h3>
-                      </div>
+            <!-- Tab 2: Payment Point Menetap -->
+            <VWindowItem :value="1">
+              <VCard class="jadwal-card" elevation="0">
+                <div class="jadwal-card__header jadwal-card__header--menetap">
+                  <div class="d-flex align-center gap-3">
+                    <div class="jadwal-card__icon-wrap"><VIcon color="white" size="24">mdi-map-marker-multiple</VIcon></div>
+                    <div>
+                      <div class="text-caption text-white text-uppercase font-weight-medium" style="letter-spacing:.08em;opacity:.8">Lokasi Tetap</div>
+                      <h3 class="text-h6 font-weight-bold text-white mb-0">Layanan Payment Point</h3>
                     </div>
-                    <p class="text-white-70 text-body-2 mt-3 mb-0">
-                      Pilihan lokasi pembayaran tetap untuk kemudahan Anda
-                    </p>
                   </div>
-                  <div class="pa-4 pa-md-6">
-                    <VRow>
-                      <VCol
-                        v-for="(place, idx) in layananMenetap"
-                        :key="idx"
-                        cols="12"
-                        sm="6"
-                        md="4"
+                  <p class="text-white text-body-2 mt-2 mb-0" style="opacity:.75">Pilihan lokasi pembayaran tetap untuk kemudahan Anda di berbagai titik</p>
+                </div>
+                <VCardText class="pa-4 pa-md-6">
+                  <VRow>
+                    <VCol
+                      v-for="(p, idx) in layananMenetap"
+                      :key="idx"
+                      cols="12"
+                      sm="6"
+                      md="4"
+                    >
+                      <div
+                        class="pp-card"
+                        :class="{ 'pp-card--active': selectedMenetapLoc === idx }"
+                        @click="selectedMenetapLoc = idx"
                       >
-                        <div class="menetap-card">
-                          <div
-                            class="menetap-icon-wrap"
-                            :style="{ backgroundColor: place.color + '18' }"
-                          >
-                            <VIcon :color="place.color" size="22">{{
-                              place.icon
-                            }}</VIcon>
+                        <div class="pp-card__icon" :style="{ backgroundColor: p.color + '14' }">
+                          <VIcon :color="p.color" size="22">{{ p.icon }}</VIcon>
+                        </div>
+                        <div class="pp-card__info">
+                          <div class="text-body-2 font-weight-bold mb-1 text-grey-900">{{ p.name }}</div>
+                          <div class="text-caption text-grey-600 mb-1">
+                            <VIcon size="12" class="me-1">mdi-map-marker-outline</VIcon>{{ p.address }}
                           </div>
-                          <div class="menetap-info">
-                            <div
-                              class="text-body-2 font-weight-bold text-grey-900 mb-1"
-                            >
-                              {{ place.name }}
-                            </div>
-                            <div class="text-caption text-grey-600 mb-1">
-                              <VIcon size="12" color="grey-500" class="me-1"
-                                >mdi-map-marker-outline</VIcon
-                              >
-                              {{ place.address }}
-                            </div>
-                            <VChip
-                              size="x-small"
-                              color="primary"
-                              variant="tonal"
-                              class="mt-1"
-                            >
-                              <VIcon start size="10">mdi-clock-outline</VIcon>
-                              {{ place.hours }}
+                          <div class="d-flex align-center justify-space-between mt-2">
+                            <VChip size="x-small" color="#C0392B" variant="tonal">
+                              <VIcon start size="10">mdi-clock-outline</VIcon>{{ p.hours }}
                             </VChip>
+                            <span v-if="selectedMenetapLoc === idx" class="text-caption text-primary font-weight-bold">
+                              ● Peta Aktif
+                            </span>
                           </div>
                         </div>
-                      </VCol>
-                    </VRow>
+                      </div>
+                    </VCol>
+                  </VRow>
+
+                  <!-- Google Maps Widget Box -->
+                  <div class="gmaps-widget mt-6">
+                    <div class="gmaps-widget__header">
+                      <div class="d-flex align-center gap-2">
+                        <VIcon color="#C0392B" size="20">mdi-office-building-marker</VIcon>
+                        <span class="gmaps-widget__title">{{ currentMenetapLocName }}</span>
+                      </div>
+                      <a
+                        :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentMenetapMapQuery)}`"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="gmaps-widget__direct-link"
+                      >
+                        <VIcon size="14" class="me-1">mdi-open-in-new</VIcon>
+                        Petunjuk Arah Maps
+                      </a>
+                    </div>
+                    <div class="gmaps-widget__frame-wrap">
+                      <iframe
+                        :src="`https://maps.google.com/maps?q=${encodeURIComponent(currentMenetapMapQuery)}&t=&z=15&ie=UTF8&iwloc=&output=embed`"
+                        class="gmaps-widget__iframe"
+                        loading="lazy"
+                        allowfullscreen
+                        title="Peta Payment Point Lamongan"
+                      ></iframe>
+                    </div>
                   </div>
                 </VCardText>
               </VCard>
-            </VCol>
-          </VRow>
+            </VWindowItem>
 
-          <!-- 3. BELOK WANGI -->
-          <VRow class="mt-8">
-            <VCol cols="12">
-              <VCard
-                class="service-block-card service-block-night"
-                elevation="0"
-              >
-                <VCardText class="pa-0">
-                  <div class="belok-wangi-header pa-5 pa-md-6">
-                    <div class="d-flex align-center gap-3 flex-wrap">
-                      <div class="belok-wangi-icon-wrap">
-                        <VIcon color="#FFD700" size="28"
-                          >mdi-weather-night</VIcon
-                        >
+            <!-- Tab 3: BELOK WANGI -->
+            <VWindowItem :value="2">
+              <VCard class="jadwal-card jadwal-card--night" elevation="0">
+                <div class="jadwal-card__header jadwal-card__header--night">
+                  <div class="d-flex align-center gap-3 flex-wrap">
+                    <div class="jadwal-card__icon-wrap jadwal-card__icon-wrap--night"><VIcon color="#FFD700" size="24">mdi-weather-night</VIcon></div>
+                    <div>
+                      <div class="d-flex align-center gap-2 mb-1">
+                        <span class="text-caption text-amber-300 text-uppercase font-weight-medium" style="letter-spacing:.08em">Layanan Malam</span>
+                        <VChip size="x-small" color="amber-darken-1" variant="flat">SPESIAL</VChip>
                       </div>
-                      <div>
-                        <div class="d-flex align-center gap-2 mb-1">
-                          <span
-                            class="text-caption text-amber-300 text-uppercase font-weight-medium letter-spacing-1"
-                            >Layanan Malam</span
-                          >
-                          <VChip
-                            size="x-small"
-                            color="amber-darken-1"
-                            variant="flat"
-                            >SPESIAL</VChip
-                          >
-                        </div>
-                        <h3 class="text-h5 font-weight-bold text-white mb-0">
-                          Samsat Keliling Malam
-                          <span class="belok-wangi-badge ms-2"
-                            >BELOK WANGI</span
-                          >
-                        </h3>
-                      </div>
-                      <VSpacer />
-                      <div class="belok-wangi-time d-none d-sm-flex">
-                        <VIcon color="#FFD700" size="18" class="me-1"
-                          >mdi-clock-outline</VIcon
-                        >
-                        <span class="text-white font-weight-bold"
-                          >18.00 – 20.00 WIB</span
-                        >
-                      </div>
+                      <h3 class="text-h6 font-weight-bold text-white mb-0">
+                        Samsat Keliling Malam
+                        <span class="belok-badge ms-2">BELOK WANGI</span>
+                      </h3>
                     </div>
-                    <p class="text-white text-body-2 mt-3 mb-0">
-                      <strong class="text-amber-300"
-                        >Beda Lokasi Wayah Bengi</strong
-                      >
-                      — Khusus untuk Anda yang sibuk di siang hari
-                    </p>
-                    <div class="mt-2 d-flex d-sm-none align-center gap-1">
-                      <VIcon color="#FFD700" size="16">mdi-clock-outline</VIcon>
-                      <span class="text-white text-body-2 font-weight-bold"
-                        >18.00 – 20.00 WIB</span
-                      >
+                    <VSpacer />
+                    <div class="belok-time d-none d-sm-flex">
+                      <VIcon color="#FFD700" size="16" class="me-1">mdi-clock-outline</VIcon>
+                      <span class="text-white font-weight-bold text-body-2">18.00 – 20.00 WIB</span>
                     </div>
                   </div>
-                  <div class="pa-4 pa-md-6">
-                    <VRow>
-                      <VCol
-                        v-for="(sesh, idx) in belokWangiSchedule"
-                        :key="idx"
-                        cols="12"
-                        sm="4"
-                      >
-                        <div class="belok-wangi-card">
-                          <div class="belok-wangi-card-icon">
-                            <VIcon color="#FFD700" size="24">{{
-                              sesh.icon
-                            }}</VIcon>
-                          </div>
-                          <div
-                            class="text-amber-300 text-caption font-weight-bold text-uppercase mb-1"
-                          >
-                            {{ sesh.days }}
-                          </div>
-                          <div
-                            class="text-white text-body-2 font-weight-medium"
-                          >
-                            {{ sesh.location }}
-                          </div>
-                        </div>
-                      </VCol>
-                    </VRow>
+                  <p class="text-white text-body-2 mt-2 mb-0"><strong class="text-amber-300">Beda Lokasi Wayah Bengi</strong> — Khusus untuk Anda yang sibuk di siang hari</p>
+                  <div class="mt-2 d-flex d-sm-none align-center gap-1">
+                    <VIcon color="#FFD700" size="14">mdi-clock-outline</VIcon>
+                    <span class="text-white text-body-2 font-weight-bold">18.00 – 20.00 WIB</span>
                   </div>
-                </VCardText>
-              </VCard>
-            </VCol>
-          </VRow>
-
-          <!-- 4. Pembayaran Digital -->
-          <VRow class="mt-8">
-            <VCol cols="12">
-              <VCard class="service-block-card" elevation="0">
-                <VCardText class="pa-0">
-                  <div
-                    class="service-block-header service-block-header--digital pa-5 pa-md-6"
-                  >
-                    <div class="d-flex align-center gap-3 flex-wrap">
-                      <div
-                        class="service-block-icon-wrap service-block-icon-wrap--digital"
-                      >
-                        <VIcon color="white" size="28"
-                          >mdi-contactless-payment</VIcon
-                        >
-                      </div>
-                      <div>
-                        <div
-                          class="text-caption text-white-70 text-uppercase font-weight-medium letter-spacing-1 mb-1"
-                        >
-                          E-Samsat
-                        </div>
-                        <h3 class="text-h5 font-weight-bold text-white mb-0">
-                          Pembayaran Digital
-                        </h3>
-                      </div>
-                    </div>
-                    <p class="text-white-70 text-body-2 mt-3 mb-0">
-                      Bayar pajak kendaraan kapan saja dan di mana saja tanpa
-                      perlu antri
-                    </p>
-                  </div>
-
-                  <div class="pa-4 pa-md-6">
-                    <!-- Category Tabs -->
-                    <VTabs
-                      v-model="activePaymentTab"
-                      color="primary"
-                      bg-color="transparent"
-                      density="compact"
-                      class="payment-category-tabs mb-6"
+                </div>
+                <VCardText class="pa-4 pa-md-6">
+                  <VRow>
+                    <VCol
+                      v-for="(b, idx) in belokWangiSchedule"
+                      :key="idx"
+                      cols="12"
+                      sm="4"
                     >
-                      <VTab
-                        v-for="(cat, idx) in paymentCategories"
-                        :key="idx"
-                        :value="idx"
-                        class="text-body-2 font-weight-semibold"
+                      <div
+                        class="belok-card"
+                        :class="{ 'belok-card--active': selectedBelokLoc === idx }"
+                        @click="selectedBelokLoc = idx"
                       >
-                        <VIcon start size="16">{{ cat.icon }}</VIcon>
-                        {{ cat.name }}
-                      </VTab>
-                    </VTabs>
+                        <div class="belok-card__icon"><VIcon color="#FFD700" size="24">{{ b.icon }}</VIcon></div>
+                        <div class="text-amber-300 text-caption font-weight-bold text-uppercase mb-1">{{ b.days }}</div>
+                        <div class="text-white text-body-2 font-weight-medium">{{ b.location }}</div>
+                        <span v-if="selectedBelokLoc === idx" class="text-caption text-amber-300 font-weight-bold mt-1">
+                          ● Peta Aktif
+                        </span>
+                      </div>
+                    </VCol>
+                  </VRow>
 
-                    <!-- Payment Logos Grid per Category -->
-                    <VWindow v-model="activePaymentTab">
-                      <VWindowItem
-                        v-for="(cat, catIdx) in paymentCategories"
-                        :key="catIdx"
-                        :value="catIdx"
+                  <!-- Google Maps Widget Box -->
+                  <div class="gmaps-widget gmaps-widget--night mt-6">
+                    <div class="gmaps-widget__header gmaps-widget__header--night">
+                      <div class="d-flex align-center gap-2">
+                        <VIcon color="#FFD700" size="20">mdi-weather-night</VIcon>
+                        <span class="gmaps-widget__title text-white">{{ currentBelokLocName }}</span>
+                      </div>
+                      <a
+                        :href="`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(currentBelokMapQuery)}`"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="gmaps-widget__direct-link gmaps-widget__direct-link--night"
                       >
-                        <VRow class="mt-2">
-                          <VCol
-                            v-for="(platform, pIdx) in cat.platforms"
-                            :key="pIdx"
-                            cols="6"
-                            sm="4"
-                            md="3"
-                          >
-                            <div class="payment-logo-card">
-                              <div
-                                class="payment-logo-img-wrap"
-                                :style="{ backgroundColor: platform.bg }"
-                              >
-                                <img
-                                  :src="platform.logo"
-                                  :alt="platform.name"
-                                  class="payment-logo-img"
-                                />
-                              </div>
-                              <div
-                                class="payment-logo-name text-caption text-center font-weight-medium mt-2"
-                              >
-                                {{ platform.name }}
-                              </div>
-                            </div>
-                          </VCol>
-                        </VRow>
-                      </VWindowItem>
-                    </VWindow>
+                        <VIcon size="14" class="me-1">mdi-open-in-new</VIcon>
+                        Petunjuk Arah Maps
+                      </a>
+                    </div>
+                    <div class="gmaps-widget__frame-wrap">
+                      <iframe
+                        :src="`https://maps.google.com/maps?q=${encodeURIComponent(currentBelokMapQuery)}&t=&z=15&ie=UTF8&iwloc=&output=embed`"
+                        class="gmaps-widget__iframe"
+                        loading="lazy"
+                        allowfullscreen
+                        title="Peta BELOK WANGI Lamongan"
+                      ></iframe>
+                    </div>
                   </div>
                 </VCardText>
               </VCard>
-            </VCol>
-          </VRow>
+            </VWindowItem>
+          </VWindow>
         </VContainer>
       </section>
 
-      <!-- Contact Section -->
-      <section class="contact-section py-16">
+      <!-- ═══ SECTION 4: SALMA AI SHOWCASE ═══ -->
+      <section id="salma" class="section-salma">
         <VContainer>
           <VRow align="center">
-            <VCol cols="12" md="6">
-              <h2 class="text-h3 font-weight-bold text-white mb-4">
-                Kontak Samsat Lamongan
-              </h2>
-              <p class="text-h6 text-white-80 mb-6">
-                Hubungi kami untuk informasi lebih lanjut atau kunjungi langsung
-                kantor Samsat Lamongan
-              </p>
-
-              <VList class="bg-transparent">
-                <VListItem class="pa-0 mb-3">
-                  <template v-slot:prepend>
-                    <VAvatar color="white" size="48" class="me-4">
-                      <VIcon color="primary">mdi-map-marker</VIcon>
-                    </VAvatar>
-                  </template>
-                  <VListItemTitle class="text-white font-weight-medium">
-                    Jl. Veteran No. 1A, Tumenggungan, Lamongan
-                  </VListItemTitle>
-                  <VListItemSubtitle class="text-white-70">
-                    Kabupaten Lamongan, Jawa Timur 62211
-                  </VListItemSubtitle>
-                </VListItem>
-
-                <VListItem class="pa-0 mb-3">
-                  <template v-slot:prepend>
-                    <VAvatar color="white" size="48" class="me-4">
-                      <VIcon color="primary">mdi-clock</VIcon>
-                    </VAvatar>
-                  </template>
-                  <VListItemTitle class="text-white font-weight-medium">
-                    Senin - Kamis , Sabtu: 08.00 - 12.00 WIB
-                  </VListItemTitle>
-                  <VListItemSubtitle class="text-white-70">
-                    Sabtu: 08.00 - 11.00 WIB
-                  </VListItemSubtitle>
-                </VListItem>
-
-                <VListItem class="pa-0 mb-3">
-                  <template v-slot:prepend>
-                    <VAvatar color="white" size="48" class="me-4">
-                      <VIcon color="primary">mdi-phone</VIcon>
-                    </VAvatar>
-                  </template>
-                  <VListItemTitle class="text-white font-weight-medium">
-                    (0322) 311234
-                  </VListItemTitle>
-                  <VListItemSubtitle class="text-white-70">
-                    Telepon Kantor
-                  </VListItemSubtitle>
-                </VListItem>
-              </VList>
+            <VCol cols="12" md="6" class="mb-8 mb-md-0">
+              <div class="salma-badge">
+                <VIcon size="16" class="me-1">mdi-chat-processing</VIcon>
+                {{ salmaBadge }}
+              </div>
+              <h2 class="salma-title">{{ salmaTitle }}</h2>
+              <p class="salma-full-name">{{ salmaFullName }}</p>
+              <p class="salma-desc">{{ salmaDesc }}</p>
+              <div class="salma-features">
+                <div v-for="(feat, fIdx) in salmaFeatures" :key="fIdx" class="salma-feature">
+                  <VIcon color="#C0392B" size="20">{{ feat.icon }}</VIcon> {{ feat.text }}
+                </div>
+              </div>
+              <VBtn size="x-large" color="#C0392B" variant="flat" class="hero-btn mt-6" @click="startChat">
+                <VIcon start>mdi-chat-processing</VIcon>
+                {{ salmaCtaText }}
+              </VBtn>
             </VCol>
-
             <VCol cols="12" md="6" class="text-center">
-              <VCard
-                class="pa-8"
-                color="white"
-                variant="flat"
-                style="border-radius: 24px"
-              >
-                <VAvatar color="primary" size="120" class="mb-6">
-                  <VIcon size="60" color="white">mdi-robot</VIcon>
-                </VAvatar>
-                <h3 class="text-h5 font-weight-bold text-primary mb-4">
-                  Mulai Chat dengan AI Assistant
-                </h3>
-                <p class="text-grey-700 mb-6">
-                  Dapatkan jawaban instan untuk pertanyaan Anda tentang layanan
-                  Samsat
-                </p>
-                <VBtn
-                  size="x-large"
-                  color="primary"
-                  variant="flat"
-                  @click="startChat"
-                  block
-                >
-                  <VIcon left>mdi-robot</VIcon>
-                  Mulai Percakapan
-                </VBtn>
+              <div class="salma-visual">
+                <div class="salma-glow"></div>
+                <img :src="salmaMascotImage" alt="SALMA AI Mascot" class="salma-mascot" loading="lazy" />
+                <div class="salma-visual__label">
+                  <VIcon size="14" color="#C0392B" class="me-1">mdi-circle-small</VIcon>
+                  Online — Siap Melayani
+                </div>
+              </div>
+            </VCol>
+          </VRow>
+        </VContainer>
+      </section>
+
+      <!-- ═══ SECTION 5: PEMBAYARAN DIGITAL ═══ -->
+      <section id="pembayaran" class="section-payment">
+        <VContainer>
+          <div class="section-header">
+            <div class="section-header__badge">
+              <VIcon size="16" class="me-1">mdi-contactless-payment</VIcon>
+              {{ paymentBadge }}
+            </div>
+            <h2 class="section-header__title">
+              {{ paymentTitle }}<br><span>{{ paymentTitleHighlight }}</span>
+            </h2>
+            <p class="section-header__desc">{{ paymentDesc }}</p>
+          </div>
+
+          <VCard class="payment-card" elevation="0">
+            <VCardText class="pa-4 pa-md-6">
+              <VTabs v-model="activePaymentTab" color="#C0392B" bg-color="transparent" density="compact" class="payment-tabs mb-6">
+                <VTab v-for="(cat, idx) in paymentCategories" :key="idx" :value="idx" class="text-body-2 font-weight-semibold">
+                  <VIcon start size="16">{{ cat.icon }}</VIcon>
+                  {{ cat.name }}
+                </VTab>
+              </VTabs>
+              <VWindow v-model="activePaymentTab">
+                <VWindowItem v-for="(cat, ci) in paymentCategories" :key="ci" :value="ci">
+                  <VRow>
+                    <VCol v-for="(pl, pi) in cat.platforms" :key="pi" cols="6" sm="4" md="3">
+                      <div class="pay-logo">
+                        <div class="pay-logo__img" :style="{ backgroundColor: pl.bg }">
+                          <img :src="pl.logo" :alt="pl.name" />
+                        </div>
+                        <div class="pay-logo__name">{{ pl.name }}</div>
+                      </div>
+                    </VCol>
+                  </VRow>
+                </VWindowItem>
+              </VWindow>
+            </VCardText>
+          </VCard>
+        </VContainer>
+      </section>
+
+      <!-- ═══ SECTION 6: KONTAK ═══ -->
+      <section id="kontak" class="section-kontak">
+        <VContainer>
+          <VRow align="center">
+            <VCol cols="12" md="6" class="mb-8 mb-md-0">
+              <div class="section-header text-left">
+                <div class="section-header__badge section-header__badge--white">
+                  <VIcon size="16" class="me-1">mdi-phone-in-talk</VIcon>
+                  {{ contactBadge }}
+                </div>
+                <h2 class="section-header__title text-white">
+                  {{ contactTitle }}<br><span style="opacity:.85">{{ contactTitleHighlight }}</span>
+                </h2>
+              </div>
+              <div class="kontak-list">
+                <div class="kontak-item">
+                  <VAvatar color="white" size="48" class="me-4"><VIcon color="#C0392B">mdi-map-marker</VIcon></VAvatar>
+                  <div>
+                    <div class="text-white font-weight-medium">{{ contactAddress }}</div>
+                    <div class="text-white" style="opacity:.7">{{ contactCityPostal }}</div>
+                  </div>
+                </div>
+                <div class="kontak-item">
+                  <VAvatar color="white" size="48" class="me-4"><VIcon color="#C0392B">mdi-clock</VIcon></VAvatar>
+                  <div>
+                    <div class="text-white font-weight-medium">{{ contactHoursWeekday }}</div>
+                    <div class="text-white" style="opacity:.7">{{ contactHoursFriday }}</div>
+                  </div>
+                </div>
+                <div class="kontak-item">
+                  <VAvatar color="white" size="48" class="me-4"><VIcon color="#C0392B">mdi-phone</VIcon></VAvatar>
+                  <div>
+                    <div class="text-white font-weight-medium">{{ contactPhone }}</div>
+                    <div class="text-white" style="opacity:.7">Telepon Kantor</div>
+                  </div>
+                </div>
+              </div>
+            </VCol>
+            <VCol cols="12" md="6">
+              <VCard color="white" variant="flat" class="kontak-cta-card">
+                <VCardText class="pa-8 text-center">
+                  <VAvatar color="#C0392B" size="100" class="mb-5"><VIcon size="48" color="white">mdi-chat-processing</VIcon></VAvatar>
+                  <h3 class="text-h5 font-weight-bold mb-3" style="color:#1B2838">{{ contactHelpCardTitle }}</h3>
+                  <p class="text-grey-700 mb-6">{{ contactHelpCardDesc }}</p>
+                  <VBtn size="x-large" color="#C0392B" variant="flat" block class="hero-btn" @click="startChat">
+                    <VIcon start>mdi-chat-processing</VIcon>
+                    Mulai Chat dengan SALMA
+                  </VBtn>
+                </VCardText>
               </VCard>
             </VCol>
           </VRow>
@@ -1065,972 +829,493 @@ function handleImageError() {
       </section>
     </VMain>
 
-    <!-- Footer -->
-    <VFooter class="footer-section pa-8">
+    <!-- ═══ FOOTER (DYNAMIC VIA CMS) ═══ -->
+    <footer class="gov-footer">
       <VContainer>
         <VRow>
-          <VCol cols="12" md="6">
-            <div class="d-flex align-center mb-4">
-              <VIcon color="white" size="40" class="me-3">mdi-robot</VIcon>
+          <!-- Footer Branding with Clean Multi-Logo Cluster -->
+          <VCol cols="12" md="4" class="mb-6 mb-md-0">
+            <div class="footer-brand mb-4">
+              <div class="footer-logos d-flex align-center flex-wrap gap-2 mb-3">
+                <div class="footer-logo-badge" title="Bapenda Jawa Timur">
+                  <VImg src="/images/logo-bapenda-jatim.png" alt="Bapenda Jatim" contain width="32" height="32" />
+                </div>
+                <div class="footer-logo-badge" title="Pemerintah Provinsi Jawa Timur">
+                  <VImg src="/images/logo-jatim.png" alt="Pemprov Jatim" contain width="32" height="32" />
+                </div>
+                <div class="footer-logo-badge" title="Polda Jawa Timur / Polri">
+                  <VImg src="/images/Lambang_Polda_Jatim.png" alt="Polda Jatim" contain width="32" height="32" />
+                </div>
+                <div class="footer-logo-badge" title="Jasa Raharja">
+                  <VImg src="/images/jasa-raharja.png" alt="Jasa Raharja" contain width="32" height="32" />
+                </div>
+              </div>
               <div>
-                <h4 class="text-h6 font-weight-bold text-white">SALMA AI</h4>
-                <p class="text-white-70 mb-0">Samsat Lamongan</p>
+                <h4 class="text-h6 font-weight-bold text-white mb-0">{{ footerAgencyName }}</h4>
+                <p class="text-caption text-white-70 mb-0">{{ footerAgencySub }}</p>
               </div>
             </div>
-            <p class="text-white-70">
-              Sistem AI Customer Service untuk melayani masyarakat Lamongan
-              dengan informasi layanan Samsat yang akurat dan terpercaya.
+            <p style="color:rgba(255,255,255,.6);line-height:1.7" class="text-body-2">
+              {{ footerAgencyDesc }}
             </p>
           </VCol>
-          <VCol cols="12" md="6" class="text-md-end">
-            <p class="text-white-70 mb-2">
-              © 2025 SALMA AI - Samsat Lamongan. All rights reserved.
-            </p>
-            <p class="text-white-70">Powered by AI Technology</p>
+          <VCol cols="6" sm="4" md="2">
+            <h5 class="text-body-1 font-weight-bold text-white mb-4">Layanan</h5>
+            <div class="footer-link" @click="scrollTo('layanan')">Pajak Tahunan</div>
+            <div class="footer-link" @click="scrollTo('layanan')">STNK 5 Tahunan</div>
+            <div class="footer-link" @click="scrollTo('layanan')">Balik Nama</div>
+            <div class="footer-link" @click="scrollTo('layanan')">Mutasi Kendaraan</div>
+            <div class="footer-link" @click="scrollTo('jadwal')">Samsat Keliling</div>
+          </VCol>
+          <VCol cols="6" sm="4" md="2">
+            <h5 class="text-body-1 font-weight-bold text-white mb-4">Informasi</h5>
+            <div class="footer-link" @click="scrollTo('jadwal')">Jadwal & Lokasi</div>
+            <div class="footer-link" @click="scrollTo('pembayaran')">Pembayaran Digital</div>
+            <div class="footer-link" @click="scrollTo('salma')">SALMA AI</div>
+            <div class="footer-link" @click="scrollTo('kontak')">Hubungi Kami</div>
+          </VCol>
+          <VCol cols="12" sm="4" md="4">
+            <h5 class="text-body-1 font-weight-bold text-white mb-4">Kontak</h5>
+            <div class="footer-contact"><VIcon size="16" class="me-2" style="color:rgba(255,255,255,.5)">mdi-map-marker</VIcon> {{ contactAddress }}</div>
+            <div class="footer-contact"><VIcon size="16" class="me-2" style="color:rgba(255,255,255,.5)">mdi-phone</VIcon> {{ contactPhone }}</div>
+            <div class="footer-contact"><VIcon size="16" class="me-2" style="color:rgba(255,255,255,.5)">mdi-clock</VIcon> {{ contactHoursWeekday }}</div>
+            <div class="d-flex gap-2 mt-4">
+              <a
+                v-for="(soc, sIdx) in footerSocialLinks"
+                :key="sIdx"
+                :href="soc.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="social-btn"
+                :title="soc.platform"
+              >
+                <VIcon size="18">{{ soc.icon }}</VIcon>
+              </a>
+            </div>
           </VCol>
         </VRow>
+        <VDivider class="my-6" style="border-color:rgba(255,255,255,.12)" />
+        <div class="d-flex flex-column flex-sm-row align-center justify-space-between">
+          <p class="text-body-2 mb-0" style="color:rgba(255,255,255,.5)">{{ footerCopyrightText }}</p>
+          <p class="text-body-2 mb-0" style="color:rgba(255,255,255,.5)">Powered by <strong class="text-white">SALMA AI</strong></p>
+        </div>
       </VContainer>
-    </VFooter>
+    </footer>
 
     <!-- PWA Install Button -->
     <PwaInstallButton />
-
     <!-- Floating Chat Component -->
     <FloatingChat v-if="!isChatPageOpen" />
   </VApp>
 </template>
 
 <style scoped>
-/* Hero Section */
-.hero-section {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #e9a5f1 0%, #c68efd 50%, #8f87f1 100%);
-  position: relative;
-  overflow: hidden;
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM — Government Red (#C0392B) + Navy (#1B2838)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── NAVBAR ─────────────────────────────────────────────────────────────── */
+.gov-navbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: transparent;
+  transition: all .35s cubic-bezier(.4,0,.2,1);
+}
+.gov-navbar--solid {
+  background: rgba(27,40,56,.97);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 20px rgba(0,0,0,.15);
+}
+.gov-navbar__inner {
+  max-width: 1280px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px;
+}
+.gov-navbar__brand {
+  display: flex; align-items: center; cursor: pointer;
+}
+.gov-navbar__title { display: flex; flex-direction: column; }
+.gov-navbar__name { color: #fff; font-weight: 700; font-size: 1rem; line-height: 1.2; }
+.gov-navbar__sub { color: rgba(255,255,255,.65); font-size: .72rem; }
+.gov-navbar__links { display: flex; gap: 4px; }
+.gov-navbar__link {
+  color: rgba(255,255,255,.85); font-size: .875rem; font-weight: 500;
+  padding: 8px 14px; border-radius: 8px; cursor: pointer;
+  transition: all .2s ease; text-decoration: none;
+}
+.gov-navbar__link:hover { color: #fff; background: rgba(255,255,255,.1); }
+.gov-navbar__actions { display: flex; align-items: center; }
+.gov-navbar__cta { border-radius: 24px !important; text-transform: none; font-weight: 600; letter-spacing: 0; }
+.gov-navbar__mobile {
+  background: rgba(27,40,56,.98); backdrop-filter: blur(12px);
+  padding: 8px 24px 16px; display: flex; flex-direction: column;
+}
+.gov-navbar__mobile-link {
+  color: rgba(255,255,255,.85); padding: 12px 0; font-size: .95rem;
+  border-bottom: 1px solid rgba(255,255,255,.08); cursor: pointer; text-decoration: none;
+}
+.gov-navbar__mobile-link:last-child { border-bottom: none; }
+
+/* Mobile menu transition */
+.slide-down-enter-active, .slide-down-leave-active { transition: all .3s ease; }
+.slide-down-enter-from, .slide-down-leave-to { opacity: 0; transform: translateY(-10px); }
+
+/* ── HERO SLIDER (STATIC TEXT OVER ROTATING BACKGROUND) ─────────────────── */
+.hero-slider {
+  position: relative; width: 100%; min-height: 92vh; overflow: hidden;
+  background: #1B2838;
+}
+.hero-slider__track { position: absolute; inset: 0; }
+.hero-slider__slide {
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center;
+  opacity: 0; transition: opacity 1.2s ease-in-out;
+}
+.hero-slider__slide--active { opacity: 1; }
+.hero-slider__overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(27,40,56,.85) 0%, rgba(192,57,43,.45) 100%);
+}
+.hero-slider__content {
+  position: relative; z-index: 2; min-height: 92vh;
+  display: flex; align-items: center;
+}
+.hero-slider__badge {
+  display: inline-flex; align-items: center;
+  background: rgba(192,57,43,.9); color: #fff;
+  padding: 6px 16px; border-radius: 24px; font-size: .75rem;
+  font-weight: 600; letter-spacing: .04em; margin-bottom: 20px;
+}
+.hero-slider__title {
+  color: #fff; font-size: 3.2rem; font-weight: 800; line-height: 1.15;
+  margin-bottom: 16px; text-shadow: 0 2px 20px rgba(0,0,0,.3);
+}
+.hero-slider__subtitle {
+  color: rgba(255,255,255,.85); font-size: 1.15rem; line-height: 1.7;
+  margin-bottom: 32px; max-width: 540px;
+}
+.hero-btn {
+  border-radius: 50px !important; text-transform: none; font-weight: 600;
+  padding: 12px 28px !important; letter-spacing: 0;
+  box-shadow: 0 4px 20px rgba(0,0,0,.2);
+  transition: all .3s ease;
+}
+.hero-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,.3); }
+
+/* Slider Arrows */
+.hero-slider__arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
+  width: 48px; height: 48px; border-radius: 50%;
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
+  backdrop-filter: blur(8px); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .25s ease;
+}
+.hero-slider__arrow:hover { background: rgba(192,57,43,.7); border-color: transparent; }
+.hero-slider__arrow--prev { left: 24px; }
+.hero-slider__arrow--next { right: 24px; }
+
+/* Slider Dots */
+.hero-slider__dots {
+  position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 10px; z-index: 5;
+}
+.hero-slider__dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: rgba(255,255,255,.4); border: 2px solid transparent;
+  cursor: pointer; transition: all .3s ease;
+}
+.hero-slider__dot--active { background: #C0392B; border-color: #fff; transform: scale(1.2); }
+
+/* Diagonal clip */
+.hero-slider__clip {
+  position: absolute; bottom: -1px; left: 0; right: 0; height: 80px;
+  background: #fff; clip-path: polygon(0 100%, 100% 100%, 100% 0);
+  z-index: 3;
 }
 
-.hero-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(
-      circle at 20% 80%,
-      rgba(255, 255, 255, 0.1) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      circle at 80% 20%,
-      rgba(255, 255, 255, 0.08) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      circle at 40% 40%,
-      rgba(255, 255, 255, 0.05) 0%,
-      transparent 50%
-    );
-  z-index: 1;
+/* ── SECTION HEADER ─────────────────────────────────────────────────────── */
+.section-header { text-align: center; margin-bottom: 48px; }
+.section-header__badge {
+  display: inline-flex; align-items: center;
+  background: #C0392B12; color: #C0392B;
+  padding: 6px 16px; border-radius: 24px; font-size: .78rem;
+  font-weight: 600; margin-bottom: 16px;
 }
-
-.landing-navbar {
-  background: rgba(233, 165, 241, 0.95) !important;
-  backdrop-filter: blur(10px);
+.section-header__badge--alt { background: #1B283812; color: #1B2838; }
+.section-header__badge--white { background: rgba(255,255,255,.15); color: #fff; }
+.section-header__title {
+  font-size: 2.2rem; font-weight: 800; color: #1B2838; line-height: 1.2;
 }
-
-.navbar-brand-text {
-  font-size: 1.1rem;
-  letter-spacing: 0.02em;
+.section-header__title span { color: #C0392B; }
+.section-header__desc {
+  color: #666; font-size: 1rem; max-width: 600px; margin: 12px auto 0; line-height: 1.7;
 }
+.text-left .section-header__title { text-align: left; }
 
-@media (max-width: 600px) {
-  .navbar-brand-text {
-    font-size: 0.95rem;
-  }
-
-  .landing-navbar {
-    background: rgba(198, 142, 253, 0.98) !important;
-  }
-}
-
-.hero-content {
-  position: relative;
-  z-index: 2;
-}
-
-.text-accent {
-  background: linear-gradient(45deg, #fff 30%, #f8f9fa 90%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.hero-actions .v-btn {
-  border-radius: 50px !important;
-  text-transform: none;
-  font-weight: 600;
-  padding: 12px 32px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-}
-
-.hero-actions .v-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
-}
-
-.stat-item {
-  padding: 16px;
-  transition: all 0.3s ease;
-}
-
-.stat-item:hover {
-  transform: translateY(-3px);
-}
-
-/* Floating Elements */
-.floating-elements {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* Geometric Shapes */
-.geometric-shape {
-  position: absolute;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.shape-1 {
-  width: 80px;
-  height: 80px;
-  top: 15%;
-  left: 8%;
-  border-radius: 20px;
-  animation: float-rotate 8s ease-in-out infinite;
-  animation-delay: -1s;
-}
-
-.shape-2 {
-  width: 60px;
-  height: 60px;
-  top: 25%;
-  right: 15%;
-  border-radius: 50%;
-  animation: float-scale 6s ease-in-out infinite;
-  animation-delay: -2s;
-}
-
-.shape-3 {
-  width: 100px;
-  height: 100px;
-  bottom: 20%;
-  left: 12%;
-  border-radius: 16px;
-  animation: float-rotate 10s ease-in-out infinite reverse;
-  animation-delay: -3s;
-}
-
-.shape-4 {
-  width: 40px;
-  height: 40px;
-  top: 35%;
-  left: 25%;
-  border-radius: 8px;
-  animation: float-scale 7s ease-in-out infinite;
-  animation-delay: -1.5s;
-}
-
-.shape-5 {
-  width: 70px;
-  height: 70px;
-  bottom: 30%;
-  right: 8%;
-  border-radius: 50%;
-  animation: float-rotate 9s ease-in-out infinite;
-  animation-delay: -4s;
-}
-
-.shape-6 {
-  width: 50px;
-  height: 50px;
-  top: 60%;
-  right: 25%;
-  border-radius: 12px;
-  animation: float-scale 5s ease-in-out infinite;
-  animation-delay: -2.5s;
-}
-
-/* Particles */
-.particles-container {
-  position: absolute;
-  width: 100%;
+/* ── LAYANAN UNGGULAN ───────────────────────────────────────────────────── */
+.section-layanan { padding: 80px 0; background: #fff; }
+.service-card {
+  background: #fff; border: 1px solid #eee; border-radius: 16px;
+  padding: 28px 24px;
+  transition: all .35s cubic-bezier(.4,0,.2,1);
   height: 100%;
 }
+.service-card:hover {
+  transform: translateY(-4px); border-color: #C0392B25;
+  box-shadow: 0 10px 30px rgba(192,57,43,.08);
+}
+.service-card__icon {
+  width: 56px; height: 56px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 18px;
+}
+.service-card__title { font-size: 1.1rem; font-weight: 700; color: #1B2838; margin-bottom: 8px; }
+.service-card__desc { color: #666; font-size: .88rem; line-height: 1.6; margin-bottom: 0; }
 
-.particle {
-  position: absolute;
-  background: rgba(255, 255, 255, 0.6);
-  border-radius: 50%;
-  animation: particle-float 12s linear infinite;
+/* ── JADWAL & LOKASI ─────────────────────────────────────────────────────── */
+.section-jadwal { padding: 80px 0; background: #f9fafb; }
+.jadwal-tabs :deep(.v-tab) { text-transform: none; font-size: .9rem; border-radius: 10px !important; }
+.jadwal-card { border-radius: 20px !important; overflow: hidden; border: 1px solid #eee; background: #fff; }
+.jadwal-card__header { padding: 20px 24px; }
+.jadwal-card__header--keliling { background: linear-gradient(135deg, #1B2838 0%, #34495E 100%); }
+.jadwal-card__header--menetap { background: linear-gradient(135deg, #C0392B 0%, #E74C3C 100%); }
+.jadwal-card__header--night { background: linear-gradient(135deg, #0d0d2b 0%, #1a1a4e 100%); border-bottom: 1px solid rgba(255,215,0,.15); }
+.jadwal-card__icon-wrap {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: rgba(255,255,255,.15); display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
 }
+.jadwal-card__icon-wrap--night { background: rgba(255,215,0,.15); border: 1px solid rgba(255,215,0,.25); }
+.jadwal-card--night { background: #0d0d2b !important; border-color: rgba(255,215,0,.15) !important; }
 
-.particle-1 {
-  width: 4px;
-  height: 4px;
-  top: 10%;
-  left: 5%;
-  animation-delay: 0s;
-}
-.particle-2 {
-  width: 6px;
-  height: 6px;
-  top: 20%;
-  left: 15%;
-  animation-delay: -2s;
-}
-.particle-3 {
-  width: 3px;
-  height: 3px;
-  top: 30%;
-  left: 25%;
-  animation-delay: -4s;
-}
-.particle-4 {
-  width: 5px;
-  height: 5px;
-  top: 40%;
-  left: 35%;
-  animation-delay: -1s;
-}
-.particle-5 {
-  width: 4px;
-  height: 4px;
-  top: 50%;
-  left: 45%;
-  animation-delay: -3s;
-}
-.particle-6 {
-  width: 6px;
-  height: 6px;
-  top: 60%;
-  left: 55%;
-  animation-delay: -5s;
-}
-.particle-7 {
-  width: 3px;
-  height: 3px;
-  top: 70%;
-  left: 65%;
-  animation-delay: -2.5s;
-}
-.particle-8 {
-  width: 5px;
-  height: 5px;
-  top: 80%;
-  left: 75%;
-  animation-delay: -1.5s;
-}
-.particle-9 {
-  width: 4px;
-  height: 4px;
-  top: 15%;
-  right: 15%;
-  animation-delay: -3.5s;
-}
-.particle-10 {
-  width: 6px;
-  height: 6px;
-  top: 45%;
-  right: 25%;
-  animation-delay: -4.5s;
-}
+.keliling-tabs :deep(.v-tab) { text-transform: none; border-radius: 8px !important; min-width: 52px; font-size: .85rem; }
 
-/* Gradient Orbs */
-.gradient-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(40px);
-  opacity: 0.6;
-  animation: orb-pulse 8s ease-in-out infinite;
+.loc-card {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: #f8f9fa; border: 2px solid transparent; border-radius: 12px;
+  padding: 14px 16px; transition: all .25s ease; cursor: pointer; height: 100%;
+}
+.loc-card:hover { background: #fef5f4; border-color: #C0392B30; transform: translateY(-2px); }
+.loc-card--active { background: #fef5f4 !important; border-color: #C0392B !important; box-shadow: 0 4px 16px rgba(192,57,43,.12); }
+.loc-card__num {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, #C0392B, #E74C3C);
+  color: #fff; font-weight: 700; font-size: .75rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.loc-card__text { flex: 1; font-size: .88rem; color: #444; line-height: 1.4; }
+
+.pp-card {
+  display: flex; align-items: flex-start; gap: 14px;
+  background: #fafafa; border: 2px solid transparent; border-radius: 14px;
+  padding: 16px; transition: all .25s ease; cursor: pointer; height: 100%;
+}
+.pp-card:hover { background: #fef5f4; border-color: #C0392B30; transform: translateY(-2px); }
+.pp-card--active { background: #fef5f4 !important; border-color: #C0392B !important; box-shadow: 0 4px 16px rgba(192,57,43,.12); }
+.pp-card__icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.pp-card__info { flex: 1; }
+
+.belok-badge {
+  display: inline-flex; padding: 2px 10px; border-radius: 20px;
+  background: rgba(255,215,0,.15); border: 1px solid rgba(255,215,0,.4);
+  color: #ffd700; font-size: .7rem; font-weight: 700; letter-spacing: .05em;
+}
+.belok-time {
+  align-items: center; background: rgba(255,215,0,.12);
+  border: 1px solid rgba(255,215,0,.3); border-radius: 20px; padding: 4px 14px;
+}
+.belok-card {
+  background: rgba(255,255,255,.04); border: 2px solid rgba(255,215,0,.2);
+  border-radius: 14px; padding: 20px; text-align: center;
+  transition: all .25s ease; height: 100%; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.belok-card:hover { background: rgba(255,215,0,.08); border-color: rgba(255,215,0,.5); transform: translateY(-3px); }
+.belok-card--active { background: rgba(255,215,0,.12) !important; border-color: #FFD700 !important; box-shadow: 0 0 20px rgba(255,215,0,.25); }
+.belok-card__icon {
+  width: 48px; height: 48px; border-radius: 12px;
+  background: rgba(255,215,0,.12); display: flex;
+  align-items: center; justify-content: center;
 }
 
-.orb-1 {
-  width: 200px;
-  height: 200px;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.3) 0%,
-    transparent 70%
-  );
-  top: 10%;
-  right: 10%;
-  animation-delay: 0s;
+/* ── GOOGLE MAPS WIDGET BOX ─────────────────────────────────────────────── */
+.gmaps-widget {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
+  overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,.05);
+}
+.gmaps-widget--night {
+  background: #141438; border-color: rgba(255,215,0,.25);
+  box-shadow: 0 6px 20px rgba(0,0,0,.3);
+}
+.gmaps-widget__header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px; padding: 14px 20px;
+  background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+}
+.gmaps-widget__header--night {
+  background: #1a1a4e; border-bottom-color: rgba(255,215,0,.2);
+}
+.gmaps-widget__title { font-weight: 700; font-size: .92rem; color: #1e293b; }
+.gmaps-widget__direct-link {
+  display: inline-flex; align-items: center;
+  color: #C0392B; font-size: .82rem; font-weight: 600;
+  text-decoration: none; padding: 6px 12px; border-radius: 6px;
+  background: rgba(192,57,43,.08); transition: all .2s ease;
+}
+.gmaps-widget__direct-link:hover {
+  background: #C0392B; color: #fff;
+}
+.gmaps-widget__direct-link--night {
+  color: #FFD700; background: rgba(255,215,0,.12);
+}
+.gmaps-widget__direct-link--night:hover {
+  background: #FFD700; color: #0d0d2b;
+}
+.gmaps-widget__frame-wrap {
+  position: relative; width: 100%; height: 360px;
+}
+.gmaps-widget__iframe {
+  width: 100%; height: 100%; border: none; display: block;
 }
 
-.orb-2 {
-  width: 150px;
-  height: 150px;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.2) 0%,
-    transparent 70%
-  );
-  bottom: 20%;
-  left: 15%;
-  animation-delay: -3s;
+/* ── SALMA AI SECTION ───────────────────────────────────────────────────── */
+.section-salma {
+  padding: 80px 0;
+  background: linear-gradient(180deg, #fff 0%, #fef5f4 100%);
 }
+.salma-badge {
+  display: inline-flex; align-items: center;
+  background: #C0392B12; color: #C0392B;
+  padding: 6px 16px; border-radius: 24px; font-size: .78rem;
+  font-weight: 600; margin-bottom: 16px;
+}
+.salma-title { font-size: 3rem; font-weight: 800; color: #1B2838; margin-bottom: 4px; }
+.salma-full-name { color: #C0392B; font-size: 1.15rem; font-weight: 600; margin-bottom: 16px; }
+.salma-desc { color: #555; font-size: 1rem; line-height: 1.8; margin-bottom: 24px; max-width: 520px; }
+.salma-features { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.salma-feature {
+  display: flex; align-items: center; gap: 10px;
+  font-size: .9rem; font-weight: 500; color: #333;
+  padding: 10px 14px; border-radius: 10px; background: #fff;
+  border: 1px solid #eee; transition: all .2s ease;
+}
+.salma-feature:hover { border-color: #C0392B30; background: #fef5f4; }
 
-.orb-3 {
-  width: 120px;
-  height: 120px;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.25) 0%,
-    transparent 70%
-  );
-  top: 50%;
-  left: 50%;
-  animation-delay: -1.5s;
+.salma-visual {
+  position: relative; display: inline-block;
 }
-
-/* Tech Grid Lines */
-.tech-grid {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  opacity: 0.1;
+.salma-glow {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 320px; height: 320px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(192,57,43,.12) 0%, transparent 70%);
+  animation: salma-pulse 4s ease-in-out infinite;
 }
-
-.grid-line {
-  position: absolute;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.5) 50%,
-    transparent 100%
-  );
-  animation: grid-pulse 4s ease-in-out infinite;
-}
-
-.grid-line.horizontal {
-  height: 1px;
-  width: 100%;
-}
-
-.grid-line.vertical {
-  width: 1px;
-  height: 100%;
-  background: linear-gradient(
-    0deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.5) 50%,
-    transparent 100%
-  );
-}
-
-.line-1 {
-  top: 25%;
-  animation-delay: 0s;
-}
-.line-2 {
-  top: 75%;
-  animation-delay: -2s;
-}
-.line-3 {
-  left: 30%;
-  animation-delay: -1s;
-}
-.line-4 {
-  right: 25%;
-  animation-delay: -3s;
-}
-
-/* Dots Pattern */
-.dots-pattern {
-  position: absolute;
-  top: 15%;
-  right: 5%;
-  opacity: 0.3;
-}
-
-.dot-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.6);
-  border-radius: 50%;
-  animation: dot-blink 3s ease-in-out infinite;
-}
-
-.row-1 .dot:nth-child(1) {
-  animation-delay: 0s;
-}
-.row-1 .dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-.row-1 .dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-.row-1 .dot:nth-child(4) {
-  animation-delay: 0.6s;
-}
-.row-1 .dot:nth-child(5) {
-  animation-delay: 0.8s;
-}
-
-.row-2 .dot:nth-child(1) {
-  animation-delay: 1s;
-}
-.row-2 .dot:nth-child(2) {
-  animation-delay: 1.2s;
-}
-.row-2 .dot:nth-child(3) {
-  animation-delay: 1.4s;
-}
-.row-2 .dot:nth-child(4) {
-  animation-delay: 1.6s;
-}
-.row-2 .dot:nth-child(5) {
-  animation-delay: 1.8s;
-}
-
-.row-3 .dot:nth-child(1) {
-  animation-delay: 2s;
-}
-.row-3 .dot:nth-child(2) {
-  animation-delay: 2.2s;
-}
-.row-3 .dot:nth-child(3) {
-  animation-delay: 2.4s;
-}
-.row-3 .dot:nth-child(4) {
-  animation-delay: 2.6s;
-}
-.row-3 .dot:nth-child(5) {
-  animation-delay: 2.8s;
-}
-
-/* Animations */
-@keyframes float-rotate {
-  0%,
-  100% {
-    transform: translateY(0px) rotate(0deg);
-    opacity: 0.7;
-  }
-  25% {
-    transform: translateY(-15px) rotate(90deg);
-    opacity: 1;
-  }
-  50% {
-    transform: translateY(-10px) rotate(180deg);
-    opacity: 0.8;
-  }
-  75% {
-    transform: translateY(-20px) rotate(270deg);
-    opacity: 0.9;
-  }
-}
-
-@keyframes float-scale {
-  0%,
-  100% {
-    transform: translateY(0px) scale(1);
-    opacity: 0.6;
-  }
-  50% {
-    transform: translateY(-25px) scale(1.1);
-    opacity: 1;
-  }
-}
-
-@keyframes particle-float {
-  0% {
-    transform: translateY(0px) translateX(0px);
-    opacity: 0;
-  }
-  10% {
-    opacity: 1;
-  }
-  90% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-100vh) translateX(20px);
-    opacity: 0;
-  }
-}
-
-@keyframes orb-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.4;
-  }
-  50% {
-    transform: scale(1.1);
-    opacity: 0.8;
-  }
-}
-
-@keyframes grid-pulse {
-  0%,
-  100% {
-    opacity: 0.1;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-
-@keyframes dot-blink {
-  0%,
-  70%,
-  100% {
-    opacity: 0.3;
-    transform: scale(1);
-  }
-  35% {
-    opacity: 1;
-    transform: scale(1.2);
-  }
-}
-
-/* Quick Actions Section */
-.quick-actions-section {
-  background: linear-gradient(to bottom, #f8f9fa, #ffffff);
-}
-
 .salma-mascot {
-  width: 180px;
-  height: 240px;
-  /* border-radius: 50%; */
-  overflow: hidden;
-  flex-shrink: 0;
+  width: 280px; height: auto; position: relative; z-index: 2;
+  filter: drop-shadow(0 8px 32px rgba(192,57,43,.15));
+}
+.salma-visual__label {
+  display: inline-flex; align-items: center;
+  background: #fff; border: 1px solid #eee; border-radius: 20px;
+  padding: 6px 16px; font-size: .78rem; font-weight: 600; color: #333;
+  position: relative; z-index: 2; margin-top: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.06);
+}
+@keyframes salma-pulse {
+  0%, 100% { transform: translate(-50%,-50%) scale(1); opacity: .6; }
+  50% { transform: translate(-50%,-50%) scale(1.08); opacity: 1; }
 }
 
-.question-card {
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border-radius: 20px !important;
-  transform: translateY(0);
+/* ── PAYMENT ────────────────────────────────────────────────────────────── */
+.section-payment { padding: 80px 0; background: #fff; }
+.payment-card { border-radius: 20px !important; border: 1px solid #eee; }
+.payment-tabs :deep(.v-tab) { text-transform: none; border-radius: 8px !important; font-size: .88rem; }
+.pay-logo { text-align: center; transition: transform .25s ease; cursor: default; }
+.pay-logo:hover { transform: translateY(-4px); }
+.pay-logo__img {
+  width: 100%; height: 80px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,.1);
+  border: 1px solid rgba(0,0,0,.06); padding: 10px 12px;
 }
+.pay-logo__img img { max-width: 100%; max-height: 58px; object-fit: contain; }
+.pay-logo__name { font-size: .78rem; color: #666; font-weight: 500; margin-top: 8px; }
 
-.question-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15) !important;
+/* ── KONTAK ─────────────────────────────────────────────────────────────── */
+.section-kontak {
+  padding: 80px 0;
+  background: linear-gradient(135deg, #1B2838 0%, #2C3E50 50%, #C0392B 100%);
 }
+.kontak-list { display: flex; flex-direction: column; gap: 20px; }
+.kontak-item { display: flex; align-items: center; }
+.kontak-cta-card { border-radius: 24px !important; }
 
-/* Services Section */
-.services-section {
-  background: linear-gradient(180deg, #f8f6ff 0%, #ffffff 60%, #f8f9fa 100%);
+/* ── FOOTER ─────────────────────────────────────────────────────────────── */
+.gov-footer {
+  background: #111827; padding: 56px 0 24px;
 }
-
-.max-width-700 {
-  max-width: 700px;
+.footer-brand { display: flex; flex-direction: column; }
+.footer-logos { display: flex; align-items: center; gap: 8px; }
+.footer-logo-badge {
+  width: 44px; height: 44px; border-radius: 10px;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
+  display: flex; align-items: center; justify-content: center;
+  padding: 4px; transition: all .25s ease;
 }
-
-/* Service Block Cards */
-.service-block-card {
-  border-radius: 20px !important;
-  overflow: hidden;
-  border: 1px solid rgba(140, 100, 200, 0.12);
-  background: #ffffff;
-}
-
-/* Keliling Pagi Header */
-.service-block-header--keliling {
-  background: linear-gradient(135deg, #6c33a0 0%, #9b59d0 50%, #c68efd 100%);
-}
-
-/* Layanan Menetap Header */
-.service-block-header--menetap {
-  background: linear-gradient(135deg, #8f87f1 0%, #c68efd 100%);
-}
-
-/* Pembayaran Digital Header */
-.service-block-header--digital {
-  background: linear-gradient(135deg, #0066cc 0%, #00aed6 100%);
-}
-
-.service-block-icon-wrap {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(8px);
-  flex-shrink: 0;
-}
-
-.service-block-icon-wrap--menetap {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.service-block-icon-wrap--digital {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.text-white-70 {
-  color: rgba(255, 255, 255, 0.75) !important;
-}
-
-.letter-spacing-1 {
-  letter-spacing: 0.08em;
-}
-
-/* Day Tabs */
-.keliling-day-tabs .v-tab {
-  text-transform: none;
-  border-radius: 8px !important;
-  min-width: 56px;
-  font-size: 0.875rem;
-}
-
-.keliling-day-tabs .v-tab--selected {
-  background: rgba(108, 51, 160, 0.08);
-}
-
-/* Location Cards */
-.location-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  background: #f8f6ff;
-  border: 1px solid rgba(140, 100, 200, 0.15);
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 8px;
-  transition: all 0.25s ease;
-}
-
-.location-card:hover {
-  border-color: #c68efd;
-  background: #f3eeff;
-  transform: translateX(3px);
-}
-
-.location-number {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #6c33a0, #c68efd);
-  color: white;
-  font-weight: 700;
-  font-size: 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.location-info {
-  display: flex;
-  align-items: flex-start;
-  flex: 1;
-  min-width: 0;
-  line-height: 1.4;
-}
-
-/* Layanan Menetap Cards */
-.menetap-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  background: #fafafa;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 12px;
-  transition: all 0.25s ease;
-  height: 100%;
-}
-
-.menetap-card:hover {
-  border-color: #c68efd;
-  background: #f8f6ff;
+.footer-logo-badge:hover {
+  background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(108, 51, 160, 0.1);
 }
-
-.menetap-icon-wrap {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+.footer-link {
+  color: rgba(255,255,255,.55); font-size: .85rem; padding: 5px 0;
+  cursor: pointer; transition: color .2s ease;
 }
-
-/* BELOK WANGI Night Section */
-.service-block-night {
-  background: #0d0d2b !important;
-  border: 1px solid rgba(255, 215, 0, 0.15) !important;
+.footer-link:hover { color: #fff; }
+.footer-contact {
+  color: rgba(255,255,255,.55); font-size: .85rem; padding: 5px 0;
+  display: flex; align-items: center;
 }
-
-.belok-wangi-header {
-  background: linear-gradient(135deg, #0d0d2b 0%, #1a1a4e 50%, #0d0d2b 100%);
-  border-bottom: 1px solid rgba(255, 215, 0, 0.15);
-  position: relative;
-  overflow: hidden;
+.social-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.2);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  transition: all .2s ease; text-decoration: none;
 }
-
-.belok-wangi-header::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -20%;
-  width: 200px;
-  height: 200px;
-  background: radial-gradient(
-    circle,
-    rgba(255, 215, 0, 0.08) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
+.social-btn:hover {
+  background: rgba(255,255,255,.15); border-color: #fff; transform: translateY(-2px);
 }
+.text-white-70 { color: rgba(255,255,255,.7) !important; }
 
-.belok-wangi-icon-wrap {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: rgba(255, 215, 0, 0.15);
-  border: 1px solid rgba(255, 215, 0, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.belok-wangi-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  border-radius: 20px;
-  background: rgba(255, 215, 0, 0.15);
-  border: 1px solid rgba(255, 215, 0, 0.4);
-  color: #ffd700;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  vertical-align: middle;
-}
-
-.belok-wangi-time {
-  align-items: center;
-  background: rgba(255, 215, 0, 0.12);
-  border: 1px solid rgba(255, 215, 0, 0.3);
-  border-radius: 20px;
-  padding: 4px 14px;
-}
-
-.belok-wangi-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 215, 0, 0.2);
-  border-radius: 14px;
-  padding: 20px 18px;
-  text-align: center;
-  transition: all 0.25s ease;
-  height: 100%;
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.belok-wangi-card:hover {
-  background: rgba(255, 215, 0, 0.07);
-  border-color: rgba(255, 215, 0, 0.5);
-  transform: translateY(-3px);
-}
-
-.belok-wangi-card-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: rgba(255, 215, 0, 0.12);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 4px;
-}
-
-/* Payment Digital */
-.payment-category-tabs .v-tab {
-  text-transform: none;
-  border-radius: 8px !important;
-  font-size: 0.875rem;
-}
-
-.payment-logo-card {
-  width: 100%;
-  cursor: default;
-  transition: transform 0.25s ease;
-}
-
-.payment-logo-card:hover {
-  transform: translateY(-4px);
-}
-
-.payment-logo-img-wrap {
-  width: 100%;
-  height: 80px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 10px 12px;
-}
-
-.payment-logo-img {
-  max-width: 100%;
-  max-height: 58px;
-  object-fit: contain;
-  display: block;
-}
-
-.payment-logo-name {
-  color: #555 !important;
-}
-
-/* Responsive Services */
-@media (max-width: 600px) {
-  .service-block-card {
-    border-radius: 16px !important;
-  }
-  .belok-wangi-badge {
-    display: none;
-  }
-  .payment-logo-img-wrap {
-    height: 64px;
-  }
-}
-
-/* Contact Section */
-.contact-section {
-  background: linear-gradient(135deg, #8f87f1 0%, #c68efd 50%, #e9a5f1 100%);
-}
-
-/* Footer Section */
-.footer-section {
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-}
-
-/* Utilities */
-.max-width-600 {
-  max-width: 600px;
-}
-
-.text-white-80 {
-  color: rgba(255, 255, 255, 0.8) !important;
-}
-
-.text-white-70 {
-  color: rgba(255, 255, 255, 0.7) !important;
-}
-
-/* Mobile Responsive */
+/* ═══ RESPONSIVE ═══════════════════════════════════════════════════════════ */
 @media (max-width: 960px) {
-  .hero-section {
-    min-height: 80vh;
-  }
-
-  .display-1 {
-    font-size: 2.5rem !important;
-  }
-
-  /* Mascot smaller on tablet */
-  .salma-mascot {
-    width: 120px !important;
-    height: 160px !important;
-  }
-
-  .hero-actions .v-btn {
-    display: block;
-    width: 100%;
-    margin-bottom: 16px;
-  }
-
-  /* Reduce animation complexity on mobile */
-  .geometric-shape,
-  .gradient-orb {
-    display: none;
-  }
-
-  .particles-container .particle:nth-child(n + 6) {
-    display: none;
-  }
-
-  .tech-grid {
-    opacity: 0.05;
-  }
+  .hero-slider { min-height: 80vh; }
+  .hero-slider__title { font-size: 2.2rem !important; }
+  .hero-slider__subtitle { font-size: 1rem; }
+  .hero-slider__arrow { display: none; }
+  .section-header__title { font-size: 1.8rem; }
+  .salma-title { font-size: 2.2rem; }
+  .salma-features { grid-template-columns: 1fr; }
+  .gmaps-widget__frame-wrap { height: 280px; }
 }
-
 @media (max-width: 600px) {
-  .hero-section {
-    padding-top: 80px;
-  }
-
-  .display-1 {
-    font-size: 2rem !important;
-    line-height: 1.25 !important;
-  }
-
-  .text-h6 {
-    font-size: 1rem !important;
-  }
-
-  /* Hero description text */
-  .hero-content p.text-xl {
-    font-size: 1rem !important;
-    line-height: 1.6 !important;
-  }
-
-  /* Hero buttons full-width stacked */
-  .hero-actions {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .hero-actions .v-btn {
-    margin-right: 0 !important;
-    width: 100%;
-  }
-
-  /* Hide complex animations on small screens */
-  .dots-pattern,
-  .tech-grid {
-    display: none;
-  }
-
-  .particles-container .particle:nth-child(n + 4) {
-    display: none;
-  }
-
-  /* Service cards */
-  .service-card {
-    border-radius: 12px !important;
-  }
+  .gov-navbar__inner { padding: 10px 16px; }
+  .hero-slider { min-height: 75vh; }
+  .hero-slider__content { padding-top: 80px; }
+  .hero-slider__title { font-size: 1.8rem !important; }
+  .hero-slider__btns { display: flex; flex-direction: column; }
+  .hero-slider__btns .hero-btn { width: 100%; }
+  .hero-slider__dots { bottom: 90px; }
+  .hero-slider__clip { height: 40px; }
+  .section-layanan, .section-jadwal, .section-salma, .section-payment, .section-kontak { padding: 48px 0; }
+  .section-header { margin-bottom: 32px; }
+  .section-header__title { font-size: 1.5rem; }
+  .salma-mascot { width: 200px; }
+  .belok-badge { display: none; }
+  .pay-logo__img { height: 64px; }
+  .gmaps-widget__header { flex-direction: column; align-items: flex-start; }
+  .gmaps-widget__frame-wrap { height: 240px; }
 }
 </style>

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { router, Head } from '@inertiajs/vue3';
+import { router, Head, Link } from '@inertiajs/vue3';
 import TourButton from '@/Components/TourButton.vue';
 import { useTour } from '@/composables/useTour.js';
 
@@ -14,6 +14,8 @@ const props = defineProps({
     default: false,
   },
 });
+
+const logoUrl = import.meta.env.VITE_APP_LOGO;
 
 // Helper function to get CSRF token
 const getCsrfToken = () => {
@@ -30,20 +32,7 @@ const form = ref({
 const formRef = ref(null);
 const loading = ref(false);
 const errors = ref({});
-
-// Computed property for form validation
-// const isFormValid = computed(() => {
-//     const namaValid = form.value.nama && form.value.nama.trim() !== "";
-//     const nopolValid = form.value.nopol && form.value.nopol.trim() !== "";
-//     const waValid =
-//         form.value.nomer_wa &&
-//         form.value.nomer_wa.trim() !== "" &&
-//         /^[0-9+\-\s\(\)]+$/.test(form.value.nomer_wa.trim());
-
-//     return namaValid && nopolValid && waValid;
-// });
-// Always enable the button - no validation checks
-const isFormValid = ref(true);
+const isChangingData = ref(false);
 
 // Snackbar
 const snackbar = ref({
@@ -69,7 +58,6 @@ const showSnackbar = (
 };
 
 const formatNopol = () => {
-  // Auto format nopol (S 1234 ZZ)
   let value = form.value.nopol.replace(/\s/g, '').toUpperCase();
   if (value.length > 0) {
     value = value
@@ -80,13 +68,10 @@ const formatNopol = () => {
 };
 
 const startChatSession = async () => {
-  // Clear previous errors
   errors.value = {};
 
-  // No validation checks - just proceed directly
   try {
     loading.value = true;
-
     const csrfToken = getCsrfToken();
 
     const response = await fetch('/api/wajib-pajak/start-chat', {
@@ -108,10 +93,9 @@ const startChatSession = async () => {
         'mdi-check-circle',
       );
 
-      // Redirect to chat after short delay
       setTimeout(() => {
-        window.location.href = data.redirect;
-      }, 1500);
+        window.location.href = data.redirect || '/customer-service';
+      }, 800);
     } else if (data.errors) {
       errors.value = data.errors;
     } else {
@@ -139,15 +123,15 @@ const proceedToChat = () => {
 
 const formSteps = [
   {
-    title: 'Selamat Datang!',
+    title: 'Selamat Datang di SALMA AI!',
     intro:
-      'Halaman ini digunakan untuk mendaftarkan data kendaraan Anda sebelum memulai sesi chat dengan SALMA AI.',
+      'Formulir pendaftaran singkat ini diperlukan sebelum memulai sesi tanya-jawab dengan asisten cerdas SALMA AI.',
   },
   {
     element: '#tour-wp-card',
-    title: 'Formulir Pendaftaran',
+    title: 'Formulir Data Wajib Pajak',
     intro:
-      'Isi formulir ini untuk menggunakan layanan chat AI Samsat Lamongan. Data Anda aman dan hanya digunakan untuk keperluan layanan.',
+      'Isi nama, plat nomor kendaraan, dan WhatsApp aktif Anda. Data aman dan hanya digunakan untuk personalisasi layanan.',
   },
   {
     element: '#tour-wp-nama',
@@ -156,20 +140,20 @@ const formSteps = [
   },
   {
     element: '#tour-wp-nopol',
-    title: 'Nomor Polisi',
+    title: 'Nomor Polisi (Nopol)',
     intro:
-      'Masukkan nomor polisi kendaraan Anda. Format otomatis akan diterapkan, contoh: S 1234 ZZ. Gunakan plat kendaraan yang ingin Anda tanyakan.',
+      'Masukkan plat nomor kendaraan bermotor yang ingin Anda konsultasikan (contoh: S 1234 ZZ).',
   },
   {
     element: '#tour-wp-wa',
     title: 'Nomor WhatsApp',
     intro:
-      'Masukkan nomor WhatsApp aktif Anda, contoh: 08123456789. Nomor ini digunakan untuk keperluan konfirmasi layanan.',
+      'Masukkan nomor WhatsApp aktif Anda untuk konfirmasi dan ringkasan layanan.',
   },
   {
-    title: 'Mulai Chat',
+    title: 'Mulai Chat AI',
     intro:
-      'Setelah semua data terisi, klik tombol "Mulai Chat AI" untuk memulai sesi tanya-jawab dengan SALMA AI secara gratis.',
+      'Klik tombol "Mulai Chat AI" untuk langsung terhubung dengan asisten pintar 24/7.',
   },
 ];
 const { startTour } = useTour(formSteps);
@@ -177,167 +161,179 @@ const { startTour } = useTour(formSteps);
 
 <template>
   <VApp>
-    <Head title="Form Data Wajib Pajak - Chat AI" />
+    <Head title="Identitas Wajib Pajak — SALMA AI Samsat Lamongan" />
 
-    <VMain class="bg-gradient">
-      <VContainer class="py-8">
-        <VRow justify="center">
-          <VCol cols="12" md="8" lg="6">
-            <VCard id="tour-wp-card" class="pa-8 form-card" elevation="12">
-              <div class="text-center mb-8">
-                <VAvatar color="primary" size="80" class="mb-4">
-                  <VIcon size="40" color="white">mdi-chat</VIcon>
-                </VAvatar>
-                <h1 class="text-h4 font-weight-bold text-primary mb-2">
-                  Layanan Chat SALMA AI
-                </h1>
-                <p class="text-grey-600 mb-2">
-                  Untuk menggunakan layanan chat AI, silakan isi data terlebih
-                  dahulu
-                </p>
-                <VChip color="info" variant="outlined" size="small">
-                  <VIcon left size="16">mdi-shield-check</VIcon>
-                  Data Diperlukan untuk Akses Chat
-                </VChip>
+    <div class="wp-page-wrap">
+      <!-- ═══ TOP GOVT BAR ═══ -->
+      <header class="wp-topbar">
+        <div class="wp-topbar__inner">
+          <Link href="/" class="wp-brand no-underline">
+            <VImg :src="logoUrl" alt="Bapenda" contain width="32" height="32" class="me-2" />
+            <VImg src="/images/logo-jatim.png" alt="Pemprov Jatim" contain width="32" height="32" class="me-2 d-none d-sm-block" />
+            <VImg src="/images/Lambang_Polda_Jatim.png" alt="Polri" contain width="32" height="32" class="me-2 d-none d-md-block" />
+            <VImg src="/images/jasa-raharja.png" alt="Jasa Raharja" contain width="32" height="32" class="me-2 d-none d-md-block" />
+            <div class="wp-brand__text">
+              <span class="wp-brand__name">KB Samsat Lamongan</span>
+              <span class="wp-brand__sub d-none d-sm-block">Pelayanan Publik Bebas Biaya</span>
+            </div>
+          </Link>
+
+          <Link href="/" class="wp-back-btn no-underline">
+            <VIcon size="16" class="me-1">mdi-arrow-left</VIcon>
+            <span class="d-none d-sm-inline">Kembali ke Beranda</span>
+            <span class="d-sm-none">Beranda</span>
+          </Link>
+        </div>
+      </header>
+
+      <!-- ═══ MAIN COMPACT FORM ═══ -->
+      <main class="wp-content-wrap">
+        <div class="wp-card-container">
+          <div id="tour-wp-card" class="wp-card">
+            <!-- Header Badge & Mascot -->
+            <div class="wp-card__header">
+              <div class="wp-card__avatar-wrap">
+                <div class="wp-card__avatar">
+                  <VIcon size="28" color="#C0392B">mdi-chat-processing</VIcon>
+                </div>
               </div>
 
-              <!-- Show existing data if available -->
-              <VCard
-                v-if="canProceedToChat"
-                type="success"
-                variant="tonal"
-                class="pa-4 rounded-lg"
-                color="#1261e0"
-                prominent
-              >
-                <template #title>Data Sudah Tersimpan</template>
-                <p class="mb-4">Anda sudah mengisi data sebelumnya:</p>
-                <ul class="mb-4">
-                  <li>
-                    <strong>Nama:</strong>
-                    {{ existingData.nama }}
-                  </li>
-                  <li>
-                    <strong>Nopol:</strong>
-                    {{ existingData.nopol }}
-                  </li>
-                  <li>
-                    <strong>No. WhatsApp:</strong>
-                    {{ existingData.nomer_wa }}
-                  </li>
-                </ul>
+              <div class="wp-card__badge">
+                <VIcon size="12" class="me-1" color="#C0392B">mdi-shield-check</VIcon>
+                Data Diperlukan untuk Akses Chat
+              </div>
 
-                <VBtn
-                  color="primary"
-                  size="large"
-                  class="mr-3"
-                  @click="proceedToChat"
-                >
-                  <VIcon left>mdi-chat</VIcon>
+              <h1 class="wp-card__title">Layanan Chat SALMA AI</h1>
+              <p class="wp-card__subtitle">
+                Samsat Lamongan Modern Assistant • Siap Melayani 24/7
+              </p>
+            </div>
+
+            <!-- Existing Data Prompt (if already in session) -->
+            <div v-if="canProceedToChat && !isChangingData" class="wp-existing-box mb-4">
+              <div class="d-flex align-center gap-2 mb-2">
+                <VIcon color="#27AE60" size="18">mdi-check-decagram</VIcon>
+                <span class="font-weight-bold text-body-2 text-grey-900">Sesi Data Anda Masih Aktif</span>
+              </div>
+              <div class="wp-existing-details mb-3">
+                <div class="wp-detail-row">
+                  <span class="wp-detail-label">Nama:</span>
+                  <span class="wp-detail-val">{{ existingData?.nama || '-' }}</span>
+                </div>
+                <div class="wp-detail-row">
+                  <span class="wp-detail-label">Nopol:</span>
+                  <span class="wp-detail-val">{{ existingData?.nopol || '-' }}</span>
+                </div>
+                <div class="wp-detail-row">
+                  <span class="wp-detail-label">WhatsApp:</span>
+                  <span class="wp-detail-val">{{ existingData?.nomer_wa || '-' }}</span>
+                </div>
+              </div>
+
+              <div class="d-flex flex-column gap-2">
+                <button @click="proceedToChat" class="wp-btn-primary">
+                  <VIcon size="18" class="me-1">mdi-chat-processing</VIcon>
                   Lanjut ke Chat AI
-                </VBtn>
-
-                <!-- <VBtn
-                  color="primary"
-                  variant="outlined"
-                  size="large"
-                  @click="
-                    form = {
-                      nama: '',
-                      nopol: '',
-                      nomer_wa: '',
-                    }
-                  "
-                >
-                  <VIcon left>mdi-pencil</VIcon>
-                  Ubah Data
-                </VBtn> -->
-              </VCard>
-
-              <!-- Form input -->
-              <VForm
-                ref="formRef"
-                @submit.prevent="startChatSession"
-                v-show="
-                  !canProceedToChat ||
-                  (form.nama === '' &&
-                    form.nopol === '' &&
-                    form.nomer_wa === '')
-                "
-              >
-                <VRow>
-                  <VCol cols="12">
-                    <VTextField
-                      v-model="form.nama"
-                      label="Nama Lengkap"
-                      id="tour-wp-nama"
-                      prepend-inner-icon="mdi-account"
-                      variant="outlined"
-                      :error-messages="errors.nama"
-                      placeholder="Masukkan nama lengkap"
-                    ></VTextField>
-                  </VCol>
-
-                  <VCol cols="12">
-                    <VTextField
-                      v-model="form.nopol"
-                      label="Nomor Polisi (contoh: S 1234 ZZ)"
-                      id="tour-wp-nopol"
-                      prepend-inner-icon="mdi-car-info"
-                      variant="outlined"
-                      :error-messages="errors.nopol"
-                      @input="formatNopol"
-                      placeholder="S 1234 ZZ"
-                    ></VTextField>
-                  </VCol>
-
-                  <VCol cols="12">
-                    <VTextField
-                      v-model="form.nomer_wa"
-                      label="Nomor WhatsApp"
-                      id="tour-wp-wa"
-                      prepend-inner-icon="mdi-whatsapp"
-                      variant="outlined"
-                      :error-messages="errors.nomer_wa"
-                      placeholder="08xxxxxxxxxx atau +62xxxxxxxxxx"
-                      hint="Contoh: 08123456789 atau +6281234567890"
-                      persistent-hint
-                    ></VTextField>
-                  </VCol>
-
-                  <VCol cols="12" class="text-center">
-                    <VBtn
-                      type="submit"
-                      color="primary"
-                      size="x-large"
-                      :loading="loading"
-                      :disabled="!isFormValid"
-                      class="px-8"
-                    >
-                      <VIcon left>mdi-wchat</VIcon>
-                      Mulai Chat AI
-                    </VBtn>
-                  </VCol>
-                </VRow>
-              </VForm>
-
-              <!-- Additional info -->
-              <VDivider class="my-6"></VDivider>
-              <div class="text-center">
-                <VChip color="grey" variant="text" size="small" class="mb-2">
-                  <VIcon left size="16">mdi-information</VIcon>
-                  Informasi
-                </VChip>
-                <p class="text-sm text-grey-600">
-                  Data yang Anda masukkan akan digunakan untuk memberikan
-                  layanan yang lebih personal.<br />
-                </p>
+                  <VIcon size="16" class="ms-1">mdi-arrow-right</VIcon>
+                </button>
+                <button @click="isChangingData = true" class="wp-btn-link">
+                  <VIcon size="14" class="me-1">mdi-pencil-outline</VIcon>
+                  Ubah / Perbarui Data
+                </button>
               </div>
-            </VCard>
-          </VCol>
-        </VRow>
-      </VContainer>
-    </VMain>
+            </div>
+
+            <!-- Input Form -->
+            <form v-else @submit.prevent="startChatSession" class="wp-form">
+              <div class="wp-input-group">
+                <label for="tour-wp-nama" class="wp-label">
+                  Nama Lengkap <span class="text-red-500">*</span>
+                </label>
+                <div class="wp-input-box" :class="{ 'wp-input-box--error': errors.nama }">
+                  <VIcon size="18" class="wp-input-icon">mdi-account-outline</VIcon>
+                  <input
+                    id="tour-wp-nama"
+                    v-model="form.nama"
+                    type="text"
+                    placeholder="Masukkan nama lengkap Anda"
+                    class="wp-input"
+                    required
+                  />
+                </div>
+                <span v-if="errors.nama" class="wp-error-text">{{ errors.nama[0] || errors.nama }}</span>
+              </div>
+
+              <div class="wp-input-group">
+                <label for="tour-wp-nopol" class="wp-label">
+                  Nomor Polisi (Nopol) <span class="text-red-500">*</span>
+                </label>
+                <div class="wp-input-box" :class="{ 'wp-input-box--error': errors.nopol }">
+                  <VIcon size="18" class="wp-input-icon">mdi-car-outline</VIcon>
+                  <input
+                    id="tour-wp-nopol"
+                    v-model="form.nopol"
+                    type="text"
+                    placeholder="Contoh: S 1234 ZZ"
+                    class="wp-input uppercase font-mono tracking-wider font-semibold"
+                    @input="formatNopol"
+                    required
+                  />
+                </div>
+                <span v-if="errors.nopol" class="wp-error-text">{{ errors.nopol[0] || errors.nopol }}</span>
+              </div>
+
+              <div class="wp-input-group">
+                <label for="tour-wp-wa" class="wp-label">
+                  Nomor WhatsApp <span class="text-red-500">*</span>
+                </label>
+                <div class="wp-input-box" :class="{ 'wp-input-box--error': errors.nomer_wa }">
+                  <VIcon size="18" class="wp-input-icon">mdi-whatsapp</VIcon>
+                  <input
+                    id="tour-wp-wa"
+                    v-model="form.nomer_wa"
+                    type="tel"
+                    placeholder="Contoh: 081234567890"
+                    class="wp-input"
+                    required
+                  />
+                </div>
+                <span v-if="errors.nomer_wa" class="wp-error-text">{{ errors.nomer_wa[0] || errors.nomer_wa }}</span>
+              </div>
+
+              <!-- Submit Button -->
+              <button
+                type="submit"
+                :disabled="loading"
+                class="wp-btn-primary mt-4"
+              >
+                <VIcon size="18" class="me-1">
+                  {{ loading ? 'mdi-loading mdi-spin' : 'mdi-chat-processing' }}
+                </VIcon>
+                {{ loading ? 'Menyimpan...' : 'Mulai Chat AI' }}
+                <VIcon v-if="!loading" size="16" class="ms-1">mdi-arrow-right</VIcon>
+              </button>
+
+              <button
+                v-if="canProceedToChat && isChangingData"
+                type="button"
+                @click="isChangingData = false"
+                class="wp-btn-link mt-2"
+              >
+                Batal Ubah Data
+              </button>
+            </form>
+
+            <!-- Security & Privacy footer -->
+            <div class="wp-card__footer">
+              <div class="wp-privacy-note">
+                <VIcon size="14" color="#718096" class="me-1">mdi-lock-outline</VIcon>
+                Data Anda aman, terenkripsi, dan hanya digunakan untuk layanan Samsat Lamongan.
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
 
     <!-- Success/Error Snackbar -->
     <VSnackbar
@@ -346,40 +342,326 @@ const { startTour } = useTour(formSteps);
       :timeout="snackbar.timeout"
       location="top"
     >
-      <VIcon left>{{ snackbar.icon }}</VIcon>
+      <VIcon start>{{ snackbar.icon }}</VIcon>
       {{ snackbar.message }}
     </VSnackbar>
+
     <TourButton @start="startTour" variant="public" />
   </VApp>
 </template>
 
 <style scoped>
-.bg-gradient {
-  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 50%, #c4b5fd 100%);
+.wp-page-wrap {
   min-height: 100vh;
+  background: linear-gradient(135deg, #1B2838 0%, #243348 50%, #1B2838 100%);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-x: hidden;
 }
 
-.form-card {
-  border-radius: 24px !important;
-  backdrop-filter: blur(10px);
-  background: rgba(255, 255, 255, 0.95) !important;
+.wp-page-wrap::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -100px;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(192,57,43,.18) 0%, transparent 70%);
+  pointer-events: none;
 }
 
-.v-btn {
-  border-radius: 12px !important;
-  text-transform: none;
+.wp-page-wrap::after {
+  content: '';
+  position: absolute;
+  bottom: -100px;
+  left: -100px;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(41,128,185,.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── TOPBAR ─────────────────────────────────────────────────────────────── */
+.wp-topbar {
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  background: rgba(27,40,56,.75);
+  backdrop-filter: blur(12px);
+  position: relative;
+  z-index: 10;
+}
+.wp-topbar__inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.wp-brand {
+  display: flex;
+  align-items: center;
+}
+.wp-brand__text {
+  display: flex;
+  flex-direction: column;
+}
+.wp-brand__name {
+  color: #fff;
+  font-size: .95rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.wp-brand__sub {
+  color: rgba(255,255,255,.6);
+  font-size: .72rem;
+}
+.wp-back-btn {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(255,255,255,.8);
+  font-size: .82rem;
   font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15);
+  transition: all .2s ease;
+}
+.wp-back-btn:hover {
+  color: #fff;
+  background: rgba(255,255,255,.18);
+  transform: translateX(-2px);
 }
 
-.v-text-field {
+/* ── CONTENT CONTAINER ──────────────────────────────────────────────────── */
+.wp-content-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  position: relative;
+  z-index: 2;
+}
+.wp-card-container {
+  width: 100%;
+  max-width: 480px;
+}
+.wp-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 32px 28px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.1);
+}
+
+/* ── CARD HEADER ────────────────────────────────────────────────────────── */
+.wp-card__header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.wp-card__avatar-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.wp-card__avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  background: #C0392B12;
+  border: 1px solid #C0392B25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(192,57,43,.12);
+}
+.wp-card__badge {
+  display: inline-flex;
+  align-items: center;
+  background: #C0392B10;
+  color: #C0392B;
+  font-size: .72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 16px;
+  letter-spacing: .02em;
   margin-bottom: 8px;
 }
-
-.v-alert {
-  border-radius: 16px !important;
+.wp-card__title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #1B2838;
+  line-height: 1.25;
+  margin-bottom: 4px;
+}
+.wp-card__subtitle {
+  font-size: .82rem;
+  color: #718096;
+  margin-bottom: 0;
 }
 
-.v-alert__prepend {
-  display: none;
+/* ── EXISTING DATA BOX ──────────────────────────────────────────────────── */
+.wp-existing-box {
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  border-radius: 14px;
+  padding: 16px;
+}
+.wp-existing-details {
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wp-detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: .82rem;
+}
+.wp-detail-label {
+  color: #64748B;
+  font-weight: 500;
+}
+.wp-detail-val {
+  color: #1E293B;
+  font-weight: 700;
+}
+
+/* ── FORM INPUTS ────────────────────────────────────────────────────────── */
+.wp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.wp-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wp-label {
+  font-size: .78rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.wp-input-box {
+  display: flex;
+  align-items: center;
+  background: #F8FAFC;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  transition: all .2s ease;
+}
+.wp-input-box:focus-within {
+  background: #ffffff;
+  border-color: #C0392B;
+  box-shadow: 0 0 0 3px rgba(192,57,43,.12);
+}
+.wp-input-box--error {
+  border-color: #EF4444 !important;
+  background: #FEF2F2 !important;
+}
+.wp-input-icon {
+  color: #94A3B8;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+.wp-input-box:focus-within .wp-input-icon {
+  color: #C0392B;
+}
+.wp-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: .9rem;
+  color: #1E293B;
+  width: 100%;
+}
+.wp-input::placeholder {
+  color: #94A3B8;
+  font-size: .85rem;
+}
+.wp-error-text {
+  font-size: .74rem;
+  color: #EF4444;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* ── BUTTONS ────────────────────────────────────────────────────────────── */
+.wp-btn-primary {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #C0392B 0%, #D32F2F 100%);
+  color: #ffffff;
+  font-size: .95rem;
+  font-weight: 700;
+  padding: 13px 20px;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(192,57,43,.3);
+  transition: all .25s ease;
+}
+.wp-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #B03022 0%, #C0392B 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(192,57,43,.4);
+}
+.wp-btn-primary:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
+.wp-btn-link {
+  background: transparent;
+  border: none;
+  color: #64748B;
+  font-size: .8rem;
+  font-weight: 600;
+  padding: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color .2s ease;
+}
+.wp-btn-link:hover {
+  color: #1E293B;
+}
+
+/* ── FOOTER ─────────────────────────────────────────────────────────────── */
+.wp-card__footer {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #F1F5F9;
+  text-align: center;
+}
+.wp-privacy-note {
+  display: inline-flex;
+  align-items: center;
+  font-size: .74rem;
+  color: #64748B;
+  line-height: 1.4;
+}
+
+@media (max-width: 600px) {
+  .wp-card {
+    padding: 24px 20px;
+    border-radius: 20px;
+  }
+  .wp-card__title {
+    font-size: 1.25rem;
+  }
 }
 </style>
