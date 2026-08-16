@@ -383,6 +383,14 @@ class HomepageContentSeeder extends Seeder
             ],
             [
                 'section' => 'salma',
+                'key' => 'salma_is_beta',
+                'value' => 'true',
+                'type' => 'boolean',
+                'label' => 'Status AI Versi Beta',
+                'description' => 'Tampilkan badge BETA pada fitur AI Chat dan identitas wajib pajak',
+            ],
+            [
+                'section' => 'salma',
                 'key' => 'salma_cta_text',
                 'value' => 'Mulai Percakapan dengan SALMA',
                 'type' => 'text',

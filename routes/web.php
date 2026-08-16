@@ -153,7 +153,8 @@ Route::get('/lotre-undian', [App\Http\Controllers\LotreController::class, 'index
 // Public chat route (accessible without login for public service) - REQUIRES WAJIB PAJAK DATA
 Route::middleware('ensure.wajib.pajak')->get('/customer-service', function () {
     return Inertia::render('Chat/Index', [
-        'wajibPajakData' => session('wajib_pajak_data')
+        'wajibPajakData' => session('wajib_pajak_data'),
+        'cms' => \App\Models\HomepageContent::getAllGrouped(),
     ]);
 })->name('customer-service');
 

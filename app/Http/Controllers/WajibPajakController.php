@@ -19,7 +19,8 @@ class WajibPajakController extends Controller
 
         return inertia('WajibPajak/Form', [
             'existingData' => $existingData,
-            'canProceedToChat' => !empty($existingData)
+            'canProceedToChat' => !empty($existingData),
+            'cms' => \App\Models\HomepageContent::getAllGrouped(),
         ]);
     }
 

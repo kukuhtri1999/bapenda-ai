@@ -711,7 +711,37 @@ const removeKelilingLocation = (dayIdx, locIdx) => {
           <div v-show="activeTab === 'salma'" class="space-y-6">
             <div class="border-b border-gray-100 pb-3">
               <h3 class="text-base font-bold text-gray-800 mb-0.5">Pengaturan Bagian SALMA AI Showcase</h3>
-              <p class="text-xs text-gray-500 mb-0">Kelola judul, deskripsi, 4 poin fitur, dan foto/GIF maskot SALMA AI.</p>
+              <p class="text-xs text-gray-500 mb-0">Kelola judul, deskripsi, status versi beta, 4 poin fitur, dan foto/GIF maskot SALMA AI.</p>
+            </div>
+
+            <!-- AI Beta Status Switcher -->
+            <div class="p-4 bg-red-50/50 rounded-xl border border-red-200/80 flex items-center justify-between gap-4">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
+                  <VIcon size="22">mdi-robot-excited-outline</VIcon>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-gray-800">Status Versi AI (Beta Mode)</span>
+                    <span v-if="form.salma_is_beta" class="px-2 py-0.5 text-[10px] font-bold bg-red-600 text-white rounded-full">
+                      BETA AKTIF
+                    </span>
+                    <span v-else class="px-2 py-0.5 text-[10px] font-bold bg-emerald-600 text-white rounded-full">
+                      STABLE / PRODUKSI
+                    </span>
+                  </div>
+                  <p class="text-xs text-gray-500 mb-0 mt-0.5">
+                    Jika diaktifkan, label badge "BETA" akan ditampilkan di seluruh halaman AI Chat, identitas wajib pajak, dan profil layanan AI.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" v-model="form.salma_is_beta" class="sr-only peer" />
+                  <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                </label>
+              </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -48,6 +48,8 @@ class CmsController extends Controller
                     $value = $item['value'];
                     if ($content->type === 'json' && is_array($value)) {
                         $value = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    } elseif ($content->type === 'boolean') {
+                        $value = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
                     }
                     $content->update(['value' => $value]);
                 }

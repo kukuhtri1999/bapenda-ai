@@ -50,13 +50,13 @@ defineEmits(['start']);
   padding: 10px 18px 10px 14px;
   border: none;
   border-radius: 50px;
-  background: linear-gradient(135deg, #6c33a0 0%, #9b59d0 100%);
+  background: linear-gradient(135deg, #C0392B 0%, #D32F2F 100%);
   color: #fff;
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow: 0 4px 18px rgba(108, 51, 160, 0.45);
+  box-shadow: 0 4px 18px rgba(192, 57, 43, 0.45);
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease,

@@ -8,8 +8,8 @@
       id="tour-chat-header" class="chat-header"
       :style="{
         background:
-          'linear-gradient(135deg, #A855F7 0%, #9333EA 50%, #7C3AED 100%)',
-        boxShadow: '0 4px 16px rgba(147, 51, 234, 0.35)',
+          'linear-gradient(135deg, #C0392B 0%, #D32F2F 50%, #B03022 100%)',
+        boxShadow: '0 4px 16px rgba(192, 57, 43, 0.35)',
       }"
     >
       <VBtn
@@ -31,8 +31,9 @@
             />
           </div>
           <div>
-            <div class="font-weight-bold">
-              SALMA AI — Asisten Samsat Lamongan
+            <div class="font-weight-bold d-flex align-center gap-2">
+              <span>SALMA AI — Asisten Samsat Lamongan</span>
+              <span v-if="isBeta" class="chat-beta-badge">BETA</span>
             </div>
             <div v-if="props.wajibPajakData" class="text-caption opacity-90">
               {{ props.wajibPajakData.nama }} ({{ props.wajibPajakData.nopol }})
@@ -161,11 +162,11 @@
           <VBtn
             @click="startNewChat"
             :style="{
-              background: 'linear-gradient(135deg, #9B59B6, #7D3C98)',
+              background: 'linear-gradient(135deg, #C0392B, #D32F2F)',
               borderRadius: '20px',
               textTransform: 'none',
               padding: '10px 28px',
-              boxShadow: '0 6px 16px rgba(125, 60, 152, 0.4)',
+              boxShadow: '0 6px 16px rgba(192, 57, 43, 0.4)',
             }"
             color="white"
             class="start-chat-btn text-white font-weight-bold"
@@ -207,9 +208,9 @@
                   <VCard
                     class="user-message pa-3"
                     :style="{
-                      background: 'linear-gradient(135deg, #9B59B6, #7D3C98)',
+                      background: 'linear-gradient(135deg, #C0392B, #D32F2F)',
                       borderRadius: '18px 18px 4px 18px',
-                      boxShadow: '0 3px 10px rgba(125, 60, 152, 0.35)',
+                      boxShadow: '0 3px 10px rgba(192, 57, 43, 0.35)',
                       maxWidth: '100%',
                     }"
                     elevation="0"
@@ -342,12 +343,12 @@
                   @click="() => sendMessage()"
                   :disabled="!currentMessage.trim() || isLoading"
                   :style="{
-                    background: 'linear-gradient(135deg, #9B59B6, #7D3C98)',
+                    background: 'linear-gradient(135deg, #C0392B, #D32F2F)',
                     borderRadius: '50%',
                     minWidth: '48px',
                     width: '48px',
                     height: '48px',
-                    boxShadow: '0 4px 12px rgba(125, 60, 152, 0.35)',
+                    boxShadow: '0 4px 12px rgba(192, 57, 43, 0.35)',
                   }"
                   class="text-white"
                   elevation="0"
@@ -383,7 +384,7 @@
         <div
           class="feedback-popup-header text-center pa-5 pb-3"
           :style="{
-            background: 'linear-gradient(135deg, #A855F7 0%, #9333EA 100%)',
+            background: 'linear-gradient(135deg, #C0392B 0%, #D32F2F 100%)',
             borderRadius: '12px 12px 0 0',
           }"
         >
@@ -423,7 +424,7 @@
             />
             <div
               class="rating-label mt-2 text-body-2 font-weight-medium"
-              :style="{ color: feedbackRating > 0 ? '#9333EA' : '#9e9e9e' }"
+              :style="{ color: feedbackRating > 0 ? '#C0392B' : '#9e9e9e' }"
             >
               {{ getRatingLabel(feedbackRating) }}
             </div>
@@ -440,7 +441,7 @@
             variant="outlined"
             density="compact"
             no-resize
-            :color="'deep-purple'"
+            :color="'primary'"
             hide-details
           />
         </VCardText>
@@ -467,7 +468,7 @@
             :style="{
               background:
                 feedbackRating > 0
-                  ? 'linear-gradient(135deg, #9B59B6, #7D3C98)'
+                  ? 'linear-gradient(135deg, #C0392B, #D32F2F)'
                   : undefined,
               borderRadius: '10px',
             }"
@@ -504,7 +505,7 @@
 import TourButton from '@/Components/TourButton.vue';
 import { useTour } from '@/composables/useTour.js';
 import {
-  ref, onMounted, onBeforeUnmount, nextTick, watch,
+  ref, computed, onMounted, onBeforeUnmount, nextTick, watch,
 } from 'vue';
 import { router, Head } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -516,6 +517,17 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  cms: {
+    type: Object,
+    default: () => ({}),
+  },
+});
+
+const isBeta = computed(() => {
+  if (props.cms && props.cms.salma_is_beta !== undefined) {
+    return Boolean(props.cms.salma_is_beta);
+  }
+  return true;
 });
 
 // Reactive data
@@ -773,7 +785,7 @@ const showFollowUpMessage = async () => {
       id: `followup_${now}`,
       role: 'assistant',
       content:
-        'Ada lagi yang bisa SALMA bantu? <button data-action="end-chat" style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;padding:6px 14px;border-radius:20px;border:1.5px solid #9333EA;background:transparent;color:#9333EA;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;">⛔ Akhiri Chat</button>',
+        'Ada lagi yang bisa SALMA bantu? <button data-action="end-chat" style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;padding:6px 14px;border-radius:20px;border:1.5px solid #C0392B;background:#fef2f2;color:#C0392B;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;">⛔ Akhiri Chat</button>',
       sent_at: new Date().toISOString(),
       type: 'follow_up',
     };
@@ -965,12 +977,12 @@ const formatMessage = async (content) => {
     // Handle Markdown-style links [text](url) first
     .replace(
       /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #7C3AED; text-decoration: underline; font-weight: 500;">$1</a>',
+      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #C0392B; text-decoration: underline; font-weight: 600;">$1</a>',
     )
     // Handle plain URLs (but not those already in HTML tags)
     .replace(
       /(?<!href="|">)(https?:\/\/[^\s<]+)(?![^<]*<\/a>)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #7C3AED; text-decoration: underline;">$1</a>',
+      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #C0392B; text-decoration: underline;">$1</a>',
     )
     // Convert bold text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -1020,12 +1032,12 @@ const getFormattedContent = (message) => {
     // Handle Markdown-style links [text](url)
     .replace(
       /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #7C3AED; text-decoration: underline; font-weight: 500;">$1</a>',
+      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #C0392B; text-decoration: underline; font-weight: 600;">$1</a>',
     )
     // Handle plain URLs (but not those already in HTML tags)
     .replace(
       /(?<!href="|">)(https?:\/\/[^\s<]+)(?![^<]*<\/a>)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #7C3AED; text-decoration: underline;">$1</a>',
+      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #C0392B; text-decoration: underline;">$1</a>',
     )
     // Handle bold text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -1042,7 +1054,7 @@ const getFormattedContent = (message) => {
 };
 
 const getSuggestionColor = (index) => {
-  const colors = ['#E9A5F1', '#C68EFD', '#8F87F1'];
+  const colors = ['#C0392B', '#2980B9', '#27AE60', '#D35400'];
   return colors[index % colors.length];
 };
 
@@ -1259,8 +1271,8 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
   margin: 0 auto;
   border-radius: 50%;
   overflow: hidden;
-  background: linear-gradient(135deg, #f3e8ff, #ede9fe);
-  box-shadow: 0 8px 32px rgba(147, 51, 234, 0.25);
+  background: linear-gradient(135deg, #FEE2E2, #FEF2F2);
+  box-shadow: 0 8px 32px rgba(192, 57, 43, 0.25);
 }
 
 .salma-mascot-img {
@@ -1278,15 +1290,13 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
-  /* background: linear-gradient(135deg, #8f87f1, #c68efd); */
-  border: 2px solid #ede9fe;
+  border: 2px solid #FEE2E2;
 }
 
 .salma-msg-img {
   width: 80px;
   height: 100px;
   object-fit: fill;
-  /* border-radius: 50%; */
   display: block;
 }
 
@@ -1297,15 +1307,13 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
     border-radius: 50%;
     overflow: hidden;
     flex-shrink: 0;
-    /* background: linear-gradient(135deg, #8f87f1, #c68efd); */
-    border: 2px solid #ede9fe;
+    border: 2px solid #FEE2E2;
   }
 
   .salma-msg-img {
-    width: 40 px;
+    width: 40px;
     height: 50px;
     object-fit: fill;
-    /* border-radius: 50%; */
     display: block;
   }
 }
@@ -1329,15 +1337,28 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
   display: block;
 }
 
+.chat-beta-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  background: #ffffff;
+  color: #C0392B;
+  padding: 1px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.05em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
 /* ── Header ─────────────────────────────────────────────────────────── */
 .chat-header {
   backdrop-filter: blur(10px);
-  box-shadow: 0 4px 16px rgba(147, 51, 234, 0.35) !important;
+  box-shadow: 0 4px 16px rgba(192, 57, 43, 0.35) !important;
 }
 
 /* ── Welcome screen ─────────────────────────────────────────────────── */
 .gradient-text {
-  background: linear-gradient(135deg, #9b59b6, #7d3c98);
+  background: linear-gradient(135deg, #C0392B, #962D22);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1350,7 +1371,7 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
 
 .start-chat-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(125, 60, 152, 0.55) !important;
+  box-shadow: 0 8px 24px rgba(192, 57, 43, 0.55) !important;
 }
 
 /* ── Message input ──────────────────────────────────────────────────── */
@@ -1360,8 +1381,8 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
 }
 
 .message-input >>> .v-field:focus-within {
-  border-color: #9333ea !important;
-  box-shadow: 0 0 0 2px rgba(147, 51, 234, 0.18) !important;
+  border-color: #C0392B !important;
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.18) !important;
 }
 
 /* ── Message bubbles ────────────────────────────────────────────────── */
@@ -1443,7 +1464,7 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #9333ea;
+  background-color: #C0392B;
   animation: typing-bounce 1.4s infinite ease-in-out both;
   display: inline-block;
 }
@@ -1485,12 +1506,12 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
 }
 
 .messages-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #9b59b6, #7d3c98);
+  background: linear-gradient(135deg, #C0392B, #D32F2F);
   border-radius: 10px;
 }
 
 .messages-scroll::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #7d3c98, #6c3483);
+  background: linear-gradient(135deg, #A93226, #B03022);
 }
 
 /* ── Feedback dialog ────────────────────────────────────────────────── */

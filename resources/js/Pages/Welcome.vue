@@ -160,6 +160,7 @@ const salmaFeatures = computed(() => getCms('salma_features', [
 ]));
 const salmaMascotImage = computed(() => getCms('salma_mascot_image', '/images/salma2.gif'));
 const salmaCtaText = computed(() => getCms('salma_cta_text', 'Mulai Percakapan dengan SALMA'));
+const salmaIsBeta = computed(() => getCms('salma_is_beta', true));
 
 // ── Pembayaran Digital (Dynamic via CMS) ─────────────────────────────────────
 const paymentBadge = computed(() => getCms('payment_badge', 'E-Samsat'));
@@ -704,6 +705,7 @@ onUnmounted(() => {
               <div class="salma-badge">
                 <VIcon size="16" class="me-1">mdi-chat-processing</VIcon>
                 {{ salmaBadge }}
+                <span v-if="salmaIsBeta" class="ms-1.5 px-2 py-0.5 text-[10px] font-extrabold bg-[#C0392B] text-white rounded-full">BETA</span>
               </div>
               <h2 class="salma-title">{{ salmaTitle }}</h2>
               <p class="salma-full-name">{{ salmaFullName }}</p>

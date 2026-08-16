@@ -52,13 +52,13 @@
   margin-bottom: 12px !important;
 }
 .salma-tooltip .introjs-progressbar {
-  background: linear-gradient(90deg, #6c33a0, #9b59d0) !important;
+  background: linear-gradient(90deg, #C0392B, #D32F2F) !important;
   border-radius: 10px !important;
 }
 
 /* Buttons */
 .salma-tour-btn.introjs-button {
-  background: linear-gradient(135deg, #6c33a0, #9b59d0) !important;
+  background: linear-gradient(135deg, #C0392B, #D32F2F) !important;
   color: #fff !important;
   border: none !important;
   border-radius: 8px !important;
@@ -97,9 +97,9 @@
 /* Highlight ring */
 .salma-highlight.introjs-helperLayer {
   box-shadow:
-    0 0 0 4px rgba(108, 51, 160, 0.25),
-    0 0 0 9999px rgba(15, 10, 35, 0.55) !important;
-  border-radius: 10px !important;
+    0 0 0 4px rgba(192, 57, 43, 0.25),
+    0 0 0 5000px rgba(15, 10, 35, 0.55) !important;
+  border-radius: 16px !important;
 }
 
 /* Arrow */

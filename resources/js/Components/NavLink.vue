@@ -8,8 +8,8 @@ const props = defineProps({
 });
 
 const classes = computed(() => (props.active
-  ? 'inline-flex bg-greenlight items-center p-1 pl-2 border-r-4 border-solid border-primary text-sm font-medium leading-5 text-primary focus:outline-none focus:border-primary-600 transition duration-150 ease-in-out'
-  : 'inline-flex items-center p-1 pl-2 border-primary text-sm font-medium leading-5 text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none focus:text-gray-700 focus:border-gray-300 transition duration-150 ease-in-out'));
+  ? 'inline-flex bg-red-50 items-center p-1 pl-2 border-r-4 border-solid border-primary text-sm font-semibold leading-5 text-red-700 focus:outline-none focus:border-red-700 transition duration-150 ease-in-out'
+  : 'inline-flex items-center p-1 pl-2 border-transparent text-sm font-medium leading-5 text-gray-600 hover:text-gray-900 hover:bg-gray-50 focus:outline-none focus:text-gray-900 transition duration-150 ease-in-out'));
 </script>
 
 <template>
@@ -19,6 +19,6 @@ const classes = computed(() => (props.active
 </template>
 <style>
 .border-primary {
-  border-color: #1261e0;
+  border-color: #C0392B !important;
 }
 </style>

@@ -750,8 +750,8 @@ const { startTour } = useTour(chSteps);
 }
 
 .ch-input:focus {
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.08);
+  border-color: #C0392B;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.08);
 }
 
 .ch-btn-outline {
@@ -772,9 +772,9 @@ const { startTour } = useTour(chSteps);
 }
 
 .ch-btn-outline:hover {
-  border-color: #7c3aed;
-  color: #7c3aed;
-  background: #faf5ff;
+  border-color: #C0392B;
+  color: #C0392B;
+  background: #fef2f2;
 }
 
 /* ── Table Card ───────────────────────────────────────────── */
@@ -806,7 +806,7 @@ const { startTour } = useTour(chSteps);
   width: 30px;
   height: 30px;
   animation: spin 0.8s linear infinite;
-  color: #7c3aed;
+  color: #C0392B;
 }
 
 @keyframes spin {
@@ -869,7 +869,7 @@ const { startTour } = useTour(chSteps);
   border-bottom: none;
 }
 .ch-row:hover {
-  background: #faf5ff;
+  background: #fef2f2;
 }
 
 .td-id {
@@ -934,9 +934,9 @@ const { startTour } = useTour(chSteps);
 .rt-badge {
   display: inline-block;
   padding: 2px 8px;
-  background: #f0f9ff;
-  color: #0369a1;
-  border: 1px solid #bae6fd;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
   border-radius: 20px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -999,9 +999,9 @@ const { startTour } = useTour(chSteps);
 }
 
 .ch-page-btn:hover:not(:disabled) {
-  border-color: #7c3aed;
-  color: #7c3aed;
-  background: #faf5ff;
+  border-color: #C0392B;
+  color: #C0392B;
+  background: #fef2f2;
 }
 
 .ch-page-btn:disabled {
@@ -1115,7 +1115,7 @@ const { startTour } = useTour(chSteps);
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #6c33a0, #c68efd);
+  background: linear-gradient(135deg, #C0392B, #D32F2F);
   color: #fff;
   display: flex;
   align-items: center;
@@ -1188,8 +1188,8 @@ const { startTour } = useTour(chSteps);
   color: #b91c1c;
 }
 .dlg-chip--topic {
-  background: #ede9fe;
-  color: #5b21b6;
+  background: #fee2e2;
+  color: #991b1b;
 }
 .dlg-chip--time {
   background: #e0f2fe;
@@ -1217,10 +1217,10 @@ const { startTour } = useTour(chSteps);
 }
 
 .dlg-panel--user {
-  border-color: #c7d2fe;
+  border-color: #fecaca;
 }
 .dlg-panel--ai {
-  border-color: #ddd6fe;
+  border-color: #fed7aa;
 }
 
 .dlg-panel-label {
@@ -1235,12 +1235,12 @@ const { startTour } = useTour(chSteps);
 }
 
 .dlg-panel--user .dlg-panel-label {
-  background: #eef2ff;
-  color: #4338ca;
+  background: #fef2f2;
+  color: #991b1b;
 }
 .dlg-panel--ai .dlg-panel-label {
-  background: #ede9fe;
-  color: #6c33a0;
+  background: #fff7ed;
+  color: #c2410c;
 }
 
 .dlg-panel-body {

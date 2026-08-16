@@ -379,7 +379,7 @@ const { startTour } = useTour(dashSteps);
 
 /* ── Hero Banner ──────────────────────────────────────────── */
 .dash-hero {
-  background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 50%, #9333ea 100%);
+  background: linear-gradient(135deg, #1B2838 0%, #C0392B 100%);
   border-radius: 16px;
   padding: 28px 32px;
   display: flex;
@@ -424,7 +424,7 @@ const { startTour } = useTour(dashSteps);
   font-weight: 600 !important;
   text-transform: none !important;
   border-radius: 8px !important;
-  color: #7c3aed !important;
+  color: #C0392B !important;
   white-space: nowrap;
 }
 
@@ -487,7 +487,7 @@ const { startTour } = useTour(dashSteps);
 
 /* ── Icon Color Variants ──────────────────────────────────── */
 .mc-purple {
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: linear-gradient(135deg, #C0392B, #E74C3C);
 }
 .mc-blue {
   background: linear-gradient(135deg, #2563eb, #3b82f6);
@@ -553,7 +553,7 @@ const { startTour } = useTour(dashSteps);
 
 .action-card:hover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  border-color: #c4b5fd;
+  border-color: #fca5a5;
   transform: translateY(-3px);
 }
 
@@ -569,7 +569,7 @@ const { startTour } = useTour(dashSteps);
 
 .ac-primary,
 .ac-green {
-  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  background: linear-gradient(135deg, #C0392B, #E74C3C);
 }
 .ac-blue {
   background: linear-gradient(135deg, #2563eb, #3b82f6);
@@ -629,7 +629,7 @@ const { startTour } = useTour(dashSteps);
 .info-card-link {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #7c3aed;
+  color: #C0392B;
   text-decoration: none;
 }
 

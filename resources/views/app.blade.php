@@ -8,7 +8,7 @@
 
     <!-- ── PWA Core ──────────────────────────────────────────────────────── -->
     <link rel="manifest" href="/build/manifest.webmanifest">
-    <meta name="theme-color" content="#6C33A0">
+    <meta name="theme-color" content="#C0392B">
     <meta name="mobile-web-app-capable" content="yes">
 
     <!-- ── PWA iOS (Safari) ────────────────────────────────────────────── -->
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png">
     <link rel="icon" type="image/x-icon" href="{{ asset(env('APP_ICON')) }}">
     <meta name="msapplication-TileImage" content="/icons/icon-144x144.png">
-    <meta name="msapplication-TileColor" content="#6C33A0">
+    <meta name="msapplication-TileColor" content="#C0392B">
     <meta name="msapplication-tap-highlight" content="no">
 
     <!-- ── SEO / Social ────────────────────────────────────────────────── -->

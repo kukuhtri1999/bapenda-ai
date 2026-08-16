@@ -175,14 +175,9 @@ function handleDismiss() {
 /* ── Wrapper ──────────────────────────────────────────────────────────────── */
 .pwa-install-wrapper {
   position: fixed;
-  bottom: 108px; /* sit above floating chat button */
-  right: 20px;
-  z-index: 2000;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-  max-width: 320px;
+  bottom: 24px;
+  left: 24px;
+  z-index: 9990;
 }
 
 /* ── Collapsed pill ──────────────────────────────────────────────────────── */
@@ -190,13 +185,13 @@ function handleDismiss() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: linear-gradient(135deg, #6c33a0 0%, #9b59b6 100%);
+  background: linear-gradient(135deg, #C0392B 0%, #D32F2F 100%);
   color: #fff;
   border: none;
   border-radius: 50px;
   padding: 8px 14px 8px 8px;
   cursor: pointer;
-  box-shadow: 0 4px 18px rgba(108, 51, 160, 0.45);
+  box-shadow: 0 4px 18px rgba(192, 57, 43, 0.45);
   font-family: 'Poppins', sans-serif;
   font-size: 12.5px;
   font-weight: 600;
@@ -208,7 +203,7 @@ function handleDismiss() {
 }
 .pwa-pill:hover {
   transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 6px 24px rgba(108, 51, 160, 0.55);
+  box-shadow: 0 6px 24px rgba(192, 57, 43, 0.55);
 }
 .pwa-pill:active {
   transform: scale(0.97);
@@ -242,7 +237,7 @@ function handleDismiss() {
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
   padding: 18px 16px 16px;
   position: relative;
-  border: 1px solid rgba(108, 51, 160, 0.12);
+  border: 1px solid rgba(192, 57, 43, 0.15);
 }
 .pwa-close-btn {
   position: absolute;
@@ -326,7 +321,7 @@ function handleDismiss() {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  background: linear-gradient(135deg, #6c33a0 0%, #9b59b6 100%);
+  background: linear-gradient(135deg, #C0392B 0%, #D32F2F 100%);
   color: #fff;
   border: none;
   border-radius: 12px;

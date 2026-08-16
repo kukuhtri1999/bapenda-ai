@@ -13,6 +13,17 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  cms: {
+    type: Object,
+    default: () => ({}),
+  },
+});
+
+const isBeta = computed(() => {
+  if (props.cms && props.cms.salma_is_beta !== undefined) {
+    return Boolean(props.cms.salma_is_beta);
+  }
+  return true;
 });
 
 const logoUrl = import.meta.env.VITE_APP_LOGO;
@@ -203,7 +214,10 @@ const { startTour } = useTour(formSteps);
                 Data Diperlukan untuk Akses Chat
               </div>
 
-              <h1 class="wp-card__title">Layanan Chat SALMA AI</h1>
+              <h1 class="wp-card__title">
+                Layanan Chat SALMA AI
+                <span v-if="isBeta" class="wp-beta-chip">BETA</span>
+              </h1>
               <p class="wp-card__subtitle">
                 Samsat Lamongan Modern Assistant • Siap Melayani 24/7
               </p>
@@ -494,8 +508,25 @@ const { startTour } = useTour(formSteps);
   font-size: 1.45rem;
   font-weight: 800;
   color: #1B2838;
-  line-height: 1.25;
+  letter-spacing: -.02em;
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wp-beta-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: .65rem;
+  font-weight: 800;
+  background: #C0392B;
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 12px;
+  letter-spacing: .05em;
+  vertical-align: middle;
 }
 .wp-card__subtitle {
   font-size: .82rem;

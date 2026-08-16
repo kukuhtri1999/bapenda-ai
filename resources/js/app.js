@@ -44,14 +44,14 @@ const vuetify = createVuetify({
     themes: {
       light: {
         colors: {
-          primary: '#1261e0', // Primary color
-          secondary: '#8863f9', // Secondary color
-          accent: '#1261e0', // Accent color
+          primary: '#C0392B', // Government Crimson Red Primary
+          secondary: '#1B2838', // Government Navy
+          accent: '#D32F2F', // Accent color
           error: '#FF5252', // Error color
           info: '#2196F3', // Info color
-          success: '#1261e0', // Success color
-          warning: '#FFC107', // Warning color}
-          greenlight: '#ddfff0',
+          success: '#27AE60', // Success color
+          warning: '#F39C12', // Warning color
+          greenlight: '#FEF2F2',
         },
       },
     },
