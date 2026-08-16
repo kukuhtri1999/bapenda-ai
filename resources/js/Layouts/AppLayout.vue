@@ -84,18 +84,18 @@ const navLinks = ref([
     value: 'admin.cms.index',
     href: route('admin.cms.index'),
   },
-  {
-    icon: 'mdi-gift',
-    title: 'Lotre - Pengaturan',
-    value: 'admin.lotre.settings',
-    href: route('admin.lotre.settings'),
-  },
-  {
-    icon: 'mdi-file-upload',
-    title: 'Lotre - Import Data',
-    value: 'admin.lotre.import',
-    href: route('admin.lotre.import'),
-  },
+  // {
+  //   icon: 'mdi-gift',
+  //   title: 'Lotre - Pengaturan',
+  //   value: 'admin.lotre.settings',
+  //   href: route('admin.lotre.settings'),
+  // },
+  // {
+  //   icon: 'mdi-file-upload',
+  //   title: 'Lotre - Import Data',
+  //   value: 'admin.lotre.import',
+  //   href: route('admin.lotre.import'),
+  // },
 ]);
 
 watchEffect(() => {
