@@ -16,6 +16,28 @@
   backdrop-filter: blur(3px) !important;
 }
 
+[type='text']:focus,
+input:where(:not([type])):focus,
+[type='email']:focus,
+[type='url']:focus,
+[type='password']:focus,
+[type='number']:focus,
+[type='date']:focus,
+[type='datetime-local']:focus,
+[type='month']:focus,
+[type='search']:focus,
+[type='tel']:focus,
+[type='time']:focus,
+[type='week']:focus,
+[multiple]:focus,
+textarea:focus,
+select:focus {
+  border: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+}
+
 /* Tooltip box */
 .salma-tooltip.introjs-tooltip {
   background: #ffffff !important;
@@ -51,6 +73,7 @@
   height: 4px !important;
   margin-bottom: 12px !important;
 }
+
 .salma-tooltip .introjs-progressbar {
   background: linear-gradient(90deg, #C0392B, #D32F2F) !important;
   border-radius: 10px !important;
@@ -70,13 +93,16 @@
   transition: opacity 0.15s !important;
   text-shadow: none !important;
 }
+
 .salma-tour-btn.introjs-button:hover {
   opacity: 0.88 !important;
 }
+
 .salma-tour-btn.introjs-prevbutton {
   background: #f1f5f9 !important;
   color: #64748b !important;
 }
+
 .salma-tour-btn.introjs-skipbutton {
   background: transparent !important;
   color: #94a3b8 !important;
@@ -85,9 +111,11 @@
   box-shadow: none !important;
   padding: 4px 8px !important;
 }
+
 .salma-tour-btn.introjs-skipbutton:hover {
   color: #ef4444 !important;
 }
+
 .salma-tour-btn.introjs-disabled {
   background: #e2e8f0 !important;
   color: #94a3b8 !important;
@@ -141,4 +169,3 @@
   pointer-events: none !important;
   z-index: -9999 !important;
 }
-
