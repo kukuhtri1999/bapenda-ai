@@ -384,6 +384,32 @@
               </div>
             </div>
 
+            <!-- Retrieved Knowledge Base Context Chunks -->
+            <div v-if="inspectModal.item.retrieved_knowledge && inspectModal.item.retrieved_knowledge.length > 0">
+              <div class="text-caption font-weight-bold text-medium-emphasis mb-1">
+                DOKUMEN KNOWLEDGE BASE YANG DITARIK (CONTEXT)
+              </div>
+              <div class="d-flex flex-column gap-2">
+                <div
+                  v-for="(doc, dIdx) in inspectModal.item.retrieved_knowledge"
+                  :key="dIdx"
+                  class="pa-2 px-3 rounded-lg border bg-grey-lighten-5"
+                >
+                  <div class="d-flex justify-space-between align-center mb-1">
+                    <span class="font-weight-medium text-caption text-primary">
+                      {{ doc.title }}
+                    </span>
+                    <VChip size="x-small" color="secondary" variant="tonal">
+                      Score: {{ doc.score }}
+                    </VChip>
+                  </div>
+                  <div class="text-caption text-medium-emphasis text-truncate">
+                    {{ doc.snippet }}...
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <VRow dense>
               <VCol cols="4">
                 <div class="pa-3 rounded-lg border text-center">

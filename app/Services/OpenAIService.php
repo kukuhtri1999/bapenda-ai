@@ -964,12 +964,15 @@ REQUIREMENTS:
             }
 
             $result = [
-                'success'        => true,
-                'message'        => $answerText,
-                'usage'          => $normUsage,
-                'knowledge_used' => count($relevantKnowledge),
-                'cached'         => false,
-                'model_used'     => $selectedModel
+                'success'            => true,
+                'message'            => $answerText,
+                'usage'              => $normUsage,
+                'knowledge_used'     => count($relevantKnowledge),
+                'relevant_knowledge' => $relevantKnowledge,
+                'context_data'       => $fullContext,
+                'corrections'        => $corrections,
+                'cached'             => false,
+                'model_used'         => $selectedModel
             ];
 
             // ── Cache Result for Zero-Latency & Zero-Cost Repeated Requests ───
