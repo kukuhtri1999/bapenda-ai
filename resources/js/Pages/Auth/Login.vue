@@ -12,6 +12,7 @@ const form = useForm({
   email: '',
   password: '',
   remember: false,
+  website_verification: '', // Invisible honeypot field to catch automated bots
 });
 
 const showPassword = ref(false);
@@ -55,6 +56,10 @@ const submit = () => {
 
       <!-- Login Form -->
       <form @submit.prevent="submit" class="login-form">
+        <!-- Invisible Honeypot Field for Bot Detection -->
+        <div style="position: absolute; left: -9999px; top: -9999px; opacity: 0; pointer-events: none; width: 0; height: 0; overflow: hidden;" aria-hidden="true">
+          <input type="text" name="website_verification" v-model="form.website_verification" tabindex="-1" autocomplete="off" />
+        </div>
         <!-- Email Field -->
         <div class="form-group">
           <VTextField

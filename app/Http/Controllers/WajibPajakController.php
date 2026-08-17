@@ -29,6 +29,15 @@ class WajibPajakController extends Controller
      */
     public function startChatSession(Request $request)
     {
+        // ── 1. Honeypot check: reject automated spambots filling hidden field ──
+        if (!empty($request->input('website_verification'))) {
+            Log::warning('Honeypot caught bot spam on Wajib Pajak submission from IP: ' . $request->ip());
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi keamanan formulir gagal.',
+            ], 422);
+        }
+
         $validator = Validator::make($request->all(), [
             'nama' => 'required|string|max:255',
             'nopol' => [

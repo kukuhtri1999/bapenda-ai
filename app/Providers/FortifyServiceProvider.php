@@ -33,6 +33,41 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
 
+        // Custom Login View supporting Obfuscated URL & Honeypot
+        Fortify::loginView(function () {
+            $customPath = config('auth.custom_login_path');
+            if (!empty($customPath) && $customPath !== 'login' && request()->path() === 'login') {
+                abort(404);
+            }
+
+            return inertia('Auth/Login', [
+                'canResetPassword' => \Illuminate\Support\Facades\Route::has('password.request'),
+                'status' => session('status'),
+            ]);
+        });
+
+        // Hardened Authenticate with Honeypot Anti-Bot & Account Status Check
+        Fortify::authenticateUsing(function (Request $request) {
+            // 1. Honeypot check: instantly reject automated bots
+            if (!empty($request->input('website_verification'))) {
+                \Illuminate\Support\Facades\Log::warning('Honeypot caught bot login attempt from IP: ' . $request->ip());
+                return null;
+            }
+
+            $user = \App\Models\User::where('email', $request->email)->first();
+
+            if ($user && \Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
+                // 2. Active status check
+                if (isset($user->is_active) && !$user->is_active) {
+                    \Illuminate\Support\Facades\Log::warning('Inactive account login attempt: ' . $request->email);
+                    return null;
+                }
+                return $user;
+            }
+
+            return null;
+        });
+
         RateLimiter::for('login', function (Request $request) {
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
 

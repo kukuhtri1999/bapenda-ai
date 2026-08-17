@@ -38,6 +38,7 @@ const form = ref({
   nama: props.existingData?.nama || '',
   nopol: props.existingData?.nopol || '',
   nomer_wa: props.existingData?.nomer_wa || '',
+  website_verification: '', // Invisible honeypot field
 });
 
 const formRef = ref(null);
@@ -259,6 +260,11 @@ const { startTour } = useTour(formSteps);
 
             <!-- Input Form -->
             <form v-else @submit.prevent="startChatSession" class="wp-form">
+              <!-- Invisible Honeypot Anti-Bot Field -->
+              <div style="position: absolute; left: -9999px; top: -9999px; opacity: 0; pointer-events: none; width: 0; height: 0; overflow: hidden;" aria-hidden="true">
+                <input type="text" name="website_verification" v-model="form.website_verification" tabindex="-1" autocomplete="off" />
+              </div>
+
               <div class="wp-input-group">
                 <label for="tour-wp-nama" class="wp-label">
                   Nama Lengkap <span class="text-red-500">*</span>

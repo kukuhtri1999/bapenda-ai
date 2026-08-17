@@ -24,6 +24,17 @@ Route::get('/', function () {
     ]);
 });
 
+// Custom Login Route (Active when ADMIN_LOGIN_PATH is set in .env)
+$customLoginPath = config('auth.custom_login_path');
+if (!empty($customLoginPath) && $customLoginPath !== 'login') {
+    Route::get('/' . $customLoginPath, function () {
+        return Inertia::render('Auth/Login', [
+            'canResetPassword' => Route::has('password.request'),
+            'status' => session('status'),
+        ]);
+    })->middleware(['guest'])->name('custom.login');
+}
+
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
@@ -169,3 +180,12 @@ Route::middleware('secret.photo.access')->group(function () {
     Route::get('/edit-foto/download', [PhotoEditingController::class, 'downloadAll'])->name('photo.download');
     Route::delete('/edit-foto/photos/{id}', [PhotoEditingController::class, 'deletePhoto'])->name('photo.delete');
 });
+
+// Fast CSRF token refresh endpoint for Axios / SPA / PWA auto-healing
+Route::get('/refresh-csrf', function () {
+    return response()->json([
+        'success' => true,
+        'csrf_token' => csrf_token(),
+    ]);
+})->name('refresh-csrf');
+

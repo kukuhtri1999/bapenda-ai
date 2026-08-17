@@ -20,6 +20,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Custom Admin Login Path (Obfuscation against Brute Force Bots)
+    |--------------------------------------------------------------------------
+    | Set this in .env (e.g. ADMIN_LOGIN_PATH=portal-samsat-auth-8x9q)
+    | If set, /login returns 404 and only the custom path renders the login page.
+    */
+    'custom_login_path' => env('ADMIN_LOGIN_PATH', null),
+
+    /*
+    |--------------------------------------------------------------------------
     | Authentication Guards
     |--------------------------------------------------------------------------
     |
