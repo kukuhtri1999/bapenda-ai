@@ -1,8 +1,14 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
 import { router, Head } from '@inertiajs/vue3';
 import FloatingChat from '@/Components/FloatingChat.vue';
 import PwaInstallButton from '@/Components/PwaInstallButton.vue';
+import lightGallery from 'lightgallery';
+import lgThumbnail from 'lightgallery/plugins/thumbnail';
+import lgZoom from 'lightgallery/plugins/zoom';
+import 'lightgallery/css/lightgallery.css';
+import 'lightgallery/css/lg-thumbnail.css';
+import 'lightgallery/css/lg-zoom.css';
 
 const props = defineProps({
   canLogin: { type: Boolean },
@@ -23,6 +29,29 @@ const getCms = (key, fallback) => {
     ? props.cms[key]
     : fallback;
 };
+
+// ── Pemutihan / Pembebasan Pajak (Dynamic via CMS) ───────────────────────────
+const pemutihanIsActive = computed(() => {
+  const val = getCms('pemutihan_is_active', true);
+  return val === true || val === 'true' || val === 1 || val === '1';
+});
+const pemutihanAnnouncementText = computed(() => getCms('pemutihan_announcement_text', '📢 Kabar Gembira! Program Pemutihan & Pembebasan Pajak Daerah Provinsi Jawa Timur Sedang Berlangsung. Klik di sini untuk info selengkapnya.'));
+const pemutihanBadge = computed(() => getCms('pemutihan_badge', 'Program Resmi Bapenda Jatim'));
+const pemutihanTitle = computed(() => getCms('pemutihan_title', 'Program Pemutihan & Pembebasan'));
+const pemutihanTitleHighlight = computed(() => getCms('pemutihan_title_highlight', 'Pajak Daerah Jawa Timur'));
+const pemutihanDesc = computed(() => getCms('pemutihan_desc', '<p>Pemerintah Provinsi Jawa Timur melalui Badan Pendapatan Daerah (Bapenda) kembali menghadirkan <strong>Program Pemutihan & Pembebasan Pajak Daerah</strong> bagi seluruh masyarakat Jawa Timur dan Kabupaten Lamongan.</p><ul><li><strong>Bebas Bea Balik Nama (BBNKB II dst):</strong> Bebas 100% biaya balik nama kendaraan bermotor roda 2 maupun roda 4.</li><li><strong>Bebas Sanksi Administratif PKB & BBNKB:</strong> Penghapusan denda keterlambatan pembayaran Pajak Kendaraan Bermotor.</li><li><strong>Bebas Denda SWDKLLJ:</strong> Pembebasan denda Sumbangan Wajib Dana Kecelakaan Lalu Lintas Jalan tahun-tahun sebelumnya.</li></ul><p>Manfaatkan kesempatan emas ini di seluruh kantor KB Samsat Lamongan, Samsat Drive-Thru, Samsat Keliling, maupun melalui aplikasi pembayaran digital resmi.</p>'));
+const pemutihanGalleryImages = computed(() => getCms('pemutihan_gallery_images', [
+  {
+    url: '/images/cms/pemutihan-1.jpg',
+    title: 'Brosur Resmi Pemutihan Pajak Daerah Jawa Timur',
+    caption: 'Bebas BBN II & Bebas Denda Pajak Kendaraan Bermotor Bapenda Jatim',
+  },
+  {
+    url: '/images/cms/pemutihan-2.jpg',
+    title: 'Panduan & Rincian Pembebasan Sanksi Administrasi',
+    caption: 'Langkah mudah pendaftaran online dan validasi STNK di Samsat Lamongan',
+  },
+]));
 
 // ── Hero Section (Dynamic via CMS) ───────────────────────────────────────────
 const heroBadge = computed(() => getCms('hero_badge', 'Pelayanan Publik Resmi'));
@@ -229,14 +258,22 @@ const footerSocialLinks = computed(() => getCms('footer_social_links', [
 const footerCopyrightText = computed(() => getCms('footer_copyright_text', '© 2026 KB Samsat Lamongan — Bapenda Provinsi Jawa Timur. All rights reserved.'));
 
 // ── Navigation & Actions ─────────────────────────────────────────────────────
-const navLinks = [
-  { label: 'Beranda', target: 'hero' },
-  { label: 'Layanan', target: 'layanan' },
-  { label: 'Jadwal & Lokasi', target: 'jadwal' },
-  { label: 'SALMA AI', target: 'salma' },
-  { label: 'Pembayaran', target: 'pembayaran' },
-  { label: 'Kontak', target: 'kontak' },
-];
+const navLinks = computed(() => {
+  const links = [
+    { label: 'Beranda', target: 'hero' },
+  ];
+  if (pemutihanIsActive.value) {
+    links.push({ label: 'Pemutihan', target: 'pemutihan' });
+  }
+  links.push(
+    { label: 'Layanan', target: 'layanan' },
+    { label: 'Jadwal & Lokasi', target: 'jadwal' },
+    { label: 'SALMA AI', target: 'salma' },
+    { label: 'Pembayaran', target: 'pembayaran' },
+    { label: 'Kontak', target: 'kontak' },
+  );
+  return links;
+});
 
 const scrollTo = (id) => {
   mobileMenu.value = false;
@@ -251,6 +288,34 @@ const scrollTo = (id) => {
 const startChat = () => {
   router.visit('/wajib-pajak');
 };
+
+// ── LightGallery Lifecycle & Init ────────────────────────────────────────────
+let lgInstance = null;
+const initLightGallery = () => {
+  nextTick(() => {
+    const el = document.getElementById('pemutihan-lightgallery');
+    if (el) {
+      if (lgInstance) {
+        try { lgInstance.destroy(); } catch (e) {}
+      }
+      lgInstance = lightGallery(el, {
+        plugins: [lgThumbnail, lgZoom],
+        speed: 500,
+        download: false,
+        selector: '.pemutihan-gallery-card',
+        mobileSettings: {
+          controls: true,
+          showCloseIcon: true,
+          download: false,
+        },
+      });
+    }
+  });
+};
+
+watch(pemutihanGalleryImages, () => {
+  initLightGallery();
+}, { deep: true });
 
 // ── Today's schedule highlight ───────────────────────────────────────────────
 const todayDayIndex = new Date().getDay();
@@ -271,11 +336,17 @@ onMounted(() => {
     navSolid.value = window.scrollY > 80;
   };
   window.addEventListener('scroll', scrollHandler, { passive: true });
+
+  // Init LightGallery
+  initLightGallery();
 });
 
 onUnmounted(() => {
   clearInterval(slideInterval);
   if (scrollHandler) window.removeEventListener('scroll', scrollHandler);
+  if (lgInstance) {
+    try { lgInstance.destroy(); } catch (e) {}
+  }
 });
 </script>
 
@@ -283,37 +354,98 @@ onUnmounted(() => {
   <VApp>
     <Head title="KB Samsat Lamongan — Pelayanan Publik Pajak Kendaraan Bermotor" />
 
+    <!-- ═══ TOP ANNOUNCEMENT BAR (PEMUTIHAN) ═══ -->
+    <div
+      v-if="pemutihanIsActive"
+      class="gov-announcement-bar"
+      @click="scrollTo('pemutihan')"
+      role="button"
+      tabindex="0"
+      title="Klik untuk melihat detail Program Pemutihan Pajak"
+    >
+      <div class="gov-announcement-bar__inner">
+        <div class="gov-announcement-bar__content">
+          <span class="gov-announcement-bar__badge d-none d-sm-inline-flex">
+            <VIcon size="12" class="me-1">mdi-bullhorn-outline</VIcon>
+            INFO RESMI
+          </span>
+          <VIcon size="13" color="white" class="me-1.5 d-sm-none flex-shrink-0">mdi-bullhorn-outline</VIcon>
+          <span class="gov-announcement-bar__text">
+            {{ pemutihanAnnouncementText }}
+          </span>
+        </div>
+        <div class="gov-announcement-bar__action d-none d-md-inline-flex">
+          <span>Lihat Detail Program</span>
+          <VIcon size="14" class="gov-announcement-bar__arrow">mdi-arrow-right</VIcon>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══ STICKY NAVBAR ═══ -->
-    <header class="gov-navbar" :class="{ 'gov-navbar--solid': navSolid }">
+    <header
+      class="gov-navbar"
+      :class="{
+        'gov-navbar--solid': navSolid,
+        'gov-navbar--with-bar': pemutihanIsActive
+      }"
+    >
       <div class="gov-navbar__inner">
-        <!-- Logo cluster -->
+        <!-- Logo cluster (all 4 logos preserved) -->
         <div class="gov-navbar__brand" @click="scrollTo('hero')">
-          <VImg :src="logoUrl" alt="Logo Bapenda" contain width="34" height="34" class="me-2" />
-          <VImg src="/images/logo-jatim.png" alt="Jawa Timur" contain width="34" height="34" class="me-2 d-none d-sm-block" />
-          <VImg src="/images/Lambang_Polda_Jatim.png" alt="Polri" contain width="34" height="34" class="me-2 d-none d-md-block" />
-          <VImg src="/images/jasa-raharja.png" alt="Jasa Raharja" contain width="34" height="34" class="me-2 d-none d-md-block" />
+          <div class="gov-navbar__logos d-flex align-center">
+            <VImg :src="logoUrl" alt="Logo Bapenda" contain width="30" height="30" class="me-1.5 flex-shrink-0" />
+            <VImg src="/images/logo-jatim.png" alt="Jawa Timur" contain width="30" height="30" class="me-1.5 d-none d-sm-block flex-shrink-0" />
+            <VImg src="/images/Lambang_Polda_Jatim.png" alt="Polri" contain width="30" height="30" class="me-1.5 d-none d-md-block flex-shrink-0" />
+            <VImg src="/images/jasa-raharja.png" alt="Jasa Raharja" contain width="30" height="30" class="me-2 d-none d-md-block flex-shrink-0" />
+          </div>
           <div class="gov-navbar__title">
             <span class="gov-navbar__name">KB Samsat Lamongan</span>
-            <span class="gov-navbar__sub d-none d-md-block">Bapenda Provinsi Jawa Timur</span>
+            <span class="gov-navbar__sub d-none d-xl-block">Bapenda Provinsi Jawa Timur</span>
           </div>
         </div>
 
-        <!-- Desktop Nav Links -->
+        <!-- Desktop Nav Links (Compact with white-space: nowrap) -->
         <nav class="gov-navbar__links d-none d-lg-flex">
-          <a v-for="link in navLinks" :key="link.target" @click.prevent="scrollTo(link.target)" class="gov-navbar__link">
+          <a
+            v-for="link in navLinks"
+            :key="link.target"
+            @click.prevent="scrollTo(link.target)"
+            class="gov-navbar__link"
+          >
             {{ link.label }}
           </a>
         </nav>
 
         <!-- CTA + Mobile toggle -->
         <div class="gov-navbar__actions">
-          <VBtn v-if="$page.props.auth?.user" color="white" variant="outlined" size="small" class="me-2 d-none d-sm-flex" :href="route('dashboard')">Dashboard</VBtn>
-          <VBtn color="#C0392B" variant="flat" size="small" class="gov-navbar__cta" @click="startChat">
-            <VIcon size="18" class="me-1">mdi-chat-processing</VIcon>
+          <VBtn
+            v-if="$page.props.auth?.user"
+            color="white"
+            variant="outlined"
+            size="small"
+            class="gov-navbar__dash-btn me-2 d-none d-sm-flex"
+            :href="route('dashboard')"
+          >
+            Dashboard
+          </VBtn>
+          <VBtn
+            color="#C0392B"
+            variant="flat"
+            size="small"
+            class="gov-navbar__cta"
+            @click="startChat"
+          >
+            <VIcon size="16" class="me-1">mdi-chat-processing</VIcon>
             <span class="d-none d-sm-inline">Tanya SALMA</span>
             <span class="d-sm-none">Chat</span>
           </VBtn>
-          <VBtn icon variant="text" color="white" class="d-lg-none ms-1" @click="mobileMenu = !mobileMenu">
+          <VBtn
+            icon
+            variant="text"
+            color="white"
+            class="d-lg-none ms-1"
+            @click="mobileMenu = !mobileMenu"
+          >
             <VIcon>{{ mobileMenu ? 'mdi-close' : 'mdi-menu' }}</VIcon>
           </VBtn>
         </div>
@@ -396,7 +528,82 @@ onUnmounted(() => {
         <div class="hero-slider__clip"></div>
       </section>
 
-      <!-- ═══ SECTION 2: LAYANAN UNGGULAN ═══ -->
+      <!-- ═══ SECTION 2: PEMUTIHAN & PEMBEBASAN PAJAK ═══ -->
+      <section v-if="pemutihanIsActive" id="pemutihan" class="section-pemutihan">
+        <VContainer>
+          <!-- Centered Section Header -->
+          <div class="section-header">
+            <div class="section-header__badge section-header__badge--red">
+              <VIcon size="16" class="me-1">mdi-tag-percent-outline</VIcon>
+              {{ pemutihanBadge }}
+            </div>
+            <h2 class="section-header__title">
+              {{ pemutihanTitle }}<br><span>{{ pemutihanTitleHighlight }}</span>
+            </h2>
+            <div class="section-header__desc pemutihan-header__desc" v-html="pemutihanDesc"></div>
+          </div>
+
+          <!-- Centered Hint Badge -->
+          <div class="d-flex justify-center mb-6">
+            <div class="pemutihan-hint-badge">
+              <VIcon size="15" class="me-1.5">mdi-magnify-plus-outline</VIcon>
+              <span>Klik / Sentuh untuk Melihat Brosur Resolusi Penuh & Zoom</span>
+            </div>
+          </div>
+
+          <!-- Full Width Gallery Grid directly inside Container -->
+          <div id="pemutihan-lightgallery" class="pemutihan-gallery-grid-full">
+            <a
+              v-for="(img, idx) in pemutihanGalleryImages"
+              :key="idx"
+              :href="img.url"
+              :data-src="img.url"
+              :data-sub-html="`<h4>${img.title || 'Brosur Pemutihan'}</h4><p>${img.caption || ''}</p>`"
+              class="pemutihan-gallery-card group"
+            >
+              <div class="pemutihan-gallery-img-wrap">
+                <img :src="img.url" :alt="img.title || 'Brosur Pemutihan'" loading="lazy" />
+                <div class="pemutihan-gallery-overlay">
+                  <div class="pemutihan-zoom-btn">
+                    <VIcon size="24" color="white">mdi-magnify-plus-outline</VIcon>
+                  </div>
+                  <span class="pemutihan-overlay-text">Lihat Brosur Lengkap</span>
+                </div>
+              </div>
+              <div class="pemutihan-card-info">
+                <h4 class="pemutihan-card-title">{{ img.title || `Brosur #${idx + 1}` }}</h4>
+                <p v-if="img.caption" class="pemutihan-card-sub">{{ img.caption }}</p>
+              </div>
+            </a>
+          </div>
+
+          <!-- Bottom Consultation Bar -->
+          <div class="pemutihan-bottom-cta mt-8">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div class="flex items-center gap-3 text-center sm:text-left">
+                <div class="p-2.5 bg-red-600/10 text-red-600 rounded-xl hidden sm:flex flex-shrink-0">
+                  <VIcon size="24">mdi-information-variant</VIcon>
+                </div>
+                <div>
+                  <h4 class="text-sm font-bold text-gray-900 mb-0.5">Ingin cek tagihan & simulasi pembebasan denda kendaraan Anda?</h4>
+                  <p class="text-xs text-gray-600 mb-0">Konsultasikan gratis 24 jam bersama asisten cerdas SALMA AI Samsat Lamongan.</p>
+                </div>
+              </div>
+              <VBtn
+                color="#C0392B"
+                class="text-none font-bold px-5 flex-shrink-0"
+                elevation="0"
+                @click="startChat"
+              >
+                <VIcon size="18" class="me-1.5">mdi-chat-processing</VIcon>
+                Tanya SALMA AI
+              </VBtn>
+            </div>
+          </div>
+        </VContainer>
+      </section>
+
+      <!-- ═══ SECTION 3: LAYANAN UNGGULAN ═══ -->
       <section id="layanan" class="section-layanan">
         <VContainer>
           <div class="section-header">
@@ -916,11 +1123,111 @@ onUnmounted(() => {
    DESIGN SYSTEM — Government Red (#C0392B) + Navy (#1B2838)
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ── TOP ANNOUNCEMENT BAR ────────────────────────────────────────────────── */
+.gov-announcement-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 105;
+  background: linear-gradient(90deg, #B02A1E 0%, #C0392B 50%, #962D22 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(192, 57, 43, 0.35);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.25s ease;
+}
+.gov-announcement-bar:hover {
+  background: linear-gradient(90deg, #962D22 0%, #C0392B 50%, #782017 100%);
+}
+.gov-announcement-bar__inner {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 5px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+}
+.gov-announcement-bar__content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.gov-announcement-bar__badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.gov-announcement-bar__text {
+  color: #FFFFFF;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+.gov-announcement-bar__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #FEE2E2;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 3px 10px;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+}
+.gov-announcement-bar:hover .gov-announcement-bar__action {
+  background: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+}
+.gov-announcement-bar:hover .gov-announcement-bar__arrow {
+  transform: translateX(3px);
+}
+.gov-announcement-bar__arrow {
+  transition: transform 0.2s ease;
+}
+
+@media (max-width: 640px) {
+  .gov-announcement-bar__inner {
+    padding: 4px 12px;
+    gap: 8px;
+  }
+  .gov-announcement-bar__text {
+    font-size: 0.72rem;
+  }
+}
+
 /* ── NAVBAR ─────────────────────────────────────────────────────────────── */
 .gov-navbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   background: transparent;
   transition: all .35s cubic-bezier(.4,0,.2,1);
+}
+.gov-navbar--with-bar {
+  top: 34px !important;
+}
+@media (max-width: 640px) {
+  .gov-navbar--with-bar {
+    top: 26px !important;
+  }
 }
 .gov-navbar--solid {
   background: rgba(27,40,56,.97);
@@ -928,25 +1235,72 @@ onUnmounted(() => {
   box-shadow: 0 2px 20px rgba(0,0,0,.15);
 }
 .gov-navbar__inner {
-  max-width: 1280px; margin: 0 auto;
+  max-width: 1320px; margin: 0 auto;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 24px;
+  padding: 16px 20px;
+  gap: 10px;
 }
 .gov-navbar__brand {
   display: flex; align-items: center; cursor: pointer;
+  flex-shrink: 0;
+}
+.gov-navbar__logos {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .gov-navbar__title { display: flex; flex-direction: column; }
-.gov-navbar__name { color: #fff; font-weight: 700; font-size: 1rem; line-height: 1.2; }
-.gov-navbar__sub { color: rgba(255,255,255,.65); font-size: .72rem; }
-.gov-navbar__links { display: flex; gap: 4px; }
-.gov-navbar__link {
-  color: rgba(255,255,255,.85); font-size: .875rem; font-weight: 500;
-  padding: 8px 14px; border-radius: 8px; cursor: pointer;
-  transition: all .2s ease; text-decoration: none;
+.gov-navbar__name {
+  color: #fff; font-weight: 700; font-size: 0.92rem; line-height: 1.2;
+  white-space: nowrap;
 }
-.gov-navbar__link:hover { color: #fff; background: rgba(255,255,255,.1); }
-.gov-navbar__actions { display: flex; align-items: center; }
-.gov-navbar__cta { border-radius: 24px !important; text-transform: none; font-weight: 600; letter-spacing: 0; }
+.gov-navbar__sub {
+  color: rgba(255,255,255,.65); font-size: .65rem;
+  white-space: nowrap;
+}
+
+.gov-navbar__links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+}
+.gov-navbar__link {
+  color: rgba(255,255,255,.88); font-size: .8rem; font-weight: 600;
+  padding: 6px 10px; border-radius: 6px; cursor: pointer;
+  transition: all .2s ease; text-decoration: none;
+  white-space: nowrap !important;
+  line-height: 1.2;
+}
+.gov-navbar__link:hover { color: #fff; background: rgba(255,255,255,.12); }
+
+@media (min-width: 1024px) and (max-width: 1280px) {
+  .gov-navbar__link {
+    padding: 5px 6px;
+    font-size: 0.75rem;
+  }
+  .gov-navbar__name {
+    font-size: 0.85rem;
+  }
+}
+
+.gov-navbar__actions {
+  display: flex; align-items: center;
+  flex-shrink: 0;
+}
+.gov-navbar__dash-btn {
+  border-radius: 20px !important;
+  font-size: 0.75rem !important;
+  padding: 4px 10px !important;
+  height: 30px !important;
+}
+.gov-navbar__cta {
+  border-radius: 20px !important; text-transform: none;
+  font-weight: 700; letter-spacing: 0;
+  font-size: 0.78rem !important;
+  padding: 5px 12px !important;
+  height: 32px !important;
+}
 .gov-navbar__mobile {
   background: rgba(27,40,56,.98); backdrop-filter: blur(12px);
   padding: 8px 24px 16px; display: flex; flex-direction: column;
@@ -978,41 +1332,35 @@ onUnmounted(() => {
   background: linear-gradient(135deg, rgba(27,40,56,.85) 0%, rgba(192,57,43,.45) 100%);
 }
 .hero-slider__content {
-  position: relative; z-index: 2; min-height: 92vh;
-  display: flex; align-items: center;
+  position: relative; z-index: 4; padding-top: 100px;
 }
 .hero-slider__badge {
   display: inline-flex; align-items: center;
-  background: rgba(192,57,43,.9); color: #fff;
-  padding: 6px 16px; border-radius: 24px; font-size: .75rem;
-  font-weight: 600; letter-spacing: .04em; margin-bottom: 20px;
+  background: rgba(255,255,255,.15); backdrop-filter: blur(8px);
+  color: #fff; padding: 6px 16px; border-radius: 24px;
+  font-size: .8rem; font-weight: 600; margin-bottom: 20px;
 }
 .hero-slider__title {
-  color: #fff; font-size: 3.2rem; font-weight: 800; line-height: 1.15;
-  margin-bottom: 16px; text-shadow: 0 2px 20px rgba(0,0,0,.3);
+  font-size: 3.2rem; font-weight: 900; color: #fff; line-height: 1.15;
+  margin-bottom: 20px; text-shadow: 0 2px 10px rgba(0,0,0,.3);
 }
 .hero-slider__subtitle {
-  color: rgba(255,255,255,.85); font-size: 1.15rem; line-height: 1.7;
-  margin-bottom: 32px; max-width: 540px;
+  font-size: 1.15rem; color: rgba(255,255,255,.85); line-height: 1.7;
+  margin-bottom: 32px; max-width: 520px;
 }
-.hero-btn {
-  border-radius: 50px !important; text-transform: none; font-weight: 600;
-  padding: 12px 28px !important; letter-spacing: 0;
-  box-shadow: 0 4px 20px rgba(0,0,0,.2);
-  transition: all .3s ease;
-}
-.hero-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,.3); }
+.hero-slider__btns { display: flex; flex-wrap: wrap; }
+.hero-btn { border-radius: 12px !important; text-transform: none; font-weight: 600; letter-spacing: 0; }
 
 /* Slider Arrows */
 .hero-slider__arrow {
-  position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
+  position: absolute; top: 50%; transform: translateY(-50%);
   width: 48px; height: 48px; border-radius: 50%;
-  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
-  backdrop-filter: blur(8px); cursor: pointer;
+  background: rgba(255,255,255,.15); backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,.25);
   display: flex; align-items: center; justify-content: center;
-  transition: all .25s ease;
+  cursor: pointer; z-index: 5; transition: all .2s ease;
 }
-.hero-slider__arrow:hover { background: rgba(192,57,43,.7); border-color: transparent; }
+.hero-slider__arrow:hover { background: rgba(255,255,255,.3); transform: translateY(-50%) scale(1.1); }
 .hero-slider__arrow--prev { left: 24px; }
 .hero-slider__arrow--next { right: 24px; }
 
@@ -1045,6 +1393,11 @@ onUnmounted(() => {
 }
 .section-header__badge--alt { background: #1B283812; color: #1B2838; }
 .section-header__badge--white { background: rgba(255,255,255,.15); color: #fff; }
+.section-header__badge--red {
+  background: rgba(192, 57, 43, 0.08);
+  color: #C0392B;
+  border: 1px solid rgba(192, 57, 43, 0.2);
+}
 .section-header__title {
   font-size: 2.2rem; font-weight: 800; color: #1B2838; line-height: 1.2;
 }
@@ -1053,6 +1406,170 @@ onUnmounted(() => {
   color: #666; font-size: 1rem; max-width: 600px; margin: 12px auto 0; line-height: 1.7;
 }
 .text-left .section-header__title { text-align: left; }
+
+/* ── SECTION 2: PEMUTIHAN PAJAK ─────────────────────────────────────────── */
+.section-pemutihan {
+  padding: 80px 0;
+  background: linear-gradient(180deg, #FFFFFF 0%, #FDF8F8 50%, #FFFFFF 100%);
+  position: relative;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.pemutihan-header__desc {
+  max-width: 720px;
+  margin: 14px auto 0;
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.7;
+  text-align: center;
+}
+.pemutihan-header__desc p {
+  margin-bottom: 0;
+}
+.pemutihan-header__desc ul {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  list-style: none;
+  padding-left: 0;
+  margin: 12px 0 0;
+}
+.pemutihan-header__desc li {
+  background: rgba(192, 57, 43, 0.06);
+  border: 1px solid rgba(192, 57, 43, 0.15);
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 0.85rem;
+  color: #C0392B;
+  font-weight: 600;
+}
+
+.pemutihan-hint-badge {
+  display: inline-flex;
+  align-items: center;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FCD34D;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 6px 16px;
+  border-radius: 30px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+  animation: pulse-glow 2.5s infinite;
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+}
+
+.pemutihan-gallery-grid-full {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  max-width: 100%;
+}
+@media (min-width: 1024px) {
+  .pemutihan-gallery-grid-full {
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  }
+}
+
+.pemutihan-gallery-card {
+  display: block;
+  text-decoration: none;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+.pemutihan-gallery-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 36px rgba(192, 57, 43, 0.16);
+  border-color: rgba(192, 57, 43, 0.4);
+}
+.pemutihan-gallery-img-wrap {
+  position: relative;
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  background: #F3F4F6;
+}
+.pemutihan-gallery-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.45s ease;
+}
+.pemutihan-gallery-card:hover .pemutihan-gallery-img-wrap img {
+  transform: scale(1.06);
+}
+.pemutihan-gallery-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(192, 57, 43, 0.88) 100%);
+  opacity: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 20px;
+  gap: 8px;
+  transition: opacity 0.25s ease;
+}
+.pemutihan-gallery-card:hover .pemutihan-gallery-overlay {
+  opacity: 1;
+}
+.pemutihan-zoom-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #C0392B;
+  border: 2px solid #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+  transform: translateY(10px);
+  transition: transform 0.25s ease;
+}
+.pemutihan-gallery-card:hover .pemutihan-zoom-btn {
+  transform: translateY(0);
+}
+.pemutihan-overlay-text {
+  color: #FFFFFF;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+.pemutihan-card-info {
+  padding: 18px 20px;
+  text-align: center;
+  background: #FFFFFF;
+}
+.pemutihan-card-title {
+  color: #1B2838;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+.pemutihan-card-sub {
+  color: #6B7280;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-bottom: 0;
+}
+
+.pemutihan-bottom-cta {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 16px;
+  padding: 18px 24px;
+}
 
 /* ── LAYANAN UNGGULAN ───────────────────────────────────────────────────── */
 .section-layanan { padding: 80px 0; background: #fff; }

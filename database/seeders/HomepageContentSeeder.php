@@ -601,6 +601,75 @@ class HomepageContentSeeder extends Seeder
                 'label' => 'Teks Hak Cipta (Copyright)',
                 'description' => 'Teks copyright yang tampil di baris paling bawah footer',
             ],
+
+            // ── Section: Pemutihan / Pembebasan Pajak Daerah ───────────────────
+            [
+                'section' => 'pemutihan',
+                'key' => 'pemutihan_is_active',
+                'value' => 'true',
+                'type' => 'boolean',
+                'label' => 'Status Program Pemutihan Pajak',
+                'description' => 'Aktifkan untuk menampilkan pengumuman bar atas berlatar merah dan section Pemutihan Pajak di beranda.',
+            ],
+            [
+                'section' => 'pemutihan',
+                'key' => 'pemutihan_announcement_text',
+                'value' => '📢 Kabar Gembira! Program Pemutihan & Pembebasan Pajak Daerah Provinsi Jawa Timur Sedang Berlangsung. Klik di sini untuk info selengkapnya.',
+                'type' => 'text',
+                'label' => 'Teks Pengumuman Bar Atas (Announcement Bar)',
+                'description' => 'Teks singkat pada bar pengumuman merah di atas header yang dapat diklik langsung menuju section pemutihan.',
+            ],
+            [
+                'section' => 'pemutihan',
+                'key' => 'pemutihan_badge',
+                'value' => 'Program Resmi Bapenda Jatim',
+                'type' => 'text',
+                'label' => 'Badge Tag Pemutihan',
+                'description' => 'Label kecil di atas judul section pemutihan',
+            ],
+            [
+                'section' => 'pemutihan',
+                'key' => 'pemutihan_title',
+                'value' => 'Program Pemutihan & Pembebasan',
+                'type' => 'text',
+                'label' => 'Judul Section Pemutihan',
+                'description' => 'Judul utama section pemutihan pajak kendaraan',
+            ],
+            [
+                'section' => 'pemutihan',
+                'key' => 'pemutihan_title_highlight',
+                'value' => 'Pajak Daerah Jawa Timur',
+                'type' => 'text',
+                'label' => 'Teks Penekanan Judul',
+                'description' => 'Bagian teks judul yang disorot dengan warna aksen merah/emas',
+            ],
+            [
+                'section' => 'pemutihan',
+                'key' => 'pemutihan_desc',
+                'value' => 'Manfaatkan program pembebasan denda Pajak Kendaraan Bermotor (PKB), pembebasan Bea Balik Nama (BBNKB II), dan pembebasan sanksi administrasi SWDKLLJ untuk seluruh masyarakat Jawa Timur dan Kabupaten Lamongan.',
+                'type' => 'textarea',
+                'label' => 'Deskripsi Lengkap Program (Rich Text)',
+                'description' => 'Penjelasan rinci mengenai benefit, pembebasan sanksi, dan kemudahan pembayaran pemutihan.',
+            ],
+            [
+                'section' => 'pemutihan',
+                'key' => 'pemutihan_gallery_images',
+                'value' => json_encode([
+                    [
+                        'url' => '/images/cms/pemutihan-1.jpg',
+                        'title' => 'Brosur Resmi Pemutihan Pajak Daerah Jawa Timur',
+                        'caption' => 'Bebas BBN II & Bebas Denda Pajak Kendaraan Bermotor Bapenda Jatim',
+                    ],
+                    [
+                        'url' => '/images/cms/pemutihan-2.jpg',
+                        'title' => 'Panduan & Rincian Pembebasan Sanksi Administrasi',
+                        'caption' => 'Langkah mudah pendaftaran online dan validasi STNK di Samsat Lamongan',
+                    ],
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                'type' => 'json',
+                'label' => 'Galeri Gambar Brosur Pemutihan',
+                'description' => 'Daftar gambar brosur/infografis resmi yang tampil dalam grid interaktif LightGallery.',
+            ],
         ];
 
         foreach ($contents as $data) {

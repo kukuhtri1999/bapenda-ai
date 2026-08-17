@@ -2,6 +2,8 @@
 import { ref, reactive, computed } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { QuillEditor } from '@vueup/vue-quill';
+import '@vueup/vue-quill/dist/vue-quill.snow.css';
 
 const props = defineProps({
   contents: {
@@ -269,6 +271,64 @@ const addKelilingLocation = (dayIdx) => {
 const removeKelilingLocation = (dayIdx, locIdx) => {
   form.keliling_schedules[dayIdx].locations.splice(locIdx, 1);
 };
+
+// ── Pemutihan Image Gallery Helpers ──────────────────────────────────────────
+const addPemutihanImage = () => {
+  if (!form.pemutihan_gallery_images || !Array.isArray(form.pemutihan_gallery_images)) {
+    form.pemutihan_gallery_images = [];
+  }
+  form.pemutihan_gallery_images.push({
+    url: '/images/cms/pemutihan-1.jpg',
+    title: 'Brosur Pemutihan Pajak',
+    caption: 'Bebas BBNKB II & Bebas Denda Pajak Kendaraan Bermotor Bapenda Jatim',
+  });
+};
+
+const removePemutihanImage = (index) => {
+  if (confirm('Hapus foto brosur ini dari galeri pemutihan?')) {
+    form.pemutihan_gallery_images.splice(index, 1);
+  }
+};
+
+const uploadNewPemutihanImage = async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  uploading.value = true;
+  try {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const res = await fetch(route('admin.cms.upload-image'), {
+      method: 'POST',
+      headers: {
+        'X-CSRF-TOKEN': csrfToken,
+      },
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (data.success && data.url) {
+      if (!form.pemutihan_gallery_images || !Array.isArray(form.pemutihan_gallery_images)) {
+        form.pemutihan_gallery_images = [];
+      }
+      form.pemutihan_gallery_images.push({
+        url: data.url,
+        title: 'Brosur Pemutihan Baru',
+        caption: 'Bebas BBNKB II & Denda Pajak Kendaraan Bermotor',
+      });
+      showNotification('Foto brosur baru berhasil diunggah dan ditambahkan ke galeri!');
+    } else {
+      showNotification(data.message || 'Gagal mengunggah foto', 'error');
+    }
+  } catch (e) {
+    showNotification('Gagal menghubungi server untuk unggah gambar', 'error');
+  } finally {
+    uploading.value = false;
+    event.target.value = '';
+  }
+};
 </script>
 
 <template>
@@ -336,6 +396,14 @@ const removeKelilingLocation = (dayIdx, locIdx) => {
             >
               <VIcon size="17">mdi-image-multiple</VIcon>
               <span>Hero Slider</span>
+            </button>
+            <button
+              @click="activeTab = 'pemutihan'"
+              :class="['vuexy-tab-btn', activeTab === 'pemutihan' ? 'vuexy-tab-btn--active' : '']"
+            >
+              <VIcon size="17">mdi-tag-percent-outline</VIcon>
+              <span>Pemutihan Pajak</span>
+              <span class="px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-red-100 text-red-700 tracking-wide">BARU</span>
             </button>
             <button
               @click="activeTab = 'services'"
@@ -500,6 +568,233 @@ const removeKelilingLocation = (dayIdx, locIdx) => {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ════ TAB: PEMUTIHAN / PEMBEBASAN PAJAK ════ -->
+          <div v-show="activeTab === 'pemutihan'" class="space-y-6">
+            <div class="border-b border-gray-100 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h3 class="text-base font-bold text-gray-800 mb-0.5">Pengaturan Program Pemutihan Pajak Daerah</h3>
+                <p class="text-xs text-gray-500 mb-0">Kelola pengumuman bar atas, teks rincian, dan galeri brosur infografis pemutihan.</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold" :class="form.pemutihan_is_active ? 'text-emerald-600' : 'text-gray-400'">
+                  {{ form.pemutihan_is_active ? 'STATUS: AKTIF DITAMPILKAN' : 'STATUS: NONAKTIF' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- 1. Switch On/Off Card -->
+            <div class="vuexy-subcard p-5 bg-gradient-to-r from-red-50/50 to-amber-50/40 border border-red-100">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="flex items-start gap-3">
+                  <div class="p-2.5 rounded-xl bg-red-600 text-white shadow-sm flex-shrink-0">
+                    <VIcon size="24">mdi-bullhorn-outline</VIcon>
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2 mb-1">
+                      <h4 class="text-sm font-bold text-gray-800">Tampilkan Program Pemutihan di Beranda</h4>
+                      <span
+                        class="px-2 py-0.5 text-xs font-bold rounded-full"
+                        :class="form.pemutihan_is_active ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-gray-100 text-gray-600 border border-gray-300'"
+                      >
+                        {{ form.pemutihan_is_active ? 'Aktif (Tampil)' : 'Nonaktif (Disembunyikan)' }}
+                      </span>
+                    </div>
+                    <p class="text-xs text-gray-600 mb-0 leading-relaxed">
+                      Jika diaktifkan, <strong>bar pengumuman berlatar merah</strong> di bagian atas halaman dan <strong>section Pemutihan Pajak</strong> (di bawah banner hero) akan otomatis muncul untuk masyarakat.
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3 self-end sm:self-center">
+                  <VSwitch
+                    v-model="form.pemutihan_is_active"
+                    color="success"
+                    hide-details
+                    inset
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Announcement Text with Live Preview -->
+            <div class="vuexy-subcard p-5 space-y-3">
+              <div class="flex items-center justify-between">
+                <label class="vuexy-form-label mb-0">Teks Pengumuman Bar Atas (Announcement Bar)</label>
+                <span class="text-[11px] text-gray-400 font-medium">Bisa memuat emoji seperti 📢 ⚡ 🔥</span>
+              </div>
+              <input
+                v-model="form.pemutihan_announcement_text"
+                type="text"
+                class="vuexy-form-input font-medium"
+                placeholder="Masukkan teks pengumuman singkat bar atas..."
+              />
+              
+              <!-- Live Preview Box -->
+              <div class="pt-2">
+                <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">
+                  Live Preview Bar Pengumuman di Beranda:
+                </span>
+                <div
+                  class="p-2.5 px-4 rounded-lg flex items-center justify-between gap-3 text-white text-xs font-semibold shadow-sm transition-all"
+                  :style="{ background: 'linear-gradient(90deg, #C0392B 0%, #962D22 100%)' }"
+                >
+                  <div class="flex items-center gap-2 truncate">
+                    <span class="px-1.5 py-0.5 bg-white/20 rounded text-[10px] uppercase font-bold tracking-wider">
+                      INFO KHUSUS
+                    </span>
+                    <span class="truncate">{{ form.pemutihan_announcement_text || 'Teks pengumuman akan tampil di sini...' }}</span>
+                  </div>
+                  <div class="flex items-center gap-1 text-[11px] font-bold flex-shrink-0 text-amber-200">
+                    <span>Lihat Detail</span>
+                    <VIcon size="14">mdi-arrow-right</VIcon>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Section Title & Badge -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="vuexy-form-label">Badge Tag Section</label>
+                <input v-model="form.pemutihan_badge" type="text" class="vuexy-form-input" placeholder="Contoh: Program Resmi Bapenda Jatim" />
+              </div>
+              <div>
+                <label class="vuexy-form-label">Judul Utama Section</label>
+                <input v-model="form.pemutihan_title" type="text" class="vuexy-form-input" placeholder="Contoh: Program Pemutihan & Pembebasan" />
+              </div>
+              <div>
+                <label class="vuexy-form-label">Teks Highlight Judul (Aksen Merah/Emas)</label>
+                <input v-model="form.pemutihan_title_highlight" type="text" class="vuexy-form-input" placeholder="Contoh: Pajak Daerah Jawa Timur" />
+              </div>
+            </div>
+
+            <!-- 4. Section Description with Rich Text QuillEditor -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="vuexy-form-label mb-0">Deskripsi Lengkap & Rincian Program (Rich Text Editor)</label>
+                <span class="text-[11px] text-gray-400">Gunakan toolbar untuk poin-poin (bullet list), tebal (bold), dll.</span>
+              </div>
+              <div class="border border-gray-300 rounded-lg overflow-hidden bg-white">
+                <QuillEditor
+                  v-model:content="form.pemutihan_desc"
+                  contentType="html"
+                  toolbar="essential"
+                  theme="snow"
+                  style="min-height: 180px; font-family: inherit;"
+                />
+              </div>
+            </div>
+
+            <!-- 5. Interactive Image Gallery (Multi-Image Uploader) -->
+            <div class="space-y-4 pt-2">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 pb-2">
+                <div>
+                  <h4 class="text-sm font-bold text-gray-800">Galeri Brosur & Infografis Pemutihan (LightGallery Grid)</h4>
+                  <p class="text-xs text-gray-500 mb-0">Brosur yang diunggah akan tampil dalam galeri grid interaktif yang dapat diklik dan diperbesar.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input
+                    type="file"
+                    id="pemutihan-new-file-input"
+                    class="hidden"
+                    accept="image/*"
+                    @change="uploadNewPemutihanImage"
+                  />
+                  <button
+                    type="button"
+                    @click="triggerFileUpload('pemutihan-new-file-input')"
+                    :disabled="uploading"
+                    class="vuexy-btn-primary text-xs"
+                  >
+                    <VIcon size="15" class="me-1">{{ uploading ? 'mdi-loading mdi-spin' : 'mdi-cloud-upload-outline' }}</VIcon>
+                    {{ uploading ? 'Mengunggah...' : 'Unggah Brosur Baru' }}
+                  </button>
+                  <button
+                    type="button"
+                    @click="addPemutihanImage"
+                    class="vuexy-btn-secondary text-xs"
+                  >
+                    <VIcon size="15" class="me-1">mdi-plus</VIcon>
+                    Tambah Baris
+                  </button>
+                </div>
+              </div>
+
+              <!-- Gallery Grid -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  v-for="(imgItem, gIdx) in form.pemutihan_gallery_images || []"
+                  :key="gIdx"
+                  class="vuexy-subcard p-4 space-y-3 relative group"
+                >
+                  <div class="flex items-start gap-4">
+                    <!-- Thumbnail Preview -->
+                    <div class="w-32 h-24 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0 relative group/thumb">
+                      <img :src="imgItem.url" :alt="imgItem.title" class="w-full h-full object-cover" />
+                      <div class="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-all">
+                        <a :href="imgItem.url" target="_blank" class="text-white text-xs flex items-center gap-1 font-bold no-underline bg-black/60 px-2 py-1 rounded">
+                          <VIcon size="14">mdi-magnify-plus-outline</VIcon>
+                          Lihat
+                        </a>
+                      </div>
+                    </div>
+
+                    <!-- Title & Caption Fields -->
+                    <div class="flex-1 space-y-2">
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-500 uppercase">Judul Brosur #{{ gIdx + 1 }}</label>
+                        <input v-model="imgItem.title" type="text" class="vuexy-form-input text-xs" placeholder="Judul Brosur / Infografis" />
+                      </div>
+                      <div>
+                        <label class="text-[11px] font-bold text-gray-500 uppercase">Keterangan / Caption</label>
+                        <input v-model="imgItem.caption" type="text" class="vuexy-form-input text-xs" placeholder="Keterangan singkat brosur..." />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Card Footer Actions -->
+                  <div class="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <div>
+                      <input
+                        type="file"
+                        :id="`pemutihan-img-replace-${gIdx}`"
+                        class="hidden"
+                        accept="image/*"
+                        @change="uploadImageFile($event, 'pemutihan_gallery_images', gIdx, 'url')"
+                      />
+                      <button
+                        type="button"
+                        @click="triggerFileUpload(`pemutihan-img-replace-${gIdx}`)"
+                        class="vuexy-btn-icon-select text-xs py-1.5 px-2.5"
+                      >
+                        <VIcon size="14" class="me-1">mdi-camera</VIcon>
+                        Ganti Gambar
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      @click="removePemutihanImage(gIdx)"
+                      class="vuexy-btn-action-danger flex items-center gap-1 text-xs"
+                      title="Hapus Brosur"
+                    >
+                      <VIcon size="16">mdi-trash-can-outline</VIcon>
+                      <span>Hapus</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="!form.pemutihan_gallery_images || form.pemutihan_gallery_images.length === 0" class="p-8 border-2 border-dashed border-gray-200 rounded-xl text-center">
+                <VIcon size="36" color="grey-lighten-1" class="mb-2">mdi-image-plus</VIcon>
+                <p class="text-xs text-gray-500 mb-2">Belum ada gambar brosur pemutihan yang ditambahkan.</p>
+                <button type="button" @click="addPemutihanImage" class="vuexy-btn-primary text-xs">
+                  <VIcon size="15" class="me-1">mdi-plus</VIcon>
+                  Tambah Gambar Brosur Pertama
+                </button>
               </div>
             </div>
           </div>
