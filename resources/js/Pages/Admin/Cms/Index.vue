@@ -329,6 +329,22 @@ const uploadNewPemutihanImage = async (event) => {
     event.target.value = '';
   }
 };
+
+// ── LAMPION Feature Tags Helpers ────────────────────────────────────────────
+const addLampionTag = () => {
+  if (!form.lampion_feature_tags || !Array.isArray(form.lampion_feature_tags)) {
+    form.lampion_feature_tags = [];
+  }
+  form.lampion_feature_tags.push({
+    label: 'Layanan Baru',
+    icon: 'mdi-check-circle',
+    color: '#C0392B',
+  });
+};
+
+const removeLampionTag = (idx) => {
+  form.lampion_feature_tags.splice(idx, 1);
+};
 </script>
 
 <template>
@@ -432,6 +448,14 @@ const uploadNewPemutihanImage = async (event) => {
             >
               <VIcon size="17">mdi-contactless-payment</VIcon>
               <span>Pembayaran Digital</span>
+            </button>
+            <button
+              @click="activeTab = 'lampion'"
+              :class="['vuexy-tab-btn', activeTab === 'lampion' ? 'vuexy-tab-btn--active' : '']"
+            >
+              <VIcon size="17">mdi-lan</VIcon>
+              <span>LAMPION Online</span>
+              <span class="px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-emerald-100 text-emerald-700 tracking-wide">BARU</span>
             </button>
             <button
               @click="activeTab = 'contact'"
@@ -1198,6 +1222,132 @@ const uploadNewPemutihanImage = async (event) => {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ════ TAB: LAMPION ONLINE (WEB SERVICE INTEGRATION) ════ -->
+          <!-- ════ TAB 5: LAMPION ONLINE (DIRECT LINKTREE GATEWAY) ════ -->
+          <div v-show="activeTab === 'lampion'" class="space-y-6">
+            <div class="border-b border-gray-100 pb-3 flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h3 class="text-base font-bold text-gray-800 mb-0.5">Pengaturan Portal LAMPION Online (Linktree Gateway)</h3>
+                <p class="text-xs text-gray-500 mb-0">Kelola gateway tautan ke repositori Linktree resmi LAMPION KB Samsat Lamongan.</p>
+              </div>
+              <!-- Status On/Off Switcher -->
+              <div class="flex items-center gap-3 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200">
+                <span class="text-xs font-semibold text-gray-700">Tampilkan Section:</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    v-model="form.lampion_is_active"
+                    :true-value="true"
+                    :false-value="false"
+                    class="sr-only peer"
+                  />
+                  <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+                <span :class="['text-xs font-bold px-2 py-0.5 rounded-md', form.lampion_is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600']">
+                  {{ form.lampion_is_active ? 'AKTIF (Tampil)' : 'NON-AKTIF (Disembunyikan)' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Title & Badge Inputs -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label class="vuexy-form-label">Badge Tag</label>
+                <input v-model="form.lampion_badge" type="text" placeholder="Layanan Online Terpadu" class="vuexy-form-input" />
+              </div>
+              <div>
+                <label class="vuexy-form-label">Judul Utama</label>
+                <input v-model="form.lampion_title" type="text" placeholder="Portal Layanan Mandiri" class="vuexy-form-input" />
+              </div>
+              <div>
+                <label class="vuexy-form-label">Highlight Judul (Merah)</label>
+                <input v-model="form.lampion_title_highlight" type="text" placeholder="LAMPION Online" class="vuexy-form-input" />
+              </div>
+              <div>
+                <label class="vuexy-form-label">Kepanjangan Akronim</label>
+                <input v-model="form.lampion_subtitle" type="text" placeholder="LAyanan sAMsat melalui aPliKasi ONline" class="vuexy-form-input" />
+              </div>
+            </div>
+
+            <div>
+              <label class="vuexy-form-label">Deskripsi Singkat Pengantar</label>
+              <textarea v-model="form.lampion_desc" rows="2" placeholder="Deskripsi pengantar..." class="vuexy-form-input"></textarea>
+            </div>
+
+            <!-- Linktree URL & Button Text -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-red-50/50 p-4 rounded-2xl border border-red-100">
+              <div>
+                <label class="vuexy-form-label !text-red-900 font-bold">
+                  <VIcon size="14" color="#C0392B" class="me-1">mdi-link-variant</VIcon>
+                  Tautan URL Linktree Resmi
+                </label>
+                <input v-model="form.lampion_url" type="text" placeholder="https://linktr.ee/ilayanankbsamsatlamongan" class="vuexy-form-input !bg-white font-mono text-xs" />
+                <p class="text-[11px] text-gray-500 mt-1 mb-0">Tautan tujuan ketika pengunjung menekan tombol utama.</p>
+              </div>
+              <div>
+                <label class="vuexy-form-label !text-red-900 font-bold">
+                  <VIcon size="14" color="#C0392B" class="me-1">mdi-cursor-default-click</VIcon>
+                  Teks Label Tombol Aksi
+                </label>
+                <input v-model="form.lampion_btn_text" type="text" placeholder="Buka Portal LAMPION (Linktree)" class="vuexy-form-input !bg-white font-semibold text-xs" />
+                <p class="text-[11px] text-gray-500 mt-1 mb-0">Teks yang ditampilkan pada tombol CTA di halaman beranda.</p>
+              </div>
+            </div>
+
+            <!-- Feature Tags Chips Manager -->
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h4 class="text-sm font-bold text-gray-800 mb-0.5">Daftar Tag Layanan LAMPION</h4>
+                  <p class="text-xs text-gray-500 mb-0">Tag ringkas yang menunjukkan layanan yang tersedia di dalam portal Linktree.</p>
+                </div>
+                <button
+                  type="button"
+                  @click="addLampionTag"
+                  class="vuexy-btn-primary-sm"
+                >
+                  <VIcon size="15" class="me-1">mdi-plus</VIcon>
+                  Tambah Tag
+                </button>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div
+                  v-for="(tag, tIdx) in form.lampion_feature_tags || []"
+                  :key="tIdx"
+                  class="bg-white p-3 rounded-xl border border-gray-200 shadow-xs space-y-2 flex items-center justify-between gap-2"
+                >
+                  <button
+                    type="button"
+                    @click="openIconPicker((selected) => tag.icon = selected)"
+                    class="w-9 h-9 rounded-lg border border-gray-300 bg-gray-50 flex items-center justify-center hover:border-red-500 transition shadow-xs flex-shrink-0"
+                    title="Pilih Icon"
+                  >
+                    <VIcon :icon="tag.icon || 'mdi-check-circle'" size="18" :color="tag.color || '#C0392B'" />
+                  </button>
+                  <div class="flex-1 min-w-0">
+                    <input v-model="tag.label" type="text" placeholder="Nama layanan..." class="vuexy-form-input !py-1 text-xs font-semibold" />
+                  </div>
+                  <button
+                    type="button"
+                    @click="removeLampionTag(tIdx)"
+                    class="text-gray-400 hover:text-red-600 p-1 rounded transition flex-shrink-0"
+                    title="Hapus tag ini"
+                  >
+                    <VIcon size="16">mdi-close</VIcon>
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="!form.lampion_feature_tags || form.lampion_feature_tags.length === 0" class="text-center py-6 text-gray-400 bg-gray-50 border border-dashed border-gray-300 rounded-xl">
+                <p class="text-xs mb-1">Belum ada tag layanan LAMPION.</p>
+                <button type="button" @click="addLampionTag" class="text-xs font-bold text-red-600 hover:underline">
+                  + Tambah tag pertama
+                </button>
               </div>
             </div>
           </div>

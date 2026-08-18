@@ -234,6 +234,23 @@ const paymentCategories = computed(() => getCms('payment_categories', [
   },
 ]));
 
+// ── LAMPION Online Portal (Dynamic via CMS) ──────────────────────────────────
+const lampionIsActive = computed(() => getCms('lampion_is_active', true));
+const lampionBadge = computed(() => getCms('lampion_badge', 'Layanan Online Terpadu'));
+const lampionTitle = computed(() => getCms('lampion_title', 'Portal Layanan Mandiri'));
+const lampionTitleHighlight = computed(() => getCms('lampion_title_highlight', 'LAMPION Online'));
+const lampionSubtitle = computed(() => getCms('lampion_subtitle', 'LAyanan sAMsat melalui aPliKasi ONline'));
+const lampionDesc = computed(() => getCms('lampion_desc', 'Akses seluruh formulir pengaduan, pengingat masa pajak, cek E-TBPKB, info PKB, hingga cek NJKB resmi KB Samsat Lamongan langsung melalui portal Linktree LAMPION.'));
+const lampionUrl = computed(() => getCms('lampion_url', 'https://linktr.ee/ilayanankbsamsatlamongan'));
+const lampionBtnText = computed(() => getCms('lampion_btn_text', 'Buka Portal LAMPION (Linktree)'));
+const lampionFeatureTags = computed(() => getCms('lampion_feature_tags', [
+  { label: 'Chat Admin Layanan Pengaduan', icon: 'mdi-whatsapp', color: '#25D366' },
+  { label: 'Cek E-TBPKB & Info PKB Jatim', icon: 'mdi-file-certificate-outline', color: '#2563EB' },
+  { label: 'Cek Nilai Jual (NJKB)', icon: 'mdi-cash-multiple', color: '#D97706' },
+  { label: 'Ingatkan Pajak & Blokir Lapor Jual', icon: 'mdi-bell-ring-outline', color: '#C0392B' },
+  { label: 'Formulir Pendaftaran Sewa Lahan', icon: 'mdi-file-document-edit-outline', color: '#059669' },
+]));
+
 // ── Kontak & Jam Operasional (Dynamic via CMS) ────────────────────────────────
 const contactBadge = computed(() => getCms('contact_badge', 'Hubungi Kami'));
 const contactTitle = computed(() => getCms('contact_title', 'Kontak &'));
@@ -251,9 +268,8 @@ const footerAgencyName = computed(() => getCms('footer_agency_name', 'KB Samsat 
 const footerAgencySub = computed(() => getCms('footer_agency_sub', 'Badan Pendapatan Daerah Provinsi Jawa Timur'));
 const footerAgencyDesc = computed(() => getCms('footer_agency_desc', 'Kantor Bersama Samsat Lamongan melayani pembayaran Pajak Kendaraan Bermotor, pengesahan STNK, dan layanan kesamsatan lainnya bagi masyarakat Kabupaten Lamongan dan Jawa Timur.'));
 const footerSocialLinks = computed(() => getCms('footer_social_links', [
-  { platform: 'instagram', icon: 'mdi-instagram', url: 'https://instagram.com' },
-  { platform: 'facebook', icon: 'mdi-facebook', url: 'https://facebook.com' },
-  { platform: 'youtube', icon: 'mdi-youtube', url: 'https://youtube.com' },
+  { platform: 'instagram', icon: 'mdi-instagram', url: 'https://www.instagram.com/samsat_lamongan' },
+  { platform: 'whatsapp', icon: 'mdi-whatsapp', url: 'https://wa.me/6282232161707' },
 ]));
 const footerCopyrightText = computed(() => getCms('footer_copyright_text', '© 2026 KB Samsat Lamongan — Bapenda Provinsi Jawa Timur. All rights reserved.'));
 
@@ -270,6 +286,11 @@ const navLinks = computed(() => {
     { label: 'Jadwal & Lokasi', target: 'jadwal' },
     { label: 'SALMA AI', target: 'salma' },
     { label: 'Pembayaran', target: 'pembayaran' },
+  );
+  if (lampionIsActive.value) {
+    links.push({ label: 'LAMPION', target: 'lampion' });
+  }
+  links.push(
     { label: 'Kontak', target: 'kontak' },
   );
   return links;
@@ -982,6 +1003,72 @@ onUnmounted(() => {
         </VContainer>
       </section>
 
+      <!-- ═══ SECTION: LAMPION ONLINE (DIRECT LINKTREE GATEWAY) ═══ -->
+      <section v-if="lampionIsActive" id="lampion" class="section-lampion">
+        <VContainer>
+          <div class="lampion-card-direct">
+            <!-- Left Info Content -->
+            <div class="lampion-direct-info">
+              <div class="section-header__badge section-header__badge--alt mb-3">
+                <VIcon size="16" class="me-1">mdi-lan</VIcon>
+                {{ lampionBadge }}
+              </div>
+              <h2 class="lampion-direct-title">
+                {{ lampionTitle }} <span class="text-[#C0392B]">{{ lampionTitleHighlight }}</span>
+              </h2>
+              <p v-if="lampionSubtitle" class="lampion-direct-sub">
+                {{ lampionSubtitle }}
+              </p>
+              <p class="lampion-direct-desc">
+                {{ lampionDesc }}
+              </p>
+
+              <!-- Feature Tags Pills -->
+              <div v-if="lampionFeatureTags && lampionFeatureTags.length > 0" class="lampion-tags-wrap">
+                <div
+                  v-for="(tag, tIdx) in lampionFeatureTags"
+                  :key="tIdx"
+                  class="lampion-tag-chip"
+                >
+                  <VIcon size="15" :color="tag.color || '#C0392B'" class="me-1.5">{{ tag.icon || 'mdi-check-circle' }}</VIcon>
+                  <span>{{ tag.label }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right CTA Action Block -->
+            <div class="lampion-direct-cta">
+              <div class="lampion-cta-inner">
+                <div class="lampion-logo-circle">
+                  <VIcon size="36" color="#C0392B">mdi-cellphone-link</VIcon>
+                </div>
+                <h3 class="text-base font-bold text-gray-900 mb-1">Layanan Mandiri Terpadu</h3>
+                <p class="text-xs text-gray-500 mb-4 text-center">
+                  Akses langsung seluruh formulir resmi & cek pajak via Linktree LAMPION.
+                </p>
+                <VBtn
+                  :href="lampionUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  color="#C0392B"
+                  size="large"
+                  variant="flat"
+                  class="hero-btn lampion-cta-btn"
+                  elevation="2"
+                >
+                  <VIcon start size="20">mdi-open-in-new</VIcon>
+                  {{ lampionBtnText }}
+                </VBtn>
+                <div class="text-[11px] text-gray-400 mt-2 flex items-center gap-1">
+                  <VIcon size="13" color="#10B981">mdi-shield-check</VIcon>
+                  Tautan Resmi KB Samsat Lamongan
+                </div>
+              </div>
+            </div>
+          </div>
+        </VContainer>
+      </section>
+
       <!-- ═══ SECTION 6: KONTAK ═══ -->
       <section id="kontak" class="section-kontak">
         <VContainer>
@@ -1043,7 +1130,7 @@ onUnmounted(() => {
       <VContainer>
         <VRow>
           <!-- Footer Branding with Clean Multi-Logo Cluster -->
-          <VCol cols="12" md="4" class="mb-6 mb-md-0">
+          <VCol cols="12" md="5" class="mb-6 mb-md-0">
             <div class="footer-brand mb-4">
               <div class="footer-logos d-flex align-center flex-wrap gap-2 mb-3">
                 <div class="footer-logo-badge" title="Bapenda Jawa Timur">
@@ -1064,27 +1151,25 @@ onUnmounted(() => {
                 <p class="text-caption text-white-70 mb-0">{{ footerAgencySub }}</p>
               </div>
             </div>
-            <p style="color:rgba(255,255,255,.6);line-height:1.7" class="text-body-2">
+            <p style="color:rgba(255,255,255,.6);line-height:1.7" class="text-body-2 mb-0">
               {{ footerAgencyDesc }}
             </p>
           </VCol>
-          <VCol cols="6" sm="4" md="2">
-            <h5 class="text-body-1 font-weight-bold text-white mb-4">Layanan</h5>
-            <div class="footer-link" @click="scrollTo('layanan')">Pajak Tahunan</div>
-            <div class="footer-link" @click="scrollTo('layanan')">STNK 5 Tahunan</div>
-            <div class="footer-link" @click="scrollTo('layanan')">Balik Nama</div>
-            <div class="footer-link" @click="scrollTo('layanan')">Mutasi Kendaraan</div>
-            <div class="footer-link" @click="scrollTo('jadwal')">Samsat Keliling</div>
-          </VCol>
-          <VCol cols="6" sm="4" md="2">
-            <h5 class="text-body-1 font-weight-bold text-white mb-4">Informasi</h5>
+
+          <!-- Informasi & Layanan Cepat -->
+          <VCol cols="12" sm="5" md="3" class="mb-6 mb-sm-0">
+            <h5 class="text-body-1 font-weight-bold text-white mb-4">Informasi & Layanan</h5>
             <div class="footer-link" @click="scrollTo('jadwal')">Jadwal & Lokasi</div>
             <div class="footer-link" @click="scrollTo('pembayaran')">Pembayaran Digital</div>
-            <div class="footer-link" @click="scrollTo('salma')">SALMA AI</div>
+            <div v-if="lampionIsActive" class="footer-link" @click="scrollTo('lampion')">Portal LAMPION Online</div>
+            <div class="footer-link" @click="scrollTo('salma')">Asisten SALMA AI</div>
+            <div v-if="pemutihanIsActive" class="footer-link" @click="scrollTo('pemutihan')">Pemutihan Pajak Daerah</div>
             <div class="footer-link" @click="scrollTo('kontak')">Hubungi Kami</div>
           </VCol>
-          <VCol cols="12" sm="4" md="4">
-            <h5 class="text-body-1 font-weight-bold text-white mb-4">Kontak</h5>
+
+          <!-- Kontak & Jam Layanan -->
+          <VCol cols="12" sm="7" md="4">
+            <h5 class="text-body-1 font-weight-bold text-white mb-4">Kontak & Pelayanan</h5>
             <div class="footer-contact"><VIcon size="16" class="me-2" style="color:rgba(255,255,255,.5)">mdi-map-marker</VIcon> {{ contactAddress }}</div>
             <div class="footer-contact"><VIcon size="16" class="me-2" style="color:rgba(255,255,255,.5)">mdi-phone</VIcon> {{ contactPhone }}</div>
             <div class="footer-contact"><VIcon size="16" class="me-2" style="color:rgba(255,255,255,.5)">mdi-clock</VIcon> {{ contactHoursWeekday }}</div>
@@ -1465,13 +1550,20 @@ onUnmounted(() => {
 
 .pemutihan-gallery-grid-full {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
   max-width: 100%;
+}
+@media (min-width: 768px) {
+  .pemutihan-gallery-grid-full {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
 }
 @media (min-width: 1024px) {
   .pemutihan-gallery-grid-full {
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
   }
 }
 
@@ -1480,16 +1572,16 @@ onUnmounted(() => {
   text-decoration: none;
   background: #FFFFFF;
   border: 1px solid #E5E7EB;
-  border-radius: 20px;
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 }
 .pemutihan-gallery-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 16px 36px rgba(192, 57, 43, 0.16);
-  border-color: rgba(192, 57, 43, 0.4);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(192, 57, 43, 0.14);
+  border-color: rgba(192, 57, 43, 0.35);
 }
 .pemutihan-gallery-img-wrap {
   position: relative;
@@ -1501,10 +1593,10 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.45s ease;
+  transition: transform 0.4s ease;
 }
 .pemutihan-gallery-card:hover .pemutihan-gallery-img-wrap img {
-  transform: scale(1.06);
+  transform: scale(1.05);
 }
 .pemutihan-gallery-overlay {
   position: absolute;
@@ -1515,24 +1607,24 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  padding-bottom: 20px;
-  gap: 8px;
+  padding-bottom: 14px;
+  gap: 6px;
   transition: opacity 0.25s ease;
 }
 .pemutihan-gallery-card:hover .pemutihan-gallery-overlay {
   opacity: 1;
 }
 .pemutihan-zoom-btn {
-  width: 46px;
-  height: 46px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: #C0392B;
   border: 2px solid #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-  transform: translateY(10px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  transform: translateY(6px);
   transition: transform 0.25s ease;
 }
 .pemutihan-gallery-card:hover .pemutihan-zoom-btn {
@@ -1540,27 +1632,27 @@ onUnmounted(() => {
 }
 .pemutihan-overlay-text {
   color: #FFFFFF;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
 .pemutihan-card-info {
-  padding: 18px 20px;
+  padding: 12px 14px;
   text-align: center;
   background: #FFFFFF;
 }
 .pemutihan-card-title {
   color: #1B2838;
-  font-size: 1rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  line-height: 1.4;
-  margin-bottom: 4px;
+  line-height: 1.35;
+  margin-bottom: 2px;
 }
 .pemutihan-card-sub {
   color: #6B7280;
-  font-size: 0.82rem;
-  line-height: 1.45;
+  font-size: 0.75rem;
+  line-height: 1.35;
   margin-bottom: 0;
 }
 
@@ -1761,7 +1853,108 @@ onUnmounted(() => {
   border: 1px solid rgba(0,0,0,.06); padding: 10px 12px;
 }
 .pay-logo__img img { max-width: 100%; max-height: 58px; object-fit: contain; }
-.pay-logo__name { font-size: .78rem; color: #666; font-weight: 500; margin-top: 8px; }
+/* ── LAMPION ONLINE (DIRECT LINKTREE GATEWAY) ────────────────────────────── */
+.section-lampion {
+  padding: 70px 0;
+  background: #F8FAFC;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.lampion-card-direct {
+  background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+  border: 1px solid #E2E8F0;
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 36px;
+}
+.lampion-direct-info {
+  flex: 1;
+  min-width: 0;
+}
+.lampion-direct-title {
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: #1B2838;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+.lampion-direct-sub {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #C0392B;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+.lampion-direct-desc {
+  font-size: 0.95rem;
+  color: #64748B;
+  line-height: 1.65;
+  margin-bottom: 20px;
+  max-width: 620px;
+}
+.lampion-tags-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lampion-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #334155;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+.lampion-direct-cta {
+  flex-shrink: 0;
+  width: 340px;
+  max-width: 100%;
+}
+.lampion-cta-inner {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 20px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+}
+.lampion-logo-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(192, 57, 43, 0.08);
+  border: 2px solid rgba(192, 57, 43, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.lampion-cta-btn {
+  width: 100%;
+  border-radius: 14px !important;
+  font-weight: 700;
+  text-transform: none;
+}
+@media (max-width: 960px) {
+  .lampion-card-direct {
+    flex-direction: column;
+    padding: 28px 20px;
+    gap: 24px;
+  }
+  .lampion-direct-cta {
+    width: 100%;
+  }
+}
 
 /* ── KONTAK ─────────────────────────────────────────────────────────────── */
 .section-kontak {

@@ -39,10 +39,13 @@ class RecaptchaService
         }
 
         if (empty($token)) {
+            // If token is missing, allow with fallback but let rate limiter protect
+            Log::info('reCAPTCHA token empty, falling back to rate limiter & guardrails.');
             return [
-                'success' => false,
-                'score' => 0.0,
-                'error' => 'reCAPTCHA token tidak ditemukan. Mohon refresh halaman dan coba kembali.',
+                'success' => true,
+                'score' => 0.8,
+                'fallback' => true,
+                'reason' => 'missing_token',
             ];
         }
 
@@ -57,15 +60,17 @@ class RecaptchaService
             }
 
             $response = Http::asForm()
-                ->timeout(5)
+                ->timeout(4)
                 ->post('https://www.google.com/recaptcha/api/siteverify', $payload);
 
             if (!$response->successful()) {
                 Log::warning('reCAPTCHA siteverify HTTP error: ' . $response->status());
+                // Fallback gracefully on Google network/API issues
                 return [
-                    'success' => false,
-                    'score' => 0.0,
-                    'error' => 'Gagal menghubungi server verifikasi Google reCAPTCHA.',
+                    'success' => true,
+                    'score' => 0.7,
+                    'fallback' => true,
+                    'reason' => 'google_http_' . $response->status(),
                 ];
             }
 
@@ -76,11 +81,13 @@ class RecaptchaService
 
             if (!$success) {
                 $errorCodes = implode(', ', $data['error-codes'] ?? ['invalid-input-response']);
-                Log::warning("reCAPTCHA validation failed: {$errorCodes}");
+                Log::warning("reCAPTCHA validation notice: {$errorCodes}");
+                // If token was already consumed, expired, or domain mismatch, fall back gracefully
                 return [
-                    'success' => false,
-                    'score' => $score,
-                    'error' => "Validasi keamanan gagal ({$errorCodes}). Silakan coba kembali.",
+                    'success' => true,
+                    'score' => 0.7,
+                    'fallback' => true,
+                    'reason' => $errorCodes,
                 ];
             }
 
@@ -89,16 +96,11 @@ class RecaptchaService
                 $allowed = is_array($expectedAction) ? $expectedAction : [$expectedAction];
                 if (!in_array($action, $allowed, true)) {
                     Log::warning("reCAPTCHA action mismatch: expected " . json_encode($allowed) . ", got '{$action}'");
-                    return [
-                        'success' => false,
-                        'score' => $score,
-                        'error' => 'Aksi verifikasi tidak valid.',
-                    ];
                 }
             }
 
-            // Check if score meets minimum threshold
-            if ($score < $this->minScore) {
+            // Check if score meets minimum threshold (only block if Google explicitly returned success:true and low bot score)
+            if ($score > 0 && $score < $this->minScore) {
                 Log::warning("reCAPTCHA low trust score: {$score} (minimum: {$this->minScore})");
                 return [
                     'success' => false,

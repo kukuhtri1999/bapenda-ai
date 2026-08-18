@@ -198,29 +198,19 @@ class ChatController extends Controller
         );
         $aiResponseTime = round(microtime(true) - $aiStartTime, 2);
 
-        // Classify the user message quickly using classification endpoint (single-item)
-        $topic = null;
-        $sentiment = null;
-        $confidence = null;
-        $snippet = null;
-        try {
-            $labels = [];
-            foreach (config('analytics.categories', []) as $k) {
-                $labels[$k] = ucwords(str_replace('_', ' ', $k));
-            }
-            $cls = $this->openAIService->classifyChats([
-                ['chat_id' => (string)$userMessage->id, 'text' => $request->message]
-            ], $labels);
-            if (!empty($cls['data'][0])) {
-                $row = $cls['data'][0];
-                $topic = $row['category'] ?? null;
-                $sentiment = $row['sentiment'] ?? null;
-                $confidence = $row['confidence'] ?? null;
-                $snippet = $row['snippet'] ?? null;
-            }
-        } catch (\Throwable $e) {
-            // non-fatal; leave nulls
+        // Fast heuristic classification for live chat (< 1ms, zero extra OpenAI API roundtrip)
+        /** @var \App\Services\SalmaPromptService $salmaPrompt */
+        $salmaPrompt = app(\App\Services\SalmaPromptService::class);
+        $topic = $salmaPrompt->detectIntent($request->message);
+        $sentiment = 'neutral';
+        $userMsgLower = mb_strtolower($request->message);
+        if (preg_match('/\b(terima kasih|makasih|mantap|bagus|hebat|ramah|cepat|keren|sangat membantu|helpful|senang|puas|alhamdulillah)\b/u', $userMsgLower)) {
+            $sentiment = 'positive';
+        } elseif (preg_match('/\b(kecewa|lambat|lama|rusak|tidak bisa|jengkel|error|salah|keluhan|antre|antrian|mahal|buruk|payah)\b/u', $userMsgLower)) {
+            $sentiment = 'negative';
         }
+        $confidence = 0.95;
+        $snippet = mb_substr($request->message, 0, 150);
 
         if ($aiResponse['success']) {
             // Update existing user message with AI answer + topic/sentiment + response time

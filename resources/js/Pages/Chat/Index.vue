@@ -602,14 +602,17 @@ const resetIdleTimer = () => {
   }, IDLE_TIMEOUT);
 };
 
-// Google reCAPTCHA v3 helper
+// Google reCAPTCHA v3 helper with timeout safeguard
 const getRecaptchaToken = async (action = 'chat_message') => {
   const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6Ld4LYQtAAAAACEQjznEQrI0x5v34bAZ49OvQleG';
   if (typeof window !== 'undefined' && window.grecaptcha && window.grecaptcha.execute) {
     try {
-      return await window.grecaptcha.execute(siteKey, { action });
+      return await Promise.race([
+        window.grecaptcha.execute(siteKey, { action }),
+        new Promise((resolve) => setTimeout(() => resolve(null), 1200)),
+      ]);
     } catch (err) {
-      console.warn('reCAPTCHA execution error:', err);
+      console.warn('reCAPTCHA execution notice:', err);
     }
   }
   return null;
@@ -642,7 +645,14 @@ const initializeChat = async () => {
     }
   } catch (error) {
     console.error('Error initializing chat:', error);
-    showErrorMessage('Gagal memulai chat. Silakan refresh halaman.');
+    if (!messages.value || messages.value.length === 0) {
+      messages.value = [{
+        id: 'assistant_greeting_' + Date.now(),
+        role: 'assistant',
+        content: 'Halo! Saya SALMA AI, asisten virtual resmi KB Samsat Lamongan. Ada yang bisa saya bantu terkait pajak kendaraan atau layanan Samsat hari ini?',
+        sent_at: new Date().toISOString(),
+      }];
+    }
   }
 };
 
@@ -677,7 +687,12 @@ const startNewChat = async () => {
     }
   } catch (error) {
     console.error('Error starting new chat:', error);
-    showErrorMessage('Gagal memulai chat baru. Silakan coba lagi.');
+    messages.value = [{
+      id: 'assistant_greeting_' + Date.now(),
+      role: 'assistant',
+      content: 'Halo! Saya SALMA AI, asisten virtual resmi KB Samsat Lamongan. Ada yang bisa saya bantu terkait pajak kendaraan atau layanan Samsat hari ini?',
+      sent_at: new Date().toISOString(),
+    }];
   }
 };
 
@@ -726,7 +741,7 @@ const sendMessage = async (messageText = null, isContext = false) => {
 
     isTyping.value = false;
 
-    if (response.data.success) {
+    if (response.data && response.data.success) {
       // Only show AI response if it's not a context message
       if (!isContext) {
         const assistantMessage = {
@@ -740,15 +755,29 @@ const sendMessage = async (messageText = null, isContext = false) => {
         showFollowUpMessage();
       }
     } else {
-      showErrorMessage(response.data.message || 'Gagal mengirim pesan');
+      const errText = response.data?.message || 'Gagal mengirim pesan.';
+      messages.value.push({
+        role: 'assistant',
+        content: `⚠️ ${errText}`,
+        sent_at: new Date().toISOString(),
+        id: `assistant_err_${Date.now()}`,
+      });
+      await scrollToBottom();
     }
   } catch (error) {
     isTyping.value = false;
     console.error('Error sending message:', error);
-    const msg = error.response?.data?.message || 'Gagal mengirim pesan. Silakan coba lagi.';
-    showErrorMessage(msg);
+    const msg = error.response?.data?.message || 'Maaf, terjadi kendala saat memproses jawaban. Silakan coba kirim ulang pertanyaan Anda.';
+    messages.value.push({
+      role: 'assistant',
+      content: `⚠️ ${msg}`,
+      sent_at: new Date().toISOString(),
+      id: `assistant_err_${Date.now()}`,
+    });
+    await scrollToBottom();
   } finally {
     isLoading.value = false;
+    isTyping.value = false;
   }
 };
 

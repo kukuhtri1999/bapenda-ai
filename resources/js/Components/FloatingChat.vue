@@ -6,11 +6,11 @@
       @click="toggleChat"
       class="floating-chat-button"
       :style="{
-        background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
+        background: 'linear-gradient(135deg, #C0392B 0%, #E74C3C 100%)',
         borderRadius: '50%',
         width: '64px',
         height: '64px',
-        boxShadow: '0 8px 24px rgba(233, 165, 241, 0.4)',
+        boxShadow: '0 8px 24px rgba(192, 57, 43, 0.45)',
         border: '3px solid white',
       }"
       elevation="0"
@@ -20,7 +20,7 @@
       <VIcon size="32" color="white">mdi-chat-processing</VIcon>
       <VTooltip activator="parent" location="left">
         <div class="pa-2">
-          <div class="font-weight-bold">AI Customer Service</div>
+          <div class="font-weight-bold">SALMA AI Assistant</div>
           <div class="text-caption">Samsat Lamongan</div>
         </div>
       </VTooltip>
@@ -42,7 +42,7 @@
         class="chat-widget-header pa-4"
         :style="{
           background:
-            'linear-gradient(135deg, #E9A5F1 0%, #C68EFD 50%, #8F87F1 100%)',
+            'linear-gradient(135deg, #962D22 0%, #C0392B 50%, #E74C3C 100%)',
           borderRadius: '24px 24px 0 0',
         }"
       >
@@ -59,7 +59,7 @@
           </VAvatar>
           <div class="flex-grow-1">
             <div class="text-white font-weight-bold text-body-1">
-              AI Assistant
+              SALMA AI
             </div>
             <div class="text-white text-caption" style="opacity: 0.9">
               Samsat Lamongan • Online
@@ -105,8 +105,8 @@
             size="80"
             class="mb-4 mx-auto"
             :style="{
-              background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
-              boxShadow: '0 8px 20px rgba(233, 165, 241, 0.3)',
+              background: 'linear-gradient(135deg, #C0392B, #E74C3C)',
+              boxShadow: '0 8px 20px rgba(192, 57, 43, 0.35)',
             }"
           >
             <VIcon size="40" color="white">mdi-robot</VIcon>
@@ -161,12 +161,12 @@
             <VBtn
               @click="goToPkbCheck"
               :style="{
-                background: 'linear-gradient(135deg, #1261e0, #45a049)',
+                background: 'linear-gradient(135deg, #C0392B, #E74C3C)',
                 borderRadius: '20px',
                 textTransform: 'none',
                 marginBottom: '8px',
                 width: '100%',
-                boxShadow: '0 4px 12px rgba(76, 175, 80, 0.3)',
+                boxShadow: '0 4px 12px rgba(192, 57, 43, 0.3)',
               }"
               color="white"
               class="text-white font-weight-medium"
@@ -194,10 +194,10 @@
               <VCard
                 class="user-bubble"
                 :style="{
-                  background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
+                  background: 'linear-gradient(135deg, #C0392B, #E74C3C)',
                   borderRadius: '20px 20px 6px 20px',
                   maxWidth: '280px',
-                  boxShadow: '0 4px 12px rgba(233, 165, 241, 0.3)',
+                  boxShadow: '0 4px 12px rgba(192, 57, 43, 0.25)',
                 }"
                 elevation="0"
               >
@@ -230,7 +230,7 @@
                   size="32"
                   class="me-3 mt-1"
                   :style="{
-                    background: 'linear-gradient(135deg, #8F87F1, #C68EFD)',
+                    background: 'linear-gradient(135deg, #962D22, #C0392B)',
                     flexShrink: 0,
                   }"
                 >
@@ -271,7 +271,7 @@
                 size="32"
                 class="me-3"
                 :style="{
-                  background: 'linear-gradient(135deg, #8F87F1, #C68EFD)',
+                  background: 'linear-gradient(135deg, #962D22, #C0392B)',
                 }"
               >
                 <VIcon size="16" color="white">mdi-robot</VIcon>
@@ -329,12 +329,12 @@
               :disabled="!currentMessage.trim() || isLoading"
               :loading="isLoading"
               :style="{
-                background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
+                background: 'linear-gradient(135deg, #C0392B, #E74C3C)',
                 borderRadius: '50%',
                 minWidth: '48px',
                 width: '48px',
                 height: '48px',
-                boxShadow: '0 4px 12px rgba(233, 165, 241, 0.3)',
+                boxShadow: '0 4px 12px rgba(192, 57, 43, 0.3)',
               }"
               class="text-white"
               elevation="0"
@@ -362,12 +362,12 @@
       class="floating-chat-minimized"
       @click="maximizeChat"
       :style="{
-        background: 'linear-gradient(135deg, #E9A5F1, #C68EFD)',
+        background: 'linear-gradient(135deg, #C0392B, #E74C3C)',
         borderRadius: '16px',
         cursor: 'pointer',
         transition: 'all 0.3s ease',
         border: '2px solid white',
-        boxShadow: '0 8px 20px rgba(233, 165, 241, 0.4)',
+        boxShadow: '0 8px 20px rgba(192, 57, 43, 0.4)',
       }"
       elevation="0"
     >
@@ -439,7 +439,7 @@ const quickSuggestions = ref([
 
 // Utility functions
 const getSuggestionColor = (index) => {
-  const colors = ['#E9A5F1', '#C68EFD', '#8F87F1'];
+  const colors = ['#C0392B', '#1B2838', '#D97706', '#059669'];
   return colors[index % colors.length];
 };
 
@@ -560,14 +560,17 @@ const maximizeChat = () => {
   scrollToBottom();
 };
 
-// Google reCAPTCHA v3 helper
+// Google reCAPTCHA v3 helper with timeout safeguard
 const getRecaptchaToken = async (action = 'chat_message') => {
   const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6Ld4LYQtAAAAACEQjznEQrI0x5v34bAZ49OvQleG';
   if (typeof window !== 'undefined' && window.grecaptcha && window.grecaptcha.execute) {
     try {
-      return await window.grecaptcha.execute(siteKey, { action });
+      return await Promise.race([
+        window.grecaptcha.execute(siteKey, { action }),
+        new Promise((resolve) => setTimeout(() => resolve(null), 1200)),
+      ]);
     } catch (err) {
-      console.warn('reCAPTCHA execution error:', err);
+      console.warn('reCAPTCHA execution notice:', err);
     }
   }
   return null;
@@ -902,8 +905,8 @@ onBeforeUnmount(() => {
 }
 
 .message-input >>> .v-field:focus-within {
-  border-color: #e9a5f1 !important;
-  box-shadow: 0 0 0 2px rgba(233, 165, 241, 0.2) !important;
+  border-color: #C0392B !important;
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.2) !important;
 }
 
 .gap-2 > * + * {
@@ -925,7 +928,7 @@ onBeforeUnmount(() => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #c68efd;
+  background-color: #C0392B;
   animation: typing-bounce 1.4s infinite ease-in-out both;
 }
 
