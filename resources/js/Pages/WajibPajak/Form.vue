@@ -404,9 +404,9 @@ const { startTour } = useTour(formSteps);
   pointer-events: none;
 }
 
-/* ── TOPBAR ─────────────────────────────────────────────────────────────── */
+/* ── TOPBAR ────────────────────────────────────────────────── */
 .wp-topbar {
-  padding: 14px 20px;
+  padding: 10px 20px;
   border-bottom: 1px solid rgba(255,255,255,.08);
   background: rgba(27,40,56,.75);
   backdrop-filter: blur(12px);
@@ -456,41 +456,41 @@ const { startTour } = useTour(formSteps);
   transform: translateX(-2px);
 }
 
-/* ── CONTENT CONTAINER ──────────────────────────────────────────────────── */
+/* ── CONTENT CONTAINER ────────────────────────────────────────── */
 .wp-content-wrap {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px 16px;
+  padding: 24px 16px;
   position: relative;
   z-index: 2;
 }
 .wp-card-container {
   width: 100%;
-  max-width: 480px;
+  max-width: 460px;
 }
 .wp-card {
   background: #ffffff;
-  border-radius: 24px;
-  padding: 32px 28px;
+  border-radius: 22px;
+  padding: 26px 22px;
   box-shadow: 0 20px 60px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.1);
 }
 
-/* ── CARD HEADER ────────────────────────────────────────────────────────── */
+/* ── CARD HEADER ────────────────────────────────────────────── */
 .wp-card__header {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 .wp-card__avatar-wrap {
   display: flex;
   justify-content: center;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .wp-card__avatar {
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
+  width: 50px;
+  height: 50px;
+  border-radius: 15px;
   background: #C0392B12;
   border: 1px solid #C0392B25;
   display: flex;
@@ -511,7 +511,7 @@ const { startTour } = useTour(formSteps);
   margin-bottom: 8px;
 }
 .wp-card__title {
-  font-size: 1.45rem;
+  font-size: 1.28rem;
   font-weight: 800;
   color: #1B2838;
   letter-spacing: -.02em;
@@ -634,7 +634,7 @@ const { startTour } = useTour(formSteps);
   margin-top: 2px;
 }
 
-/* ── BUTTONS ────────────────────────────────────────────────────────────── */
+/* ── BUTTONS ────────────────────────────────────────────────── */
 .wp-btn-primary {
   width: 100%;
   display: inline-flex;
@@ -642,10 +642,10 @@ const { startTour } = useTour(formSteps);
   justify-content: center;
   background: linear-gradient(135deg, #C0392B 0%, #D32F2F 100%);
   color: #ffffff;
-  font-size: .95rem;
+  font-size: .9rem;
   font-weight: 700;
-  padding: 13px 20px;
-  border-radius: 14px;
+  padding: 11px 18px;
+  border-radius: 12px;
   border: none;
   cursor: pointer;
   box-shadow: 0 6px 20px rgba(192,57,43,.3);
@@ -694,11 +694,11 @@ const { startTour } = useTour(formSteps);
 
 @media (max-width: 600px) {
   .wp-card {
-    padding: 24px 20px;
-    border-radius: 20px;
+    padding: 20px 16px;
+    border-radius: 18px;
   }
   .wp-card__title {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
   }
 }
 </style>

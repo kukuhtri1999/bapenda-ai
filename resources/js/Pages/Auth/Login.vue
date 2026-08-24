@@ -66,7 +66,7 @@ const submit = () => {
             v-model="form.email"
             type="email"
             variant="outlined"
-            placeholder="admin@gmail.com"
+            placeholder="Email Address"
             :error-messages="form.errors.email"
             :disabled="loading"
             required

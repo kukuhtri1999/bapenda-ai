@@ -2,284 +2,193 @@
   <VApp>
     <Head title="Mulai Chat"></Head>
 
-    <!-- ── App Bar at VApp level so VMain auto-offsets content ── -->
+    <!-- ── App Bar: Compact, Sleek Header with Crisp Responsive Typography ── -->
     <VAppBar
-      density="comfortable"
-      id="tour-chat-header" class="chat-header"
+      density="compact"
+      id="tour-chat-header"
+      class="chat-header"
       :style="{
         background:
           'linear-gradient(135deg, #C0392B 0%, #D32F2F 50%, #B03022 100%)',
-        boxShadow: '0 4px 16px rgba(192, 57, 43, 0.35)',
+        boxShadow: '0 2px 12px rgba(192, 57, 43, 0.35)',
       }"
     >
       <VBtn
         icon="mdi-arrow-left"
         variant="text"
         color="white"
+        size="small"
         @click="goToHome"
-        class="me-2"
+        title="Kembali ke Beranda"
+        class="header-icon-btn me-1.5 flex-shrink-0"
       ></VBtn>
-      <VAppBarTitle class="text-white">
-        <div class="d-flex align-center gap-2">
-          <!-- Salma mini avatar in header -->
-          <div class="salma-header-avatar">
-            <img
-              src="/images/salma2.gif"
-              alt="SALMA"
-              loading="lazy"
-              class="salma-header-img"
-            />
+
+      <div class="chat-header-content d-flex align-center flex-grow-1 min-w-0 me-2">
+        <!-- Salma mini avatar in header -->
+        <div class="salma-header-avatar me-2 flex-shrink-0">
+          <img
+            src="/images/salma2.gif"
+            alt="SALMA"
+            loading="lazy"
+            class="salma-header-img"
+          />
+        </div>
+
+        <div class="chat-header-text min-w-0 flex-grow-1">
+          <div class="chat-header-top d-flex align-center gap-1.5">
+            <span class="chat-title-brand">SALMA AI</span>
+            <span v-if="isBeta" class="chat-beta-badge">BETA</span>
+            <span class="chat-title-sub d-none d-sm-inline opacity-90">— Asisten Samsat Lamongan</span>
           </div>
-          <div>
-            <div class="font-weight-bold d-flex align-center gap-2">
-              <span>SALMA AI — Asisten Samsat Lamongan</span>
-              <span v-if="isBeta" class="chat-beta-badge">BETA</span>
-            </div>
-            <div v-if="props.wajibPajakData" class="text-caption opacity-90">
-              {{ props.wajibPajakData.nama }} ({{ props.wajibPajakData.nopol }})
-            </div>
+          <div class="chat-header-bottom text-truncate">
+            <template v-if="props.wajibPajakData">
+              <span class="sub-name">{{ props.wajibPajakData.nama }}</span>
+              <span v-if="props.wajibPajakData.nopol" class="sub-nopol ms-1 font-weight-bold">({{ props.wajibPajakData.nopol }})</span>
+            </template>
+            <template v-else>
+              <span class="sub-status-online">● Online</span>
+              <span class="sub-status-desc ms-1 d-none d-xs-inline opacity-75">Samsat Lamongan</span>
+            </template>
           </div>
         </div>
-      </VAppBarTitle>
-      <VSpacer></VSpacer>
-      <VBtn
-        icon="mdi-refresh"
-        variant="text"
-        color="white"
-        @click="startNewChat"
-        title="Chat Baru"
-        class="me-2"
-      ></VBtn>
+      </div>
+
+      <div class="d-flex align-center gap-0.5 flex-shrink-0 ms-auto">
+        <VBtn
+          icon="mdi-help-circle-outline"
+          variant="text"
+          color="white"
+          size="small"
+          @click="startChatTour"
+          title="Panduan Penggunaan"
+          class="header-icon-btn"
+        ></VBtn>
+        <VBtn
+          icon="mdi-refresh"
+          variant="text"
+          color="white"
+          size="small"
+          @click="startNewChat"
+          title="Mulai Percakapan Baru"
+          class="header-icon-btn"
+        ></VBtn>
+      </div>
     </VAppBar>
 
     <!-- ── VMain auto-applies top padding = AppBar height ── -->
     <VMain class="chat-main">
-      <!-- Chat Container -->
-      <VCard
-        class="chat-container mx-auto"
-        max-width="1000"
-        :style="{
-          borderRadius: '0',
-          overflow: 'hidden',
-          background: 'white',
-          border: 'none',
-          display: 'flex',
-          flexDirection: 'column',
-          flex: '1 1 auto',
-          minHeight: '0',
-        }"
-        elevation="0"
-      >
-        <!-- Welcome Section -->
-        <div
-          v-if="!chatSession || messages.length === 0"
-          id="tour-chat-welcome" class="welcome-section pa-6 text-center"
-          :style="{
-            background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-          }"
-        >
-          <!-- SALMA Mascot GIF - welcome screen hero -->
-          <div class="salma-mascot-wrapper mb-3">
-            <img
-              src="/images/salma2.gif"
-              alt="SALMA AI Assistant"
-              loading="eager"
-              class="salma-mascot-img"
-            />
-          </div>
-
-          <h2 class="text-h5 mb-3 gradient-text font-weight-bold">
-            Selamat Datang di Layanan AI
-          </h2>
-          <h3 class="text-h6 mb-3 text-primary">Samsat Lamongan</h3>
-          <p
-            class="text-body-2 text-grey-700 mb-4 mx-auto"
-            style="max-width: 450px; line-height: 1.6"
-          >
-            Saya siap membantu Anda dengan informasi seputar pajak kendaraan,
-            STNK, dan layanan Samsat lainnya 24/7.
-          </p>
-
-          <!-- Quick Suggestions -->
-          <div class="mb-4">
-            <h4 class="text-subtitle-1 mb-3 text-grey-800">
-              Pertanyaan Populer:
-            </h4>
-            <VRow justify="center" class="ma-0" dense>
-              <VCol
-                v-for="(suggestion, index) in quickSuggestions"
-                :key="suggestion"
-                cols="12"
-                sm="6"
-                lg="3"
-                class="pa-1"
-              >
-                <VCard
-                  @click="sendQuickMessage(suggestion)"
-                  class="suggestion-card pa-3 text-center"
-                  :style="{
-                    cursor: 'pointer',
-                    background:
-                      'linear-gradient(135deg, ' +
-                      getSuggestionColor(index) +
-                      '15, ' +
-                      getSuggestionColor(index) +
-                      '08)',
-                    border: '1.5px solid ' + getSuggestionColor(index) + '30',
-                    borderRadius: '16px',
-                    transition: 'all 0.3s ease',
-                    minHeight: '80px',
-                  }"
-                  hover
-                  elevation="1"
-                >
-                  <VIcon
-                    :color="getSuggestionColor(index)"
-                    size="24"
-                    class="mb-1"
-                  >
-                    {{ getSuggestionIcon(index) }}
-                  </VIcon>
-                  <p
-                    class="text-caption font-weight-medium mb-0"
-                    :style="{
-                      color: getSuggestionColor(index),
-                      fontSize: '11px',
-                      lineHeight: '1.3',
-                    }"
-                  >
-                    {{ suggestion }}
-                  </p>
-                </VCard>
-              </VCol>
-            </VRow>
-          </div>
-
-          <VBtn
-            @click="startNewChat"
-            :style="{
-              background: 'linear-gradient(135deg, #C0392B, #D32F2F)',
-              borderRadius: '20px',
-              textTransform: 'none',
-              padding: '10px 28px',
-              boxShadow: '0 6px 16px rgba(192, 57, 43, 0.4)',
-            }"
-            color="white"
-            class="start-chat-btn text-white font-weight-bold"
-            size="large"
-            elevation="0"
-          >
-            <VIcon left size="20">mdi-chat</VIcon>
-            Mulai Chat
-          </VBtn>
-        </div>
-
-        <!-- Messages Area -->
-        <div v-else id="tour-chat-messages" class="chat-messages-area">
-          <!-- Messages Container -->
+      <div class="chat-viewport">
+        <!-- Chat Container -->
+        <div class="chat-container">
+          <!-- Scrollable Chat Body (Welcome or Messages) -->
           <div
             ref="messagesContainer"
-            class="messages-scroll pa-3"
-            :style="{
-              flex: '1 1 auto',
-              minHeight: '0',
-              overflowY: 'auto',
-              background: 'linear-gradient(to bottom, #fafafa, #ffffff)',
-            }"
+            class="chat-scroll-area messages-scroll"
+            @click="handleContentClick"
           >
-            <!-- Message Items -->
+            <!-- Welcome Section -->
             <div
-              v-for="message in messages"
-              :key="message.id || message.sent_at"
-              class="mb-3"
+              v-if="!chatSession || messages.length === 0"
+              id="tour-chat-welcome"
+              class="welcome-section"
             >
-              <!-- User Message -->
-              <VRow
-                v-if="message.role === 'user'"
-                justify="end"
-                no-gutters
-                class="mb-2"
-              >
-                <VCol cols="auto" class="max-width-75">
-                  <VCard
-                    class="user-message pa-3"
-                    :style="{
-                      background: 'linear-gradient(135deg, #C0392B, #D32F2F)',
-                      borderRadius: '18px 18px 4px 18px',
-                      boxShadow: '0 3px 10px rgba(192, 57, 43, 0.35)',
-                      maxWidth: '100%',
-                    }"
-                    elevation="0"
+              <!-- SALMA Mascot GIF - welcome screen hero -->
+              <div class="salma-mascot-wrapper mb-3">
+                <img
+                  src="/images/salma2.gif"
+                  alt="SALMA AI Assistant"
+                  loading="eager"
+                  class="salma-mascot-img"
+                />
+              </div>
+
+              <h2 class="text-h5 mb-1.5 gradient-text font-weight-bold">
+                Selamat Datang di Layanan AI
+              </h2>
+              <h3 class="text-subtitle-1 mb-2 font-weight-bold text-[#C0392B]">KB Samsat Lamongan</h3>
+              <p class="welcome-desc text-grey-700 mb-4 mx-auto">
+                Saya siap membantu Anda dengan informasi seputar pajak kendaraan,
+                STNK, jadwal keliling, dan layanan Samsat lainnya 24/7.
+              </p>
+
+              <!-- Quick Suggestions -->
+              <div class="quick-suggestions-wrap mb-4">
+                <h4 class="text-caption font-weight-bold text-grey-700 mb-2 text-uppercase tracking-wider">
+                  Pertanyaan Populer:
+                </h4>
+                <VRow justify="center" class="ma-0" dense>
+                  <VCol
+                    v-for="(suggestion, index) in quickSuggestions"
+                    :key="suggestion"
+                    cols="12"
+                    sm="6"
+                    class="pa-1"
                   >
-                    <div class="text-white font-weight-medium text-body-2">
-                      {{ message.content }}
-                    </div>
-                    <div class="text-right mt-1">
-                      <small
-                        class="text-white"
-                        style="opacity: 0.8; font-size: 10px"
-                      >
-                        {{ formatTime(message.sent_at) }}
-                      </small>
-                    </div>
-                  </VCard>
-                </VCol>
-              </VRow>
-
-              <!-- Assistant Message -->
-              <VRow v-else justify="start" no-gutters class="mb-2">
-                <VCol cols="auto" class="max-width-160">
-                  <div class="d-flex align-start">
-                    <!-- Salma avatar - lazy loaded for off-screen messages -->
-                    <div class="salma-msg-avatar me-2 mt-1 flex-shrink-0">
-                      <img
-                        src="/images/salma2.gif"
-                        alt="SALMA"
-                        loading="lazy"
-                        class="salma-msg-img"
-                      />
-                    </div>
-                    <VCard
-                      class="assistant-message pa-3 flex-grow-1"
-                      :style="{
-                        background: 'white',
-                        borderRadius: '18px 18px 18px 4px',
-                        border: '1px solid #e0e0e0',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                        maxWidth: '100%',
-                      }"
-                      elevation="0"
+                    <div
+                      @click="sendQuickMessage(suggestion)"
+                      class="suggestion-card"
                     >
-                      <!-- Feedback Form Component -->
-                      <!-- (Feedback is now shown as a VDialog popup) -->
+                      <VIcon
+                        :color="getSuggestionColor(index)"
+                        size="20"
+                        class="me-2 flex-shrink-0"
+                      >
+                        {{ getSuggestionIcon(index) }}
+                      </VIcon>
+                      <span class="suggestion-text">
+                        {{ suggestion }}
+                      </span>
+                    </div>
+                  </VCol>
+                </VRow>
+              </div>
 
-                      <!-- Final Thank You or Regular Assistant Message -->
-                      <div
-                        class="assistant-content text-grey-800 text-body-2"
-                        style="line-height: 1.6"
-                        v-html="getFormattedContent(message)"
-                      ></div>
-
-                      <div class="text-left mt-1">
-                        <small class="text-grey-500" style="font-size: 10px">
-                          {{ formatTime(message.sent_at) }}
-                        </small>
-                      </div>
-                    </VCard>
-                  </div>
-                </VCol>
-              </VRow>
+              <VBtn
+                @click="startNewChat"
+                :style="{
+                  background: 'linear-gradient(135deg, #C0392B, #D32F2F)',
+                  borderRadius: '20px',
+                  textTransform: 'none',
+                  padding: '8px 24px',
+                  boxShadow: '0 4px 14px rgba(192, 57, 43, 0.4)',
+                }"
+                color="white"
+                class="start-chat-btn text-white font-weight-bold"
+                size="default"
+                elevation="0"
+              >
+                <VIcon start size="18">mdi-chat</VIcon>
+                Mulai Chat AI
+              </VBtn>
             </div>
 
-            <!-- Typing Indicator -->
-            <VRow v-if="isTyping" justify="start" no-gutters>
-              <VCol cols="auto">
-                <div class="d-flex align-start">
-                  <div class="salma-msg-avatar me-2">
+            <!-- Messages Area -->
+            <div v-else id="tour-chat-messages" class="chat-messages-area">
+              <!-- Message Items -->
+              <div
+                v-for="message in messages"
+                :key="message.id || message.sent_at"
+                class="mb-3"
+              >
+                <!-- User Message -->
+                <div
+                  v-if="message.role === 'user'"
+                  class="d-flex justify-end mb-2"
+                >
+                  <div class="user-message-bubble">
+                    <div class="user-msg-content font-weight-medium">
+                      {{ message.content }}
+                    </div>
+                    <div class="user-msg-time text-right mt-1">
+                      <small>{{ formatTime(message.sent_at) }}</small>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Assistant Message -->
+                <div v-else class="d-flex justify-start align-start mb-2">
+                  <!-- Salma avatar -->
+                  <div class="salma-msg-avatar me-2 mt-0.5 flex-shrink-0">
                     <img
                       src="/images/salma2.gif"
                       alt="SALMA"
@@ -287,89 +196,91 @@
                       class="salma-msg-img"
                     />
                   </div>
-                  <VCard
-                    class="pa-3"
-                    :style="{
-                      background: 'white',
-                      borderRadius: '18px 18px 18px 4px',
-                      border: '1px solid #e0e0e0',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                    }"
-                    elevation="0"
-                  >
-                    <div class="typing-indicator">
-                      <div class="typing-dots">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                      </div>
-                      <span class="typing-text ms-2 text-grey-600 text-caption">
-                        sedang mengetik...
-                      </span>
+                  <div class="assistant-message-bubble flex-grow-1">
+                    <div
+                      class="assistant-content text-grey-800"
+                      v-html="getFormattedContent(message)"
+                    ></div>
+                    <div class="assistant-msg-time text-left mt-1">
+                      <small>{{ formatTime(message.sent_at) }}</small>
                     </div>
-                  </VCard>
+                  </div>
                 </div>
-              </VCol>
-            </VRow>
+              </div>
+
+              <!-- Typing Indicator -->
+              <div v-if="isTyping" class="d-flex justify-start align-start mb-2">
+                <div class="salma-msg-avatar me-2 mt-0.5 flex-shrink-0">
+                  <img
+                    src="/images/salma2.gif"
+                    alt="SALMA"
+                    loading="lazy"
+                    class="salma-msg-img"
+                  />
+                </div>
+                <div class="typing-indicator-bubble">
+                  <div class="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <span class="typing-text ms-2">sedang mengetik...</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <!-- Input Area -->
-          <VDivider style="border-color: rgba(0, 0, 0, 0.05)"></VDivider>
-          <div
-            class="pa-3"
-            style="background: white; border-radius: 0 0 24px 24px"
-          >
-            <VRow no-gutters align="center" class="gap-2">
-              <VCol>
+          <!-- ═══ ALWAYS FIXED & FLOATING BOTTOM INPUT BAR ═══ -->
+          <div class="chat-floating-bar-wrap">
+            <div class="chat-floating-bar-inner">
+              <div
+                class="chat-input-pill"
+                :class="{ 'chat-input-pill--focused': isInputFocused, 'chat-input-pill--disabled': isLoading }"
+              >
                 <VTextarea
                   v-model="currentMessage"
-                  placeholder="Ketik pertanyaan Anda tentang layanan Samsat..."
+                  placeholder="Ketik pertanyaan Anda disini..."
                   rows="1"
                   auto-grow
-                  max-rows="3"
-                  variant="outlined"
-                  id="tour-chat-input" class="message-input"
+                  max-rows="4"
+                  variant="plain"
+                  id="tour-chat-input"
+                  class="chat-plain-input"
                   :disabled="isLoading"
                   @keydown.enter="handleEnterKey"
+                  @focus="isInputFocused = true"
+                  @blur="isInputFocused = false"
                   hide-details
                   density="compact"
-                  :style="{
-                    borderRadius: '20px',
-                  }"
                 ></VTextarea>
-              </VCol>
-              <VCol cols="auto">
-                <VBtn
+
+                <button
+                  type="button"
                   @click="() => sendMessage()"
                   :disabled="!currentMessage.trim() || isLoading"
-                  :style="{
-                    background: 'linear-gradient(135deg, #C0392B, #D32F2F)',
-                    borderRadius: '50%',
-                    minWidth: '48px',
-                    width: '48px',
-                    height: '48px',
-                    boxShadow: '0 4px 12px rgba(192, 57, 43, 0.35)',
-                  }"
-                  class="text-white"
-                  elevation="0"
-                  icon
+                  class="chat-send-btn"
+                  :class="{ 'chat-send-btn--active': currentMessage.trim() && !isLoading }"
+                  title="Kirim Pesan"
+                  aria-label="Kirim Pesan"
                 >
-                  <VIcon v-if="!isLoading" size="20">mdi-send</VIcon>
+                  <VIcon v-if="!isLoading" size="20" color="white">mdi-send</VIcon>
                   <VProgressCircular
                     v-else
                     indeterminate
-                    size="16"
+                    size="18"
+                    width="2.5"
                     color="white"
                   ></VProgressCircular>
-                </VBtn>
-              </VCol>
-            </VRow>
-            <div class="text-center text-caption text-grey pt-1" style="font-size: 10px; opacity: 0.65;">
-              Protected by reCAPTCHA • <a href="https://policies.google.com/privacy" target="_blank" class="text-grey text-decoration-none">Privacy</a> - <a href="https://policies.google.com/terms" target="_blank" class="text-grey text-decoration-none">Terms</a>
+                </button>
+              </div>
+
+              <div class="chat-recaptcha-footer">
+                Protected by reCAPTCHA • <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy</a> - <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">Terms</a>
+              </div>
             </div>
           </div>
         </div>
-      </VCard>
+      </div>
     </VMain>
 
     <!-- ─── Feedback Dialog Popup ──────────────────────────────────────── -->
@@ -497,7 +408,11 @@
         </VBtn>
       </template>
     </VSnackbar>
-    <TourButton @start="startChatTour" variant="public" />
+
+    <!-- Tour Button positioned cleanly above floating bar -->
+    <div class="chat-tour-anchor">
+      <TourButton @start="startChatTour" variant="public" />
+    </div>
   </VApp>
 </template>
 
@@ -536,6 +451,7 @@ const messages = ref([]);
 const currentMessage = ref('');
 const isLoading = ref(false);
 const isTyping = ref(false);
+const isInputFocused = ref(false);
 const showError = ref(false);
 const errorMessage = ref('');
 const messagesContainer = ref(null);
@@ -1230,191 +1146,312 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
 </script>
 
 <style scoped>
-/* ── Full-height layout ─────────────────────────────────────────────── */
-/* VMain is the Vuetify 3 correct way: it auto-applies top-padding equal
-   to VAppBar height, so nothing overlaps the header. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   SALMA AI CHAT INTERFACE — Premium Government Red (#C0392B) Theme
+   Always-Fixed Floating Input + Sleek Responsive Layout
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Full-Height Viewport Layout ────────────────────────────────────────── */
 .chat-main {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+  height: calc(100vh - 48px);
+  height: calc(100dvh - 48px);
   overflow: hidden;
-  background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+  background: #F8FAFC;
+  display: flex;
+  flex-direction: column;
 }
 
-.chat-app {
-  background: transparent;
+@media (max-width: 600px) {
+  .chat-main {
+    height: calc(100vh - 48px);
+    height: calc(100dvh - 48px);
+  }
+}
+
+.chat-viewport {
+  flex: 1 1 auto;
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.chat-row {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.chat-row > .v-col {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
+  position: relative;
 }
 
 .chat-container {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex !important;
-  flex-direction: column;
   width: 100%;
-  max-width: 1000px;
+  max-width: 920px;
   margin: 0 auto;
-  /* Fill remaining height inside VMain */
   height: 100%;
-}
-
-.chat-messages-area {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
+  position: relative;
+  background: #FFFFFF;
+  border-left: 1px solid #EEF2F6;
+  border-right: 1px solid #EEF2F6;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.03);
 }
 
-.messages-scroll {
+@media (max-width: 920px) {
+  .chat-container {
+    max-width: 100%;
+    border-left: none;
+    border-right: none;
+  }
+}
+
+/* ── Scrollable Chat Content ────────────────────────────────────────────── */
+.chat-scroll-area {
   flex: 1 1 auto;
-  min-height: 0;
   overflow-y: auto;
+  padding: 20px 20px 115px 20px;
+  background: linear-gradient(180deg, #FAFAFC 0%, #FFFFFF 100%);
+  display: flex;
+  flex-direction: column;
 }
 
-/* ── SALMA Mascot & Avatars ─────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .chat-scroll-area {
+    padding: 14px 12px 110px 12px;
+  }
+}
+
+/* Custom Scrollbar */
+.messages-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.messages-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.messages-scroll::-webkit-scrollbar-thumb {
+  background: rgba(192, 57, 43, 0.25);
+  border-radius: 10px;
+}
+.messages-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(192, 57, 43, 0.45);
+}
+
+/* ── App Header ─────────────────────────────────────────────────────────── */
+.chat-header {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.chat-header :deep(.v-toolbar__content) {
+  padding: 0 8px !important;
+}
+.header-icon-btn {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  border-radius: 50% !important;
+  transition: all 0.2s ease !important;
+}
+.header-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  transform: scale(1.05);
+}
+.salma-header-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+.salma-header-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.chat-header-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.chat-header-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.chat-header-top {
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.chat-title-brand {
+  font-size: 0.92rem; /* 14.7px */
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #FFFFFF;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.chat-title-sub {
+  font-size: 0.75rem; /* 12px */
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.chat-beta-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 8px;
+  font-weight: 800;
+  background: #FFFFFF;
+  color: #C0392B;
+  padding: 0.5px 5px;
+  border-radius: 8px;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+.chat-header-bottom {
+  font-size: 10.5px;
+  line-height: 1.15;
+  color: rgba(255, 255, 255, 0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sub-status-online {
+  color: #86EFAC;
+  font-weight: 600;
+  font-size: 10px;
+}
+.sub-name {
+  font-weight: 500;
+  color: #FFFFFF;
+}
+.sub-nopol {
+  opacity: 0.92;
+}
+
+/* ── Welcome Section ────────────────────────────────────────────────────── */
+.welcome-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 100%;
+  padding: 24px 16px;
+  margin: auto 0;
+}
 .salma-mascot-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
-  /* fixed dimensions so page doesn't jump on gif load */
-  width: 140px;
-  height: 140px;
+  width: 110px;
+  height: 110px;
   margin: 0 auto;
   border-radius: 50%;
   overflow: hidden;
   background: linear-gradient(135deg, #FEE2E2, #FEF2F2);
-  box-shadow: 0 8px 32px rgba(192, 57, 43, 0.25);
+  box-shadow: 0 8px 24px rgba(192, 57, 43, 0.2);
+  border: 2px solid #FFFFFF;
 }
-
 .salma-mascot-img {
-  width: 140px;
-  height: 140px;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border-radius: 50%;
   display: block;
 }
-
-/* Small avatar next to chat bubbles */
-.salma-msg-avatar {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-  border: 2px solid #FEE2E2;
-}
-
-.salma-msg-img {
-  width: 80px;
-  height: 100px;
-  object-fit: fill;
-  display: block;
-}
-
-@media screen and (max-width: 600px) {
-  .salma-msg-avatar {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    overflow: hidden;
-    flex-shrink: 0;
-    border: 2px solid #FEE2E2;
-  }
-
-  .salma-msg-img {
-    width: 40px;
-    height: 50px;
-    object-fit: fill;
-    display: block;
-  }
-}
-
-/* Tiny header avatar next to SALMA AI title */
-.salma-header-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.salma-header-img {
-  width: 34px;
-  height: 34px;
-  object-fit: cover;
-  border-radius: 50%;
-  display: block;
-}
-
-.chat-beta-badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 10px;
-  font-weight: 800;
-  background: #ffffff;
-  color: #C0392B;
-  padding: 1px 7px;
-  border-radius: 20px;
-  letter-spacing: 0.05em;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-}
-
-/* ── Header ─────────────────────────────────────────────────────────── */
-.chat-header {
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 16px rgba(192, 57, 43, 0.35) !important;
-}
-
-/* ── Welcome screen ─────────────────────────────────────────────────── */
 .gradient-text {
   background: linear-gradient(135deg, #C0392B, #962D22);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-
-.suggestion-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12) !important;
+.welcome-desc {
+  max-width: 480px;
+  font-size: 0.88rem;
+  line-height: 1.6;
 }
-
+.quick-suggestions-wrap {
+  width: 100%;
+  max-width: 580px;
+}
+.suggestion-card {
+  display: flex;
+  align-items: center;
+  background: #FFFFFF;
+  border: 1.5px solid #EEF2F6;
+  border-radius: 14px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+  height: 100%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+.suggestion-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(192, 57, 43, 0.35);
+  background: #FFFBFB;
+  box-shadow: 0 6px 16px rgba(192, 57, 43, 0.08);
+}
+.suggestion-text {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.35;
+}
 .start-chat-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(192, 57, 43, 0.55) !important;
+  box-shadow: 0 6px 18px rgba(192, 57, 43, 0.45) !important;
 }
 
-/* ── Message input ──────────────────────────────────────────────────── */
-.message-input >>> .v-field {
-  border-radius: 20px !important;
-  border: 1px solid #e0e0e0 !important;
+/* ── Message Bubbles ────────────────────────────────────────────────────── */
+.user-message-bubble {
+  background: linear-gradient(135deg, #C0392B 0%, #D32F2F 100%);
+  color: #FFFFFF;
+  border-radius: 18px 18px 4px 18px;
+  padding: 11px 16px;
+  max-width: 80%;
+  box-shadow: 0 3px 12px rgba(192, 57, 43, 0.25);
+  animation: fadeInMsg 0.25s ease-out;
+}
+@media (max-width: 600px) {
+  .user-message-bubble {
+    max-width: 88%;
+    padding: 10px 14px;
+  }
+}
+.user-msg-content {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.user-msg-time {
+  opacity: 0.8;
+  font-size: 10px;
 }
 
-.message-input >>> .v-field:focus-within {
-  border-color: #C0392B !important;
-  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.18) !important;
+.assistant-message-bubble {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 18px 18px 18px 4px;
+  padding: 13px 16px;
+  max-width: 85%;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  animation: fadeInMsg 0.25s ease-out;
 }
-
-/* ── Message bubbles ────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .assistant-message-bubble {
+    max-width: 90%;
+    padding: 11px 14px;
+  }
+}
+.assistant-content {
+  font-size: 0.88rem;
+  line-height: 1.65;
+  word-break: break-word;
+}
 .assistant-content .kb-image-gallery {
   display: flex;
   flex-wrap: wrap;
@@ -1426,69 +1463,88 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
   max-height: 120px;
   border-radius: 8px;
   object-fit: cover;
-  border: 1px solid #eee;
+  border: 1px solid #E2E8F0;
+  cursor: pointer;
+  transition: transform 0.2s ease;
 }
-
+.assistant-content .kb-image-gallery img:hover {
+  transform: scale(1.03);
+}
 .assistant-content .kb-reference {
   margin-top: 12px;
   padding-top: 8px;
-  border-top: 1px dashed #e0e0e0;
+  border-top: 1px dashed #E2E8F0;
 }
 .assistant-content .kb-ref-header {
-  font-size: 12px;
-  color: #666;
+  font-size: 11.5px;
+  color: #64748B;
   margin-bottom: 6px;
 }
 .assistant-content .kb-ref-content img {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
-  border: 1px solid #eee;
+  border: 1px solid #E2E8F0;
 }
-.assistant-content .kb-ref-content p {
-  margin: 0.5em 0;
-}
-
 .assistant-content img {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
 }
-
-.text-white-70 {
-  color: rgba(255, 255, 255, 0.7) !important;
+.assistant-msg-time {
+  color: #94A3B8;
+  font-size: 10px;
 }
 
-.max-width-75 {
-  max-width: 75%;
+.salma-msg-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(192, 57, 43, 0.2);
+  background: #FFF5F5;
+  box-shadow: 0 2px 6px rgba(192, 57, 43, 0.1);
+}
+.salma-msg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+@media (max-width: 600px) {
+  .salma-msg-avatar {
+    width: 30px;
+    height: 30px;
+  }
 }
 
-.max-width-80 {
-  max-width: 80%;
+@keyframes fadeInMsg {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.gap-2 > * + * {
-  margin-left: 8px;
-}
-
-.user-message,
-.assistant-message {
-  transition: all 0.2s ease;
-}
-
-/* ── Typing indicator ───────────────────────────────────────────────── */
-.typing-indicator {
-  display: flex;
+/* ── Typing Indicator ───────────────────────────────────────────────────── */
+.typing-indicator-bubble {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 18px 18px 18px 4px;
+  padding: 10px 16px;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
-
 .typing-dots {
   display: flex;
   align-items: center;
   gap: 4px;
 }
-
 .typing-dots span {
   width: 6px;
   height: 6px;
@@ -1497,126 +1553,162 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
   animation: typing-bounce 1.4s infinite ease-in-out both;
   display: inline-block;
 }
-
-.typing-dots span:nth-child(1) {
-  animation-delay: -0.32s;
-}
-.typing-dots span:nth-child(2) {
-  animation-delay: -0.16s;
-}
-.typing-dots span:nth-child(3) {
-  animation-delay: 0s;
-}
-
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+.typing-dots span:nth-child(3) { animation-delay: 0s; }
 .typing-text {
-  font-size: 12px;
-  color: #666;
-  margin-left: 8px;
+  font-size: 11px;
+  color: #64748B;
 }
-
 @keyframes typing-bounce {
-  0%,
-  80%,
-  100% {
-    transform: scale(0);
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* ── ALWAYS FIXED & FLOATING BOTTOM INPUT BAR ───────────────────────────── */
+.chat-floating-bar-wrap {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 35;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+}
+.chat-floating-bar-inner {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 920px;
+  padding: 8px 18px 12px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0) 0%, rgba(255, 255, 255, 0.94) 28%, #FFFFFF 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+@media (max-width: 600px) {
+  .chat-floating-bar-inner {
+    padding: 6px 12px 10px;
   }
-  40% {
-    transform: scale(1);
+}
+
+.chat-input-pill {
+  width: 100%;
+  background: #FFFFFF;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 26px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+  padding: 4px 6px 4px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.chat-input-pill--focused {
+  border-color: #C0392B !important;
+  box-shadow: 0 4px 22px rgba(192, 57, 43, 0.18), 0 0 0 3px rgba(192, 57, 43, 0.08) !important;
+}
+.chat-input-pill--disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Plain textarea without any outline artifacts */
+.chat-plain-input {
+  flex: 1;
+}
+.chat-plain-input :deep(.v-field) {
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.chat-plain-input :deep(.v-field__outline) {
+  display: none !important;
+}
+.chat-plain-input :deep(.v-field__input) {
+  padding: 8px 2px !important;
+  min-height: 24px !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+  color: #1E293B !important;
+}
+.chat-plain-input :deep(textarea) {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  resize: none !important;
+}
+.chat-plain-input :deep(textarea::-webkit-scrollbar) {
+  display: none !important;
+}
+
+/* Send Button */
+.chat-send-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: #E2E8F0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: not-allowed;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.chat-send-btn--active {
+  background: linear-gradient(135deg, #C0392B 0%, #D32F2F 100%);
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(192, 57, 43, 0.35);
+}
+.chat-send-btn--active:hover {
+  transform: scale(1.06);
+  box-shadow: 0 5px 16px rgba(192, 57, 43, 0.5);
+}
+.chat-send-btn--active:active {
+  transform: scale(0.96);
+}
+
+.chat-recaptcha-footer {
+  font-size: 10px;
+  color: #94A3B8;
+  text-align: center;
+  padding-top: 4px;
+  user-select: none;
+}
+.chat-recaptcha-footer a {
+  color: #64748B;
+  text-decoration: none;
+}
+.chat-recaptcha-footer a:hover {
+  text-decoration: underline;
+}
+
+/* ── Tour Button Anchor (Safely Above Floating Bar) ─────────────────────── */
+.chat-tour-anchor :deep(.tour-fab) {
+  bottom: 84px !important;
+  right: 20px !important;
+  z-index: 45 !important;
+}
+@media (max-width: 600px) {
+  .chat-tour-anchor :deep(.tour-fab) {
+    bottom: 78px !important;
+    right: 12px !important;
   }
 }
 
-/* ── Scrollbar ──────────────────────────────────────────────────────── */
-.messages-scroll::-webkit-scrollbar {
-  width: 5px;
-}
-
-.messages-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.messages-scroll::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #C0392B, #D32F2F);
-  border-radius: 10px;
-}
-
-.messages-scroll::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #A93226, #B03022);
-}
-
-/* ── Feedback dialog ────────────────────────────────────────────────── */
+/* ── Feedback Dialog ────────────────────────────────────────────────────── */
 .feedback-popup {
   border-radius: 16px !important;
   overflow: hidden;
 }
-
 .feedback-emoji-large {
-  font-size: 44px;
+  font-size: 40px;
   line-height: 1;
 }
-
 .rating-label {
   min-height: 20px;
   transition: color 0.2s;
-}
-
-/* ── Final thank you message ─────────────────────────────────────────── */
-.final-message {
-  animation: slideInUp 0.5s ease-out;
-}
-
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ── Mobile responsive ──────────────────────────────────────────────── */
-.max-width-90 {
-  max-width: 90%;
-}
-
-@media (max-width: 768px) {
-  .chat-app {
-    height: 100%; /* VMain handles the full height */
-  }
-
-  .salma-mascot-wrapper {
-    width: 110px;
-    height: 110px;
-  }
-
-  .salma-mascot-img {
-    width: 110px;
-    height: 110px;
-  }
-
-  .max-width-75 {
-    max-width: 88%;
-  }
-
-  .max-width-80 {
-    max-width: 92%;
-  }
-
-  .max-width-90 {
-    max-width: 96%;
-  }
-
-  .welcome-section {
-    padding: 16px !important;
-  }
-
-  .gradient-text {
-    font-size: 1.2rem !important;
-  }
-
-  .suggestion-card {
-    min-height: 64px !important;
-  }
 }
 </style>

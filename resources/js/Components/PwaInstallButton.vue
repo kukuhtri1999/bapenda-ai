@@ -216,6 +216,7 @@ function handleDismiss() {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 .pwa-pill-text {
   letter-spacing: 0.01em;
@@ -227,6 +228,18 @@ function handleDismiss() {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.03em;
+}
+
+/* Mobile: icon-only pill — hide text & badge */
+@media (max-width: 640px) {
+  .pwa-pill {
+    padding: 8px;
+    gap: 0;
+  }
+  .pwa-pill-text,
+  .pwa-pill-badge {
+    display: none;
+  }
 }
 
 /* ── Expanded card ───────────────────────────────────────────────────────── */
@@ -445,10 +458,10 @@ function handleDismiss() {
 @keyframes pwa-pulse {
   0%,
   100% {
-    box-shadow: 0 4px 18px rgba(108, 51, 160, 0.45);
+    box-shadow: 0 4px 18px rgba(192, 57, 43, 0.45);
   }
   50% {
-    box-shadow: 0 4px 28px rgba(108, 51, 160, 0.7);
+    box-shadow: 0 4px 28px rgba(192, 57, 43, 0.7);
   }
 }
 

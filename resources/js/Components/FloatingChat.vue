@@ -8,16 +8,16 @@
       :style="{
         background: 'linear-gradient(135deg, #C0392B 0%, #E74C3C 100%)',
         borderRadius: '50%',
-        width: '64px',
-        height: '64px',
-        boxShadow: '0 8px 24px rgba(192, 57, 43, 0.45)',
+        width: '56px',
+        height: '56px',
+        boxShadow: '0 6px 20px rgba(192, 57, 43, 0.45)',
         border: '3px solid white',
       }"
       elevation="0"
-      size="x-large"
+      size="large"
       icon
     >
-      <VIcon size="32" color="white">mdi-chat-processing</VIcon>
+      <VIcon size="26" color="white">mdi-chat-processing</VIcon>
       <VTooltip activator="parent" location="left">
         <div class="pa-2">
           <div class="font-weight-bold">SALMA AI Assistant</div>
@@ -765,16 +765,16 @@ onBeforeUnmount(() => {
 
 .floating-chat-button:hover {
   transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 12px 32px rgba(233, 165, 241, 0.6) !important;
+  box-shadow: 0 12px 32px rgba(192, 57, 43, 0.6) !important;
 }
 
 @keyframes pulse {
   0%,
   100% {
-    box-shadow: 0 8px 24px rgba(233, 165, 241, 0.4);
+    box-shadow: 0 6px 20px rgba(192, 57, 43, 0.4);
   }
   50% {
-    box-shadow: 0 8px 24px rgba(233, 165, 241, 0.6);
+    box-shadow: 0 6px 20px rgba(192, 57, 43, 0.65);
   }
 }
 
@@ -782,8 +782,8 @@ onBeforeUnmount(() => {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  width: 400px;
-  height: 600px;
+  width: 360px;
+  height: 540px;
   backdrop-filter: blur(20px);
   transition: all 0.3s ease;
 }
@@ -792,18 +792,18 @@ onBeforeUnmount(() => {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  width: 80px;
-  height: 70px;
+  width: 70px;
+  height: 62px;
   transition: all 0.3s ease;
 }
 
 .floating-chat-minimized:hover {
   transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 12px 28px rgba(233, 165, 241, 0.6) !important;
+  box-shadow: 0 12px 28px rgba(192, 57, 43, 0.6) !important;
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #e9a5f1, #c68efd);
+  background: linear-gradient(135deg, #C0392B, #E74C3C);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -814,7 +814,7 @@ onBeforeUnmount(() => {
 }
 
 .messages-container {
-  height: 460px;
+  height: 405px;
   overflow-y: auto;
   scroll-behavior: smooth;
   background: linear-gradient(to bottom, #fafafa, #ffffff);
@@ -831,12 +831,12 @@ onBeforeUnmount(() => {
 }
 
 .messages-container::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #e9a5f1, #c68efd);
+  background: linear-gradient(135deg, #C0392B, #E74C3C);
   border-radius: 10px;
 }
 
 .messages-container::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #c68efd, #8f87f1);
+  background: linear-gradient(135deg, #E74C3C, #C0392B);
 }
 
 .suggestion-chip {
