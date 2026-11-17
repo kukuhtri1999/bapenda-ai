@@ -808,13 +808,18 @@ REQUIREMENTS:
             $userQuery = (string)($latestUser['content'] ?? '');
             $userQueryClean = trim($userQuery);
 
+            // Check if this is an active multi-turn dialogue (has previous user/assistant exchanges)
+            $isMultiTurn = $this->hasActiveConversationHistory($messages);
+
             // ── Response Caching Check (Sub-50ms Latency & $0 Cost) ────────────
+            // Only serve from standalone cache if there is NO prior conversation dialogue history,
+            // preventing follow-ups like "berapa biayanya?" from hitting unrelated cached answers.
             $cacheEnabled = config('services.openai.cache_enabled', true);
             $cacheTtl = (int) config('services.openai.cache_ttl', 3600);
             $normalizedQuery = mb_strtolower(preg_replace('/[^\p{L}\p{N}\s]/u', '', $userQueryClean));
             $cacheKey = 'ai_response_cache:' . md5($normalizedQuery);
 
-            if ($cacheEnabled && strlen($normalizedQuery) > 3) {
+            if ($cacheEnabled && !$isMultiTurn && strlen($normalizedQuery) > 15) {
                 if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
                     $cachedResult = \Illuminate\Support\Facades\Cache::get($cacheKey);
                     if (is_array($cachedResult) && !empty($cachedResult['message'])) {
@@ -841,15 +846,16 @@ REQUIREMENTS:
                 }
             }
 
-            if ($this->debug) Log::info('OpenAI chat start', ['model' => $selectedModel, 'query' => $userQueryClean]);
+            if ($this->debug) Log::info('OpenAI chat start', ['model' => $selectedModel, 'query' => $userQueryClean, 'is_multi_turn' => $isMultiTurn]);
 
             // Get dynamic Indonesian calendar and holiday details
             $cal = $this->getCalendarDetails();
 
-            // ── Retrieve relevant knowledge chunks ────────────────────────────
-            $relevantKnowledge = $this->getVectorKnowledge($userQuery, $cal);
+            // ── Retrieve relevant knowledge chunks via Multi-Turn Context Reformulation ───
+            $retrievalQuery = $this->buildContextualRetrievalQuery($userQuery, $messages, $cal);
+            $relevantKnowledge = $this->getVectorKnowledge($retrievalQuery, $cal);
             if ($this->debug) {
-                Log::info('Vector search results', ['count' => count($relevantKnowledge)]);
+                Log::info('Vector search results', ['retrieval_query' => $retrievalQuery, 'count' => count($relevantKnowledge)]);
             }
 
             // Extract any AI instructions from the retrieved Knowledge Base chunks
@@ -901,10 +907,29 @@ REQUIREMENTS:
                 ['role' => 'system', 'content' => $systemPrompt]
             ];
 
-            // Include recent conversation history (last 6 turns for context)
-            $historyMessages = array_filter($messages, fn($m) => isset($m['role'], $m['content']));
-            $historyMessages = array_slice(array_values($historyMessages), -6);
-            foreach ($historyMessages as $msg) {
+            // Separate pinned context messages (e.g. Wajib Pajak profile) and dialogue turns
+            $pinnedContexts = [];
+            $dialogueTurns = [];
+
+            foreach ($messages as $msg) {
+                if (!is_array($msg) || !isset($msg['role'], $msg['content'])) continue;
+                $role = $msg['role'];
+                $text = (string) $msg['content'];
+                if ($role === 'system' || $role === 'context') {
+                    $pinnedContexts[] = ['role' => 'system', 'content' => $text];
+                } elseif ($role === 'user' || $role === 'assistant') {
+                    $dialogueTurns[] = ['role' => $role, 'content' => $text];
+                }
+            }
+
+            // Always include pinned user contexts first right below main system prompt
+            foreach ($pinnedContexts as $pinned) {
+                $apiMessages[] = $pinned;
+            }
+
+            // Include sliding window of recent conversation history (last 12 turns = up to 6 complete QA pairs)
+            $recentTurns = array_slice($dialogueTurns, -12);
+            foreach ($recentTurns as $msg) {
                 $apiMessages[] = ['role' => $msg['role'], 'content' => $msg['content']];
             }
 
@@ -976,7 +1001,8 @@ REQUIREMENTS:
             ];
 
             // ── Cache Result for Zero-Latency & Zero-Cost Repeated Requests ───
-            if ($cacheEnabled && strlen($normalizedQuery) > 3) {
+            // Only cache standalone first-turn queries (>15 chars), never ongoing conversational follow-ups
+            if ($cacheEnabled && !$isMultiTurn && strlen($normalizedQuery) > 15 && $answerText !== '') {
                 try {
                     \Illuminate\Support\Facades\Cache::put($cacheKey, $result, $cacheTtl);
                     $keys = \Illuminate\Support\Facades\Cache::get('ai_response_cache_keys', []);
@@ -1030,18 +1056,48 @@ REQUIREMENTS:
         }
 
         $cal = $this->getCalendarDetails();
-        $relevantKnowledge = $this->getVectorKnowledge($lastUserMsg, $cal);
+        $retrievalQuery = $this->buildContextualRetrievalQuery($lastUserMsg, $messages, $cal);
+        $relevantKnowledge = $this->getVectorKnowledge($retrievalQuery, $cal);
 
         /** @var \App\Services\SalmaPromptService $salmaPrompt */
         $salmaPrompt = app(\App\Services\SalmaPromptService::class);
         $kbChunks = $salmaPrompt->formatKbChunks($relevantKnowledge);
         $fullContext = ($context ? $context . "\n" : "") . $this->getCalendarContextString($cal);
 
-        $systemPrompt = $salmaPrompt->buildPrompt($kbChunks, $fullContext);
+        // Fetch always-on correction/override facts
+        $corrections = \App\Models\KnowledgeBase::active()->published()
+            ->where('type', 'tambahan_sistem')
+            ->orderByDesc('priority')
+            ->pluck('content')
+            ->map(fn($c) => \App\Models\KnowledgeBase::cleanHtml($c))
+            ->filter()
+            ->values()
+            ->toArray();
+
+        $systemPrompt = $salmaPrompt->buildPrompt($kbChunks, $fullContext, $corrections);
 
         $apiMessages = [['role' => 'system', 'content' => $systemPrompt]];
-        $history = array_slice(array_filter($messages, fn($m) => isset($m['role'], $m['content'])), -6);
-        foreach ($history as $msg) {
+
+        // Separate pinned context messages and dialogue turns
+        $pinnedContexts = [];
+        $dialogueTurns = [];
+        foreach ($messages as $msg) {
+            if (!is_array($msg) || !isset($msg['role'], $msg['content'])) continue;
+            $role = $msg['role'];
+            $text = (string) $msg['content'];
+            if ($role === 'system' || $role === 'context') {
+                $pinnedContexts[] = ['role' => 'system', 'content' => $text];
+            } elseif ($role === 'user' || $role === 'assistant') {
+                $dialogueTurns[] = ['role' => $role, 'content' => $text];
+            }
+        }
+
+        foreach ($pinnedContexts as $pinned) {
+            $apiMessages[] = $pinned;
+        }
+
+        $recentTurns = array_slice($dialogueTurns, -12);
+        foreach ($recentTurns as $msg) {
             $apiMessages[] = ['role' => $msg['role'], 'content' => $msg['content']];
         }
 
@@ -2030,11 +2086,19 @@ LARANGAN:
     }
 
     /**
-     * Generate greeting message
+     * Generate greeting message, personalized if Wajib Pajak data is available.
+     *
+     * @param array|null $wajibPajak
+     * @return string
      */
-    public function generateGreeting(): string
+    public function generateGreeting(?array $wajibPajak = null): string
     {
-        return "Halo! Saya Salma AI. ada yang bisa saya bantu ?";
+        if (!empty($wajibPajak) && (!empty($wajibPajak['nama']) || !empty($wajibPajak['nopol']))) {
+            $nama = !empty($wajibPajak['nama']) ? ' Pak/Bu ' . trim($wajibPajak['nama']) : '';
+            $nopol = !empty($wajibPajak['nopol']) ? " untuk kendaraan plat " . trim($wajibPajak['nopol']) : '';
+            return "Halo{$nama}! Saya SALMA AI, asisten virtual resmi KB Samsat Lamongan. Ada yang bisa saya bantu terkait layanan pajak atau administrasi{$nopol} hari ini?";
+        }
+        return "Halo! Saya SALMA AI, asisten virtual resmi KB Samsat Lamongan. Ada yang bisa saya bantu seputar pajak kendaraan atau layanan Samsat hari ini?";
     }
 
     /**
@@ -2284,6 +2348,124 @@ PROMPT;
         // This ensures the RAG retrieval fetches holiday calendars and Ramadan schedules
         // for the LLM to inspect in-context.
         return $query . " {$cal['day_name']} ramadhan ramadan libur tutup";
+    }
+
+    /**
+     * Check if the message list has prior dialogue (user/assistant) turns.
+     *
+     * @param array $messages
+     * @return bool
+     */
+    private function hasActiveConversationHistory(array $messages): bool
+    {
+        $userTurns = 0;
+        foreach ($messages as $m) {
+            if (is_array($m) && ($m['role'] ?? '') === 'user') {
+                $userTurns++;
+            }
+        }
+        return $userTurns > 1;
+    }
+
+    /**
+     * Build a standalone contextual search query for RAG retrieval from multi-turn dialogue.
+     * Prevents context-blind retrieval when users ask follow-up questions like "berapa biayanya?",
+     * "syaratnya apa?", "kalau mobil?", etc.
+     *
+     * @param string $userQuery Current user query
+     * @param array $messages Dialogue message history
+     * @param array|null $cal Calendar details
+     * @return string Standalone contextual search query
+     */
+    public function buildContextualRetrievalQuery(string $userQuery, array $messages, ?array $cal = null): string
+    {
+        $cal = $cal ?? $this->getCalendarDetails();
+        $cleanQuery = trim($userQuery);
+        if (mb_strlen($cleanQuery) === 0) {
+            return '';
+        }
+
+        // Find prior dialogue turns excluding the current user message
+        $dialogueHistory = [];
+        $latestFound = false;
+        for ($i = count($messages) - 1; $i >= 0; $i--) {
+            $m = $messages[$i] ?? null;
+            if (!is_array($m)) continue;
+
+            $role = $m['role'] ?? '';
+            $content = trim((string)($m['content'] ?? ''));
+            if ($content === '') continue;
+
+            if (!$latestFound && $role === 'user' && $content === $cleanQuery) {
+                $latestFound = true;
+                continue;
+            }
+
+            if ($role === 'user' || $role === 'assistant' || $role === 'system' || $role === 'context') {
+                $dialogueHistory[] = $m;
+            }
+        }
+        $dialogueHistory = array_reverse($dialogueHistory);
+
+        // If no prior dialogue history, return standard temporal expansion
+        if (empty($dialogueHistory)) {
+            return $this->expandQueryForTemporalContext($cleanQuery, $cal);
+        }
+
+        // Check if current query is an obvious follow-up or pronoun-dependent question
+        $isShort = mb_strlen($cleanQuery) <= 55;
+        $hasFollowUpWord = (bool) preg_match('/\b(kalau|kalo|lha|terus|lalu|trus|setelah itu|bagaimana kalau|gimana kalau|apakah|bisa|berapa|kenapa|mengapa|syaratnya|biayanya|caranya|prosesnya|lokasinya|jadwalnya|tempatnya|lama(nya)?|dokumen apa|lewat mana|kantor mana|bisa bayar|bisa lewat|ada denda|kena denda)\b/iu', $cleanQuery);
+        $hasPronoun = (bool) preg_match('/\b(itu|tersebut|tadi|yang tadi|dimaksud|seperti itu|ini|terkait|tersebut)\b/iu', $cleanQuery);
+
+        // Check if current query has a strong, complete, standalone intent (e.g. asking a totally different service)
+        $hasDistinctTopic = (bool) preg_match('/\b(samsat keliling|jadwal samsat|drive thru|samsat desa|pemutihan|cek blokir|e-samsat|aplikasi signal)\b/iu', $cleanQuery);
+
+        $isFollowUp = ($isShort || $hasFollowUpWord || $hasPronoun) && !$hasDistinctTopic;
+
+        if (!$isFollowUp) {
+            return $this->expandQueryForTemporalContext($cleanQuery, $cal);
+        }
+
+        // Extract context anchors from history
+        $contextAnchors = [];
+
+        // 1. Check pinned system/context for vehicle plate / user details
+        foreach ($dialogueHistory as $h) {
+            $role = $h['role'] ?? '';
+            $content = (string)($h['content'] ?? '');
+            if (($role === 'system' || $role === 'context') && !empty($content)) {
+                if (preg_match('/Nomor Polisi Kendaraan:\s*([A-Za-z0-9\s]+)/iu', $content, $nopolMatch)) {
+                    $contextAnchors['nopol'] = trim($nopolMatch[1]);
+                }
+            }
+        }
+
+        // 2. Extract key service topics from previous user queries
+        $priorUserQueries = [];
+        foreach ($dialogueHistory as $h) {
+            if (($h['role'] ?? '') === 'user') {
+                $priorUserQueries[] = trim((string)($h['content'] ?? ''));
+            }
+        }
+
+        // Get the most recent user query before the current one
+        $lastUserQuery = !empty($priorUserQueries) ? end($priorUserQueries) : '';
+
+        // Strip conversational fillers from previous query to isolate the core subject
+        $fillerRegex = '/\b(halo|hai|selamat pagi|selamat siang|selamat sore|selamat malam|assalamualaikum|tanya|mau tanya|tolong|bantu|saya mau|ingin|bagaimana|gimana|cara|caranya|apakah|bisa|mohon info|minta info|dong|ya|kak|min|pak|bu)\b/iu';
+        $cleanedPriorSubject = trim(preg_replace($fillerRegex, ' ', $lastUserQuery));
+        $cleanedPriorSubject = trim(preg_replace('/\s+/u', ' ', $cleanedPriorSubject));
+
+        // If prior subject has meaningful content (e.g. "mutasi keluar motor beat", "balik nama plat S")
+        if (mb_strlen($cleanedPriorSubject) >= 4) {
+            $synthesized = $cleanedPriorSubject . ' ' . $cleanQuery;
+            if (!empty($contextAnchors['nopol']) && mb_stripos($synthesized, $contextAnchors['nopol']) === false) {
+                $synthesized .= ' ' . $contextAnchors['nopol'];
+            }
+            return $this->expandQueryForTemporalContext($synthesized, $cal);
+        }
+
+        return $this->expandQueryForTemporalContext($cleanQuery, $cal);
     }
 
     /**

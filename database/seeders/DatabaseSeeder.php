@@ -24,5 +24,6 @@ class DatabaseSeeder extends Seeder
         // Example data: taxpayers and chat messages
         $this->call(ExampleDataSeeder::class);
         $this->call(HomepageContentSeeder::class);
+        $this->call(LotrePesertaSeeder::class);
     }
 }

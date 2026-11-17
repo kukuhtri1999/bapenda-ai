@@ -1102,12 +1102,12 @@ const removeLampionTag = (idx) => {
                 </div>
               </div>
 
-              <!-- Mascot Uploader & CTA Text -->
+              <!-- Showcase Image Uploader & CTA Text -->
               <div class="vuexy-subcard p-4 space-y-3">
-                <h4 class="text-sm font-bold text-gray-800 mb-1">Foto / GIF Maskot SALMA</h4>
+                <h4 class="text-sm font-bold text-gray-800 mb-1">Foto Showcase Fitur SALMA AI Beranda</h4>
                 <div class="flex items-center gap-3">
-                  <div class="w-20 h-24 rounded-xl border border-gray-300 bg-white p-2 flex items-center justify-center shadow-xs flex-shrink-0">
-                    <img :src="form.salma_mascot_image" alt="Mascot Preview" class="w-full h-full object-contain" />
+                  <div class="w-24 h-24 rounded-xl border border-gray-300 bg-white p-2 flex items-center justify-center shadow-xs flex-shrink-0 overflow-hidden">
+                    <img :src="form.salma_mascot_image" alt="Showcase Preview" class="w-full h-full object-cover rounded-lg" />
                   </div>
                   <div class="flex-1 space-y-1.5">
                     <input
@@ -1123,9 +1123,9 @@ const removeLampionTag = (idx) => {
                       class="vuexy-btn-action-primary"
                     >
                       <VIcon size="15" class="me-1">mdi-camera</VIcon>
-                      Unggah Maskot Baru
+                      Unggah Foto Showcase Baru
                     </button>
-                    <p class="text-[11px] text-gray-500 mb-0">Format: GIF animasi atau PNG transparan</p>
+                    <p class="text-[11px] text-gray-500 mb-0">Format: JPG, PNG, atau WebP</p>
                   </div>
                 </div>
 

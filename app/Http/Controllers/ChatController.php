@@ -30,25 +30,52 @@ class ChatController extends Controller
         // Check if chat already exists for this session
         $chat = Chat::where('session_id', $sessionId)->first();
 
+        // Check for Wajib Pajak data (from request payload or session)
+        $wajibPajak = $request->input('wajib_pajak') ?? session('wajib_pajak_data');
+
         $greetingMessage = null;
         if (!$chat) {
+            $metadata = [
+                'user_agent' => $request->userAgent(),
+                'ip_address' => $request->ip(),
+            ];
+            if (!empty($wajibPajak) && is_array($wajibPajak)) {
+                $metadata['wajib_pajak'] = $wajibPajak;
+            }
+
             $chat = Chat::create([
                 'session_id' => $sessionId,
                 'user_id' => Auth::id(),
                 'title' => 'Chat dengan Asisten Bapenda Samsat',
                 'status' => 'active',
                 'last_activity_at' => now(),
-                'metadata' => [
-                    'user_agent' => $request->userAgent(),
-                    'ip_address' => $request->ip(),
-                ]
+                'metadata' => $metadata
             ]);
 
-            // Add greeting message
-            // generate greeting but do NOT persist it; we'll return it as a
-            // virtual assistant message in the response so the frontend shows
-            // the greeting without storing assistant starter messages in DB.
-            $greetingMessage = $this->openAIService->generateGreeting();
+            // Add personalized greeting message
+            $greetingMessage = $this->openAIService->generateGreeting($wajibPajak);
+        }
+
+        // If Wajib Pajak info is available and not yet recorded as context message in DB, persist it
+        if (!empty($wajibPajak) && is_array($wajibPajak) && (!empty($wajibPajak['nama']) || !empty($wajibPajak['nopol']))) {
+            $hasContext = $chat->messages()->where('role', 'context')->exists();
+            if (!$hasContext) {
+                $contextParts = [];
+                if (!empty($wajibPajak['nama'])) $contextParts[] = "Nama Wajib Pajak: " . trim($wajibPajak['nama']);
+                if (!empty($wajibPajak['nopol'])) $contextParts[] = "Nomor Polisi Kendaraan: " . strtoupper(trim($wajibPajak['nopol']));
+                if (!empty($wajibPajak['nomer_wa'])) $contextParts[] = "Nomor WhatsApp: " . trim($wajibPajak['nomer_wa']);
+
+                ChatMessage::create([
+                    'chat_id' => $chat->id,
+                    'role' => 'context',
+                    'content' => "Profil Pengguna Terdaftar:\n" . implode("\n", $contextParts),
+                    'sent_at' => now(),
+                    'metadata' => [
+                        'is_context' => true,
+                        'wajib_pajak' => $wajibPajak,
+                    ],
+                ]);
+            }
         }
 
         $chat->load(['messages' => function ($query) {
@@ -138,21 +165,51 @@ class ChatController extends Controller
             ]);
         }
 
-        // Get conversation history for context (specific to this session only)
-        $recentMessages = $chat->messages()
-            ->whereIn('role', ['user', 'assistant', 'context'])
+        // If Wajib Pajak data is provided in request and not yet saved in context, save it now
+        $wajibPajak = $request->input('wajib_pajak') ?? session('wajib_pajak_data');
+        if (!empty($wajibPajak) && is_array($wajibPajak) && (!empty($wajibPajak['nama']) || !empty($wajibPajak['nopol']))) {
+            $hasContext = $chat->messages()->where('role', 'context')->exists();
+            if (!$hasContext) {
+                $contextParts = [];
+                if (!empty($wajibPajak['nama'])) $contextParts[] = "Nama Wajib Pajak: " . trim($wajibPajak['nama']);
+                if (!empty($wajibPajak['nopol'])) $contextParts[] = "Nomor Polisi Kendaraan: " . strtoupper(trim($wajibPajak['nopol']));
+                if (!empty($wajibPajak['nomer_wa'])) $contextParts[] = "Nomor WhatsApp: " . trim($wajibPajak['nomer_wa']);
+
+                ChatMessage::create([
+                    'chat_id' => $chat->id,
+                    'role' => 'context',
+                    'content' => "Profil Pengguna Terdaftar:\n" . implode("\n", $contextParts),
+                    'sent_at' => now(),
+                    'metadata' => [
+                        'is_context' => true,
+                        'wajib_pajak' => $wajibPajak,
+                    ],
+                ]);
+            }
+        }
+
+        // Get conversation history for context:
+        // 1. Pinned context messages (e.g. Wajib Pajak profile)
+        $pinnedContext = $chat->messages()
+            ->where('role', 'context')
+            ->orderBy('sent_at', 'asc')
+            ->get()
+            ->map(fn($m) => [
+                'role' => 'system',
+                'content' => (string) $m->content,
+            ])
+            ->toArray();
+
+        // 2. Fetch dialogue turns (last 14 message rows = up to 28 user/assistant turns)
+        $dialogueMessages = $chat->messages()
+            ->whereIn('role', ['user', 'assistant'])
             ->orderBy('sent_at', 'desc')
-            ->limit(10)
+            ->limit(14)
             ->get()
             ->reverse()
             ->flatMap(function ($msg) {
                 $turns = [];
-                if ($msg->role === 'context') {
-                    $turns[] = [
-                        'role' => 'system',
-                        'content' => (string) $msg->content,
-                    ];
-                } elseif ($msg->role === 'user') {
+                if ($msg->role === 'user') {
                     $turns[] = [
                         'role' => 'user',
                         'content' => (string) $msg->content,
@@ -173,6 +230,8 @@ class ChatController extends Controller
             })
             ->values()
             ->toArray();
+
+        $recentMessages = array_merge($pinnedContext, $dialogueMessages);
 
         // Add current user message to context only if not already present
         $currentContext = $recentMessages;
@@ -199,9 +258,17 @@ class ChatController extends Controller
         $aiResponseTime = round(microtime(true) - $aiStartTime, 2);
 
         // Fast heuristic classification for live chat (< 1ms, zero extra OpenAI API roundtrip)
+        // Find prior topic in this session for multi-turn intent inheritance
+        $priorTopic = $chat->messages()
+            ->where('id', '!=', $userMessage->id)
+            ->whereNotNull('topic')
+            ->whereNotIn('topic', ['umum', 'general', 'other', 'unknown'])
+            ->latest('id')
+            ->value('topic');
+
         /** @var \App\Services\SalmaPromptService $salmaPrompt */
         $salmaPrompt = app(\App\Services\SalmaPromptService::class);
-        $topic = $salmaPrompt->detectIntent($request->message);
+        $topic = $salmaPrompt->detectIntent($request->message, $priorTopic);
         $sentiment = 'neutral';
         $userMsgLower = mb_strtolower($request->message);
         if (preg_match('/\b(terima kasih|makasih|mantap|bagus|hebat|ramah|cepat|keren|sangat membantu|helpful|senang|puas|alhamdulillah)\b/u', $userMsgLower)) {
@@ -557,10 +624,22 @@ class ChatController extends Controller
 
         $chat->updateLastActivity();
 
-        $recentMessages = $chat->messages()
+        // 1. Pinned context messages (e.g. Wajib Pajak profile)
+        $pinnedContext = $chat->messages()
+            ->where('role', 'context')
+            ->orderBy('sent_at', 'asc')
+            ->get()
+            ->map(fn($m) => [
+                'role' => 'system',
+                'content' => (string) $m->content,
+            ])
+            ->toArray();
+
+        // 2. Dialogue turns (last 14 message rows)
+        $dialogue = $chat->messages()
             ->whereIn('role', ['user', 'assistant'])
             ->orderBy('sent_at', 'desc')
-            ->limit(10)
+            ->limit(14)
             ->get()
             ->reverse()
             ->flatMap(fn($m) => [
@@ -569,6 +648,8 @@ class ChatController extends Controller
             ])
             ->values()
             ->toArray();
+
+        $recentMessages = array_merge($pinnedContext, $dialogue);
 
         return response()->stream(function () use ($recentMessages, $userMessage, $request) {
             $completeText = '';

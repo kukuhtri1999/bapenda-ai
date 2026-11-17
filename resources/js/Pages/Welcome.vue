@@ -187,7 +187,10 @@ const salmaFeatures = computed(() => getCms('salma_features', [
   { icon: 'mdi-brain', text: 'Didukung GPT-5.6 AI' },
   { icon: 'mdi-translate', text: 'Bahasa Indonesia & Jawa' },
 ]));
-const salmaMascotImage = computed(() => getCms('salma_mascot_image', '/images/salma2.gif'));
+const salmaMascotImage = computed(() => {
+  const val = getCms('salma_mascot_image', '/images/Woman_explaining_documents_to_man_7d7037d4.jpg');
+  return (val === '/images/salma2.gif' || !val) ? '/images/Woman_explaining_documents_to_man_7d7037d4.jpg' : val;
+});
 const salmaCtaText = computed(() => getCms('salma_cta_text', 'Mulai Percakapan dengan SALMA'));
 const salmaIsBeta = computed(() => getCms('salma_is_beta', true));
 
@@ -942,35 +945,33 @@ onUnmounted(() => {
 
       <!-- ═══ SECTION 4: SALMA AI SHOWCASE ═══ -->
       <section id="salma" class="section-salma">
-        <VContainer>
+        <div class="salma-ambient-glow-left"></div>
+        <div class="salma-ambient-glow-right"></div>
+        <VContainer class="position-relative" style="z-index: 2;">
           <VRow align="center">
             <VCol cols="12" md="6" class="mb-8 mb-md-0">
               <div class="salma-badge">
-                <VIcon size="16" class="me-1">mdi-chat-processing</VIcon>
+                <VIcon size="16" class="me-1">mdi-robot-outline</VIcon>
                 {{ salmaBadge }}
-                <span v-if="salmaIsBeta" class="ms-1.5 px-2 py-0.5 text-[10px] font-extrabold bg-[#C0392B] text-white rounded-full">BETA</span>
+                <span v-if="salmaIsBeta" class="ms-1.5 px-2 py-0.5 text-[10px] font-extrabold bg-[#E74C3C] text-white rounded-full">BETA</span>
               </div>
               <h2 class="salma-title">{{ salmaTitle }}</h2>
               <p class="salma-full-name">{{ salmaFullName }}</p>
               <p class="salma-desc">{{ salmaDesc }}</p>
               <div class="salma-features">
                 <div v-for="(feat, fIdx) in salmaFeatures" :key="fIdx" class="salma-feature">
-                  <VIcon color="#C0392B" size="20">{{ feat.icon }}</VIcon> {{ feat.text }}
+                  <VIcon color="#FF6B6B" size="20">{{ feat.icon }}</VIcon> {{ feat.text }}
                 </div>
               </div>
-              <VBtn size="x-large" color="#C0392B" variant="flat" class="hero-btn mt-6" @click="startChat">
-                <VIcon start>mdi-chat-processing</VIcon>
+              <VBtn size="x-large" variant="flat" class="salma-cta-btn mt-6" @click="startChat">
+                <VIcon start size="22">mdi-chat-processing-outline</VIcon>
                 {{ salmaCtaText }}
               </VBtn>
             </VCol>
-            <VCol cols="12" md="6" class="text-center">
+            <VCol cols="12" md="6" class="text-center d-flex justify-center align-center">
               <div class="salma-visual">
                 <div class="salma-glow"></div>
-                <img :src="salmaMascotImage" alt="SALMA AI Mascot" class="salma-mascot" loading="lazy" />
-                <div class="salma-visual__label">
-                  <VIcon size="14" color="#C0392B" class="me-1">mdi-circle-small</VIcon>
-                  Online — Siap Melayani
-                </div>
+                <img :src="salmaMascotImage" alt="Layanan Konsultasi SALMA AI" class="salma-showcase-img" loading="lazy" />
               </div>
             </VCol>
           </VRow>
@@ -1798,52 +1799,144 @@ onUnmounted(() => {
   width: 100%; height: 100%; border: none; display: block;
 }
 
-/* ── SALMA AI SECTION ───────────────────────────────────────────────────── */
+/* ── SALMA AI SECTION (HIGH-IMPACT SHOWCASE) ────────────────────────────── */
 .section-salma {
-  padding: 52px 0;
-  background: linear-gradient(180deg, #fff 0%, #fef5f4 100%);
+  padding: 68px 0;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0F172A 0%, #1A1215 45%, #111827 100%);
+  border-top: 1px solid rgba(192, 57, 43, 0.25);
+  border-bottom: 1px solid rgba(192, 57, 43, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.salma-ambient-glow-left {
+  position: absolute;
+  top: -100px;
+  left: -100px;
+  width: 450px;
+  height: 450px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(192, 57, 43, 0.28) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
+}
+.salma-ambient-glow-right {
+  position: absolute;
+  bottom: -80px;
+  right: -80px;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(231, 76, 60, 0.22) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
 }
 .salma-badge {
   display: inline-flex; align-items: center;
-  background: #C0392B12; color: #C0392B;
-  padding: 4px 12px; border-radius: 20px; font-size: .72rem;
-  font-weight: 600; margin-bottom: 10px;
+  background: rgba(192, 57, 43, 0.25); color: #FF8A80;
+  border: 1px solid rgba(255, 138, 128, 0.35);
+  padding: 5px 14px; border-radius: 20px; font-size: .75rem;
+  font-weight: 700; margin-bottom: 12px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px rgba(192, 57, 43, 0.2);
 }
-.salma-title { font-size: 2.35rem; font-weight: 800; color: #1B2838; margin-bottom: 2px; }
-.salma-full-name { color: #C0392B; font-size: 0.95rem; font-weight: 600; margin-bottom: 10px; }
-.salma-desc { color: #555; font-size: .9rem; line-height: 1.65; margin-bottom: 18px; max-width: 460px; }
-.salma-features { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.salma-title {
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin-bottom: 4px;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.salma-full-name {
+  color: #FF6B6B;
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  letter-spacing: 0.01em;
+}
+.salma-desc {
+  color: #CBD5E1;
+  font-size: .92rem;
+  line-height: 1.7;
+  margin-bottom: 22px;
+  max-width: 480px;
+}
+.salma-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
 .salma-feature {
-  display: flex; align-items: center; gap: 8px;
-  font-size: .82rem; font-weight: 500; color: #333;
-  padding: 8px 12px; border-radius: 8px; background: #fff;
-  border: 1px solid #eee; transition: all .2s ease;
+  display: flex; align-items: center; gap: 10px;
+  font-size: .84rem; font-weight: 500; color: #F1F5F9;
+  padding: 10px 14px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  transition: all .25s ease;
 }
-.salma-feature:hover { border-color: #C0392B30; background: #fef5f4; }
+.salma-feature:hover {
+  border-color: rgba(255, 107, 107, 0.45);
+  background: rgba(192, 57, 43, 0.22);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(192, 57, 43, 0.25);
+}
+.salma-cta-btn {
+  background: linear-gradient(135deg, #C0392B 0%, #E74C3C 100%) !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  padding: 0 28px !important;
+  box-shadow: 0 10px 25px -4px rgba(192, 57, 43, 0.6) !important;
+  letter-spacing: 0.02em !important;
+  transition: all 0.3s ease !important;
+}
+.salma-cta-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 14px 30px -4px rgba(231, 76, 60, 0.75) !important;
+}
 
 .salma-visual {
-  position: relative; display: inline-block;
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 520px;
 }
 .salma-glow {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-  width: 230px; height: 230px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(192,57,43,.12) 0%, transparent 70%);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 28px;
+  background: radial-gradient(circle, rgba(192, 57, 43, 0.3) 0%, transparent 70%);
+  filter: blur(20px);
   animation: salma-pulse 4s ease-in-out infinite;
+  z-index: 1;
 }
-.salma-mascot {
-  width: 205px; height: auto; position: relative; z-index: 2;
-  filter: drop-shadow(0 6px 24px rgba(192,57,43,.14));
+.salma-showcase-img {
+  width: 100%;
+  height: auto;
+  max-height: 380px;
+  object-fit: cover;
+  border-radius: 20px;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.16);
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+  display: block;
 }
-.salma-visual__label {
-  display: inline-flex; align-items: center;
-  background: #fff; border: 1px solid #eee; border-radius: 16px;
-  padding: 4px 12px; font-size: .72rem; font-weight: 600; color: #333;
-  position: relative; z-index: 2; margin-top: 10px;
-  box-shadow: 0 3px 12px rgba(0,0,0,.05);
+.salma-showcase-img:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 25px 55px -10px rgba(0, 0, 0, 0.75), 0 0 0 1.5px rgba(255, 138, 128, 0.45);
 }
 @keyframes salma-pulse {
-  0%, 100% { transform: translate(-50%,-50%) scale(1); opacity: .6; }
-  50% { transform: translate(-50%,-50%) scale(1.06); opacity: 1; }
+  0%, 100% { transform: translate(-50%, -50%) scale(0.96); opacity: 0.6; }
+  50% { transform: translate(-50%, -50%) scale(1.04); opacity: 0.95; }
 }
 
 /* ── PEMBAYARAN DIGITAL (CLIENT / PARTNER LOGO GRID) ─────────────────────── */
@@ -2057,8 +2150,9 @@ onUnmounted(() => {
   .hero-slider__subtitle { font-size: .88rem; }
   .hero-slider__arrow { display: none; }
   .section-header__title { font-size: 1.5rem; }
-  .salma-title { font-size: 1.85rem; }
+  .salma-title { font-size: 2rem; }
   .salma-features { grid-template-columns: 1fr; }
+  .salma-showcase-img { max-height: 320px; }
   .gmaps-widget__frame-wrap { height: 240px; }
   .section-layanan, .section-jadwal, .section-salma, .section-payment, .section-kontak, .section-pemutihan { padding: 38px 0; }
 }
@@ -2090,11 +2184,13 @@ onUnmounted(() => {
   .hero-slider__btns .hero-btn { width: 100%; margin-bottom: 8px !important; }
   .hero-slider__dots { bottom: 65px; }
   .hero-slider__clip { height: 28px; }
-  .section-layanan, .section-jadwal, .section-salma, .section-payment, .section-kontak, .section-pemutihan { padding: 30px 0; }
+  .section-layanan, .section-jadwal, .section-payment, .section-kontak, .section-pemutihan { padding: 30px 0; }
+  .section-salma { padding: 42px 0; }
   .section-header { margin-bottom: 18px; }
   .section-header__title { font-size: 1.25rem; }
-  .salma-mascot { width: 150px; }
-  .salma-glow { width: 170px; height: 170px; }
+  .salma-title { font-size: 1.7rem; }
+  .salma-desc { font-size: .88rem; }
+  .salma-showcase-img { max-height: 250px; border-radius: 14px; }
   .belok-badge { display: none; }
   .gmaps-widget__header { flex-direction: column; align-items: flex-start; }
   .gmaps-widget__frame-wrap { height: 190px; }

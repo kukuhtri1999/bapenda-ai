@@ -27,7 +27,7 @@
         <!-- Salma mini avatar in header -->
         <div class="salma-header-avatar me-2 flex-shrink-0">
           <img
-            src="/images/salma2.gif"
+            src="/images/salma_new.png"
             alt="SALMA"
             loading="lazy"
             class="salma-header-img"
@@ -92,10 +92,10 @@
               id="tour-chat-welcome"
               class="welcome-section"
             >
-              <!-- SALMA Mascot GIF - welcome screen hero -->
+              <!-- SALMA Mascot PNG - welcome screen hero -->
               <div class="salma-mascot-wrapper mb-3">
                 <img
-                  src="/images/salma2.gif"
+                  src="/images/salma_new.png"
                   alt="SALMA AI Assistant"
                   loading="eager"
                   class="salma-mascot-img"
@@ -190,7 +190,7 @@
                   <!-- Salma avatar -->
                   <div class="salma-msg-avatar me-2 mt-0.5 flex-shrink-0">
                     <img
-                      src="/images/salma2.gif"
+                      src="/images/salma_new.png"
                       alt="SALMA"
                       loading="lazy"
                       class="salma-msg-img"
@@ -212,7 +212,7 @@
               <div v-if="isTyping" class="d-flex justify-start align-start mb-2">
                 <div class="salma-msg-avatar me-2 mt-0.5 flex-shrink-0">
                   <img
-                    src="/images/salma2.gif"
+                    src="/images/salma_new.png"
                     alt="SALMA"
                     loading="lazy"
                     class="salma-msg-img"
@@ -551,6 +551,7 @@ const initializeChat = async () => {
     const response = await axios.post('/api/chat/start', {
       session_id: getSessionId(),
       recaptcha_token: recaptchaToken,
+      wajib_pajak: props.wajibPajakData || null,
     });
 
     if (response.data.success) {
@@ -562,10 +563,12 @@ const initializeChat = async () => {
   } catch (error) {
     console.error('Error initializing chat:', error);
     if (!messages.value || messages.value.length === 0) {
+      const nama = props.wajibPajakData?.nama ? ` Pak/Bu ${props.wajibPajakData.nama}` : '';
+      const nopol = props.wajibPajakData?.nopol ? ` untuk kendaraan plat ${props.wajibPajakData.nopol}` : '';
       messages.value = [{
         id: 'assistant_greeting_' + Date.now(),
         role: 'assistant',
-        content: 'Halo! Saya SALMA AI, asisten virtual resmi KB Samsat Lamongan. Ada yang bisa saya bantu terkait pajak kendaraan atau layanan Samsat hari ini?',
+        content: `Halo${nama}! Saya SALMA AI, asisten virtual resmi KB Samsat Lamongan. Ada yang bisa saya bantu terkait layanan pajak atau administrasi${nopol} hari ini?`,
         sent_at: new Date().toISOString(),
       }];
     }
@@ -593,6 +596,7 @@ const startNewChat = async () => {
     const response = await axios.post('/api/chat/start', {
       session_id: sessionId,
       recaptcha_token: recaptchaToken,
+      wajib_pajak: props.wajibPajakData || null,
     });
 
     if (response.data.success) {
@@ -603,10 +607,12 @@ const startNewChat = async () => {
     }
   } catch (error) {
     console.error('Error starting new chat:', error);
+    const nama = props.wajibPajakData?.nama ? ` Pak/Bu ${props.wajibPajakData.nama}` : '';
+    const nopol = props.wajibPajakData?.nopol ? ` untuk kendaraan plat ${props.wajibPajakData.nopol}` : '';
     messages.value = [{
       id: 'assistant_greeting_' + Date.now(),
       role: 'assistant',
-      content: 'Halo! Saya SALMA AI, asisten virtual resmi KB Samsat Lamongan. Ada yang bisa saya bantu terkait pajak kendaraan atau layanan Samsat hari ini?',
+      content: `Halo${nama}! Saya SALMA AI, asisten virtual resmi KB Samsat Lamongan. Ada yang bisa saya bantu terkait layanan pajak atau administrasi${nopol} hari ini?`,
       sent_at: new Date().toISOString(),
     }];
   }
@@ -653,6 +659,7 @@ const sendMessage = async (messageText = null, isContext = false) => {
       message: text,
       is_context: isContext,
       recaptcha_token: recaptchaToken,
+      wajib_pajak: props.wajibPajakData || null,
     });
 
     isTyping.value = false;
@@ -1358,7 +1365,8 @@ const { startTour: startChatTour } = useTour(chatTourSteps);
 .salma-mascot-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: 4px;
   display: block;
 }
 .gradient-text {

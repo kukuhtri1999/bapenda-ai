@@ -376,10 +376,10 @@ class HomepageContentSeeder extends Seeder
             [
                 'section' => 'salma',
                 'key' => 'salma_mascot_image',
-                'value' => '/images/salma2.gif',
+                'value' => '/images/Woman_explaining_documents_to_man_7d7037d4.jpg',
                 'type' => 'image',
-                'label' => 'Gambar / GIF Maskot SALMA AI',
-                'description' => 'URL maskot animasi SALMA AI yang ditampilkan',
+                'label' => 'Gambar Showcase SALMA AI Beranda',
+                'description' => 'Gambar showcase SALMA AI pada beranda',
             ],
             [
                 'section' => 'salma',
