@@ -1085,52 +1085,12 @@ onUnmounted(() => {
         </VContainer>
       </section>
 
-      <!-- ═══ SECTION 5.5: PANDUAN & FAQ PAJAK POPULER (SEO + INTERNAL LINKS) ═══ -->
+      <!-- ═══ SECTION 5.5: PANDUAN & FAQ PAJAK POPULER (HIDDEN FROM FRONTEND FOR NOW) ═══ -->
+      <!--
       <section v-if="topFaqs && topFaqs.length" id="panduan" class="py-12" style="background: #F8FAFC;">
-        <VContainer style="max-width: 980px;">
-          <div class="section-header text-center mb-8">
-            <div class="section-header__badge">
-              <VIcon size="16" class="me-1">mdi-help-circle-outline</VIcon>
-              Pusat Informasi Resmi
-            </div>
-            <h2 class="section-header__title">
-              Panduan &amp; Pertanyaan <span>Pajak Kendaraan</span>
-            </h2>
-            <p class="section-header__desc">
-              Jawaban resmi terkait Bea Balik Nama (BBNKB), STNK, PKB tahunan, dan prosedur di KB Samsat Lamongan.
-            </p>
-          </div>
-
-          <VExpansionPanels variant="accordion" class="mb-6">
-            <VExpansionPanel
-              v-for="faq in topFaqs"
-              :key="faq.id"
-              rounded="lg"
-              elevation="0"
-              style="border: 1px solid #E2E8F0; margin-bottom: 10px;"
-            >
-              <VExpansionPanelTitle class="font-weight-semibold text-body-1" style="color: #1B2838;">
-                {{ faq.question }}
-              </VExpansionPanelTitle>
-              <VExpansionPanelText class="text-body-2" style="color: #475569; line-height: 1.7;">
-                <p class="mb-3">{{ faq.answer }}</p>
-                <Link :href="faq.url" class="text-decoration-none font-weight-semibold" style="color: #C0392B;">
-                  Baca panduan lengkap &amp; dasar hukum →
-                </Link>
-              </VExpansionPanelText>
-            </VExpansionPanel>
-          </VExpansionPanels>
-
-          <div class="text-center">
-            <Link href="/panduan" class="text-decoration-none">
-              <VBtn color="#1B2838" variant="outlined" size="large" rounded="lg">
-                <VIcon start>mdi-book-open-page-variant-outline</VIcon>
-                Lihat Semua Panduan Pajak Kendaraan
-              </VBtn>
-            </Link>
-          </div>
-        </VContainer>
+        ...hidden until FAQ wording is curated...
       </section>
+      -->
 
       <!-- ═══ SECTION 6: KONTAK ═══ -->
       <section id="kontak" class="section-kontak">
