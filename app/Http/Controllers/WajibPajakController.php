@@ -12,16 +12,23 @@ class WajibPajakController extends Controller
     /**
      * Show wajib pajak form page (entry point for chat)
      */
-    public function showForm()
+    public function showForm(Request $request)
     {
         // Check if user already has data in session
         $existingData = session('wajib_pajak_data');
+        $seo = app(\App\Services\SeoService::class)->forPublicPage(
+            request: $request,
+            title: 'Tanya SALMA AI — Layanan Konsultasi Pajak KB Samsat Lamongan',
+            description: 'Konsultasikan tagihan pajak kendaraan bermotor, syarat STNK, balik nama (BBNKB), mutasi, dan jadwal Samsat Lamongan gratis 24 jam bersama asisten cerdas SALMA AI.',
+            keywords: 'tanya salma ai, konsultasi pajak kendaraan lamongan, cs online samsat lamongan, tanya bbnkb stnk',
+            canonicalPath: '/wajib-pajak',
+        );
 
         return inertia('WajibPajak/Form', [
             'existingData' => $existingData,
             'canProceedToChat' => !empty($existingData),
             'cms' => \App\Models\HomepageContent::getAllGrouped(),
-        ]);
+        ])->withViewData(['seo' => $seo]);
     }
 
     /**

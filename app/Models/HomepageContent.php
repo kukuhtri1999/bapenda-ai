@@ -24,11 +24,13 @@ class HomepageContent extends Model
         static::saved(function () {
             Cache::forget('homepage_contents_grouped');
             Cache::forget('homepage_contents_all');
+            \App\Services\SeoService::clearCache();
         });
 
         static::deleted(function () {
             Cache::forget('homepage_contents_grouped');
             Cache::forget('homepage_contents_all');
+            \App\Services\SeoService::clearCache();
         });
     }
 

@@ -12,7 +12,7 @@ const drawer = ref(true);
 const rail = ref(true);
 const isHovered = ref(false);
 const titleApp = import.meta.env.VITE_APP_NAME;
-const logoUrl = import.meta.env.VITE_APP_LOGO;
+const logoUrl = '/images/logo-samsat-lamongan.png?v=20261124';
 
 const sidebarExpandedWidth = 260;
 const sidebarRailWidth = 80;

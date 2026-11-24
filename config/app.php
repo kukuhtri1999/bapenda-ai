@@ -15,6 +15,9 @@ return [
 
     'name' => env('APP_NAME', 'SALMA AI'),
 
+    'logo' => env('APP_LOGO', '/images/logo-samsat-lamongan.png'),
+    'icon' => env('APP_ICON', '/images/logo-samsat-lamongan.png'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

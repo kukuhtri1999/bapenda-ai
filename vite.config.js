@@ -84,10 +84,10 @@ export default defineConfig({
           {
             // Static images — CacheFirst (long TTL)
             urlPattern:
-              /\/(?:icons|images)\/.+\.(png|jpg|jpeg|svg|gif|webp|ico)$/,
+              /\/(?:icons|images)\/.+\.(png|jpg|jpeg|svg|gif|webp|ico)/,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'images-cache',
+              cacheName: 'images-cache-v2',
               expiration: { maxEntries: 100, maxAgeSeconds: 604800 },
               cacheableResponse: { statuses: [0, 200] },
             },

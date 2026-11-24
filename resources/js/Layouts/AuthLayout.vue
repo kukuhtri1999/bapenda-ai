@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue';
 
 const getImageUrl = (imageName) => `/storage/images/${imageName}`;
-const logoUrl = import.meta.env.VITE_APP_LOGO;
+const logoUrl = '/images/logo-samsat-lamongan.png?v=20261124';
 
 // Animation states
 const isLoaded = ref(false);

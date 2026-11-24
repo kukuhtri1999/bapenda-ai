@@ -12,7 +12,7 @@ use Inertia\Inertia;
 class LotreController extends Controller
 {
     // Public page
-    public function index()
+    public function index(Request $request)
     {
         $totalParticipantsCount = PesertaLotre::count();
 
@@ -48,13 +48,21 @@ class LotreController extends Controller
             'id', 'nama', 'nopol', 'alamat', 'kecamatan', 'urutan_menang',
         ])->whereNotNull('urutan_menang')->orderBy('urutan_menang', 'asc')->get();
 
+        $seo = app(\App\Services\SeoService::class)->forPublicPage(
+            request: $request,
+            title: 'Undian Apresiasi Wajib Pajak Patuh — KB Samsat Lamongan',
+            description: 'Program undian apresiasi resmi bagi Wajib Pajak Kendaraan Bermotor patuh di Kabupaten Lamongan bersama Bapenda Provinsi Jawa Timur.',
+            keywords: 'undian samsat lamongan, apresiasi wajib pajak patuh lamongan, lotre bapenda jatim',
+            canonicalPath: '/lotre-undian',
+        );
+
         // Pass settings and initial data directly to avoid extra client-side API calls
         return Inertia::render('Lotre/Index', [
             'spinDuration' => LotreSetting::getSpinDuration(),
             'totalParticipantsCount' => $totalParticipantsCount,
             'initialParticipants' => $participants,
             'initialWinners' => $winners,
-        ]);
+        ])->withViewData(['seo' => $seo]);
     }
 
     // Public API: list participants (paginated)

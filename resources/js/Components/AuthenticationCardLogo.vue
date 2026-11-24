@@ -2,7 +2,7 @@
 import { Link } from '@inertiajs/vue3';
 
 const titleApp = import.meta.env.VITE_APP_NAME;
-const logoUrl = import.meta.env.VITE_APP_LOGO;
+const logoUrl = '/images/logo-samsat-lamongan.png?v=20261124';
 </script>
 
 <template>

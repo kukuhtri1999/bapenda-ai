@@ -340,7 +340,7 @@ const {
   playWinnerFanfare,
 } = useLotreAudio();
 
-const logoUrl = import.meta.env.VITE_APP_LOGO;
+const logoUrl = '/images/logo-samsat-lamongan.png?v=20261124';
 
 // Props from server
 const props = defineProps({

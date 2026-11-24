@@ -26,7 +26,7 @@ const isBeta = computed(() => {
   return true;
 });
 
-const logoUrl = import.meta.env.VITE_APP_LOGO;
+const logoUrl = '/images/logo-samsat-lamongan.png?v=20261124';
 
 // Helper function to get CSRF token
 const getCsrfToken = () => {

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Application;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\DashboardController;
@@ -9,20 +10,37 @@ use App\Http\Controllers\PhotoEditingController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\AppSettingController;
+use App\Http\Controllers\PanduanController;
+use App\Http\Controllers\SeoController;
 use App\Http\Controllers\Admin\ChatImportController;
 use App\Http\Controllers\Admin\FeedbackController;
 use App\Http\Controllers\Admin\LotreImportController;
+use App\Services\SeoService;
 
-Route::get('/', function () {
+// SEO Core Endpoints (robots.txt & dynamic XML sitemap)
+Route::get('/robots.txt', [SeoController::class, 'robots'])->name('seo.robots');
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('seo.sitemap');
+
+Route::get('/', function (Request $request, SeoService $seoService) {
     $cms = \App\Models\HomepageContent::getAllGrouped();
+    $topFaqs = $seoService->getTopWelcomeFaqs();
+    $seo = $seoService->forWelcome($request, $cms);
+
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
         'cms' => $cms,
-    ]);
+        'topFaqs' => $topFaqs,
+    ])->withViewData(['seo' => $seo]);
 });
+
+// Public Indexable Knowledge Guides (/panduan)
+Route::get('/panduan', [PanduanController::class, 'index'])->name('panduan.index');
+Route::get('/panduan/{id}-{slug?}', [PanduanController::class, 'show'])
+    ->where(['id' => '[0-9]+', 'slug' => '[a-zA-Z0-9\-]+'])
+    ->name('panduan.show');
 
 // Custom Login Route (Active when ADMIN_LOGIN_PATH is set in .env)
 $customLoginPath = config('auth.custom_login_path');
@@ -165,10 +183,12 @@ Route::get('/api/check-wajib-pajak-session', [WajibPajakController::class, 'chec
 Route::get('/lotre-undian', [App\Http\Controllers\LotreController::class, 'index'])->name('lotre.index');
 
 // Public chat route (accessible without login for public service) - REQUIRES WAJIB PAJAK DATA
-Route::middleware('ensure.wajib.pajak')->get('/customer-service', function () {
+Route::middleware('ensure.wajib.pajak')->get('/customer-service', function (Request $request, SeoService $seoService) {
     return Inertia::render('Chat/Index', [
         'wajibPajakData' => session('wajib_pajak_data'),
         'cms' => \App\Models\HomepageContent::getAllGrouped(),
+    ])->withViewData([
+        'seo' => $seoService->forNoIndex('SALMA AI — Layanan Konsultasi KB Samsat Lamongan', url('/customer-service')),
     ]);
 })->name('customer-service');
 

@@ -75,6 +75,7 @@ class KnowledgeBase extends Model
         parent::boot();
 
         static::creating(function ($model) {
+            $model->content ??= (string) ($model->answer ?? $model->excerpt ?? '');
             $model->generateSearchContent();
         });
 
@@ -88,6 +89,7 @@ class KnowledgeBase extends Model
             $model->indexToVectorDatabase();
             // Clear AI response cache to ensure fresh KB context is used
             \App\Services\OpenAIService::clearResponseCache();
+            \App\Services\SeoService::clearCache();
         });
 
         static::updated(function ($model) {
@@ -95,6 +97,7 @@ class KnowledgeBase extends Model
             $model->updateVectorDatabase();
             // Clear AI response cache to ensure fresh KB context is used
             \App\Services\OpenAIService::clearResponseCache();
+            \App\Services\SeoService::clearCache();
         });
 
         static::deleted(function ($model) {
@@ -102,6 +105,7 @@ class KnowledgeBase extends Model
             $model->removeFromVectorDatabase();
             // Clear AI response cache to ensure fresh KB context is used
             \App\Services\OpenAIService::clearResponseCache();
+            \App\Services\SeoService::clearCache();
         });
     }
 

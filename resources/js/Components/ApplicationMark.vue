@@ -2,7 +2,7 @@
 const props = defineProps({
   showTitle: { type: Boolean, default: true },
 });
-const logoUrl = import.meta.env.VITE_APP_LOGO;
+const logoUrl = '/images/logo-samsat-lamongan.png?v=20261124';
 const titleApp = import.meta.env.VITE_APP_NAME;
 </script>
 

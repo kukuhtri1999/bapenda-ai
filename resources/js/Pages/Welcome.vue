@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
-import { router, Head } from '@inertiajs/vue3';
+import { router, Head, Link } from '@inertiajs/vue3';
 import FloatingChat from '@/Components/FloatingChat.vue';
 import PwaInstallButton from '@/Components/PwaInstallButton.vue';
 import lightGallery from 'lightgallery';
@@ -16,9 +16,10 @@ const props = defineProps({
   laravelVersion: { type: String, required: true },
   phpVersion: { type: String, required: true },
   cms: { type: Object, default: () => ({}) },
+  topFaqs: { type: Array, default: () => [] },
 });
 
-const logoUrl = import.meta.env.VITE_APP_LOGO;
+const logoUrl = '/images/logo-samsat-lamongan.png?v=20261124';
 const isChatPageOpen = ref(false);
 const mobileMenu = ref(false);
 const navSolid = ref(false);
@@ -455,6 +456,9 @@ onUnmounted(() => {
             >
               {{ link.label }}
             </a>
+            <Link href="/panduan" class="gov-navbar__link text-decoration-none">
+              Panduan Pajak
+            </Link>
           </nav>
 
           <!-- CTA + Mobile toggle -->
@@ -498,6 +502,9 @@ onUnmounted(() => {
             <a v-for="link in navLinks" :key="link.target" @click.prevent="scrollTo(link.target)" class="gov-navbar__mobile-link">
               {{ link.label }}
             </a>
+            <Link href="/panduan" class="gov-navbar__mobile-link text-decoration-none">
+              Panduan Pajak
+            </Link>
           </div>
         </Transition>
       </header>
@@ -1078,6 +1085,53 @@ onUnmounted(() => {
         </VContainer>
       </section>
 
+      <!-- ═══ SECTION 5.5: PANDUAN & FAQ PAJAK POPULER (SEO + INTERNAL LINKS) ═══ -->
+      <section v-if="topFaqs && topFaqs.length" id="panduan" class="py-12" style="background: #F8FAFC;">
+        <VContainer style="max-width: 980px;">
+          <div class="section-header text-center mb-8">
+            <div class="section-header__badge">
+              <VIcon size="16" class="me-1">mdi-help-circle-outline</VIcon>
+              Pusat Informasi Resmi
+            </div>
+            <h2 class="section-header__title">
+              Panduan &amp; Pertanyaan <span>Pajak Kendaraan</span>
+            </h2>
+            <p class="section-header__desc">
+              Jawaban resmi terkait Bea Balik Nama (BBNKB), STNK, PKB tahunan, dan prosedur di KB Samsat Lamongan.
+            </p>
+          </div>
+
+          <VExpansionPanels variant="accordion" class="mb-6">
+            <VExpansionPanel
+              v-for="faq in topFaqs"
+              :key="faq.id"
+              rounded="lg"
+              elevation="0"
+              style="border: 1px solid #E2E8F0; margin-bottom: 10px;"
+            >
+              <VExpansionPanelTitle class="font-weight-semibold text-body-1" style="color: #1B2838;">
+                {{ faq.question }}
+              </VExpansionPanelTitle>
+              <VExpansionPanelText class="text-body-2" style="color: #475569; line-height: 1.7;">
+                <p class="mb-3">{{ faq.answer }}</p>
+                <Link :href="faq.url" class="text-decoration-none font-weight-semibold" style="color: #C0392B;">
+                  Baca panduan lengkap &amp; dasar hukum →
+                </Link>
+              </VExpansionPanelText>
+            </VExpansionPanel>
+          </VExpansionPanels>
+
+          <div class="text-center">
+            <Link href="/panduan" class="text-decoration-none">
+              <VBtn color="#1B2838" variant="outlined" size="large" rounded="lg">
+                <VIcon start>mdi-book-open-page-variant-outline</VIcon>
+                Lihat Semua Panduan Pajak Kendaraan
+              </VBtn>
+            </Link>
+          </div>
+        </VContainer>
+      </section>
+
       <!-- ═══ SECTION 6: KONTAK ═══ -->
       <section id="kontak" class="section-kontak">
         <VContainer>
@@ -1164,6 +1218,8 @@ onUnmounted(() => {
             <div v-if="lampionIsActive" class="footer-link" @click="scrollTo('lampion')">Portal LAMPION Online</div>
             <div class="footer-link" @click="scrollTo('salma')">Asisten SALMA AI</div>
             <div v-if="pemutihanIsActive" class="footer-link" @click="scrollTo('pemutihan')">Pemutihan Pajak Daerah</div>
+            <Link href="/panduan" class="footer-link d-block text-decoration-none">Panduan &amp; FAQ Pajak</Link>
+            <Link href="/lotre-undian" class="footer-link d-block text-decoration-none">Undian Wajib Pajak Patuh</Link>
             <div class="footer-link" @click="scrollTo('kontak')">Hubungi Kami</div>
           </VCol>
 
