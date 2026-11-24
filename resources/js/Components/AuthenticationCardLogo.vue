@@ -6,9 +6,9 @@ const logoUrl = import.meta.env.VITE_APP_LOGO;
 </script>
 
 <template>
-  <Link :href="'/'" class="flex align-middle">
-    <img :src="logoUrl" alt="Logo" width="60" />
-    <span class="text-h4 pl-3 pt-2 !font-bold !font-poppins font">{{
+  <Link :href="'/'" class="flex items-center align-middle">
+    <img :src="logoUrl || '/images/logo-samsat-lamongan.png'" alt="Logo Samsat Lamongan" width="72" height="72" class="object-contain" />
+    <span class="text-h4 pl-3 pt-1 !font-bold !font-poppins font">{{
       titleApp
     }}</span>
   </Link>

@@ -66,8 +66,8 @@ const onFileChange = (e) => {
     return;
   }
 
-  if (f.size > 20 * 1024 * 1024) {
-    errors.value = ['Ukuran file melebihi 20MB.'];
+  if (f.size > 50 * 1024 * 1024) {
+    errors.value = ['Ukuran file melebihi 50MB.'];
     file.value = null;
     fileName.value = '';
     return;
@@ -117,24 +117,72 @@ const previewFile = async () => {
   }
 };
 
+// Interactive Progress Popup State
+const progressDialog = ref(false);
+const importPhase = ref('preparing'); // 'preparing' | 'processing' | 'completed' | 'cancelled' | 'error'
+const uploadPercent = ref(0);
+const currentChunkIndex = ref(0);
+const totalChunks = ref(0);
+const totalRowsToImport = ref(0);
+const processedRows = ref(0);
+const liveImported = ref(0);
+const liveDuplicates = ref(0);
+const liveFailed = ref(0);
+const importEtaText = ref('Menghitung...');
+const importSpeedText = ref('');
+const importCancelled = ref(false);
+const activeImportId = ref(null);
+const importErrorMessage = ref('');
+
+const overallProgressPercent = computed(() => {
+  if (importPhase.value === 'completed') return 100;
+  if (importPhase.value === 'preparing') return Math.min(99, uploadPercent.value);
+  if (totalRowsToImport.value <= 0) return 0;
+  return Math.min(100, Math.round((processedRows.value / totalRowsToImport.value) * 100));
+});
+
+const formatEta = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return 'Menghitung...';
+  if (seconds < 60) return `± ${Math.ceil(seconds)} detik`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.ceil(seconds % 60);
+  return `± ${mins} menit ${secs} detik`;
+};
+
 const confirmImport = async () => {
   if (!previewData.value?.success) return;
 
   const result = await Swal.fire({
     title: 'Konfirmasi Import',
     html: `
-      <p>Anda akan mengimport <strong>${previewData.value.total_rows}</strong> data peserta.</p>
-      <p class="text-sm text-gray-500 mt-2">Data duplikat (nopol sama) akan dilewati.</p>
+      <p>Anda akan mengimport <strong>${previewData.value.total_rows.toLocaleString('id-ID')}</strong> data peserta secara bertahap (part-by-part).</p>
+      <p class="text-sm text-gray-500 mt-2">Data duplikat (nopol sama) akan otomatis dilewati.</p>
     `,
     icon: 'question',
     showCancelButton: true,
     confirmButtonText: 'Ya, Import Sekarang',
     cancelButtonText: 'Batal',
-    confirmButtonColor: '#2563eb',
+    buttonsStyling: false,
+    customClass: {
+      actions: 'gap-3',
+      confirmButton: 'bg-green-600 hover:bg-green-500 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition-all cursor-pointer',
+      cancelButton: 'bg-gray-500 hover:bg-gray-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition-all cursor-pointer',
+    },
   });
 
   if (result.isConfirmed) {
     await doImport();
+  }
+};
+
+const cancelChunkedImport = () => {
+  importCancelled.value = true;
+};
+
+const closeProgressDialog = () => {
+  progressDialog.value = false;
+  if (importPhase.value === 'completed' || (importPhase.value === 'cancelled' && liveImported.value > 0)) {
+    currentStep.value = 3;
   }
 };
 
@@ -143,30 +191,124 @@ const doImport = async () => {
   errors.value = [];
   importResult.value = null;
 
+  // Reset progress popup state
+  progressDialog.value = true;
+  importPhase.value = 'preparing';
+  uploadPercent.value = 0;
+  currentChunkIndex.value = 0;
+  totalChunks.value = 0;
+  totalRowsToImport.value = previewData.value?.total_rows || 0;
+  processedRows.value = 0;
+  liveImported.value = 0;
+  liveDuplicates.value = 0;
+  liveFailed.value = 0;
+  importEtaText.value = 'Menyiapkan file...';
+  importSpeedText.value = '';
+  importCancelled.value = false;
+  activeImportId.value = null;
+  importErrorMessage.value = '';
+
+  const collectedErrors = [];
+
   try {
+    // STEP 1: Upload & Split file into 1,000-row chunks on server
     const form = new FormData();
     form.append('file', file.value);
 
-    const res = await window.axios.post(route('admin.lotre.upload'), form, {
+    const prepRes = await window.axios.post(route('admin.lotre.import.prepare'), form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000, // 5 min safety for huge 50MB Excel parsing
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total) {
+          uploadPercent.value = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        }
+      },
     });
 
-    importResult.value = res.data;
-
-    if (res.data?.success) {
-      currentStep.value = 3;
-      if (res.data.stats) {
-        currentStats.value = res.data.stats;
-      }
-    } else {
-      errors.value = [res.data?.message || 'Import gagal.'];
+    if (!prepRes.data?.success) {
+      throw new Error(prepRes.data?.message || 'Gagal menyiapkan file import.');
     }
+
+    activeImportId.value = prepRes.data.import_id;
+    totalChunks.value = prepRes.data.total_chunks;
+    totalRowsToImport.value = prepRes.data.total_rows;
+    importPhase.value = 'processing';
+
+    const startTime = performance.now();
+
+    // STEP 2: Process each chunk sequentially with real-time progress
+    for (let idx = 0; idx < totalChunks.value; idx++) {
+      if (importCancelled.value) {
+        importPhase.value = 'cancelled';
+        const cleanRes = await window.axios.post(route('admin.lotre.import.cleanup'), {
+          import_id: activeImportId.value,
+        });
+        if (cleanRes.data?.stats) {
+          currentStats.value = cleanRes.data.stats;
+        }
+        break;
+      }
+
+      currentChunkIndex.value = idx + 1;
+
+      const chunkRes = await window.axios.post(route('admin.lotre.import.chunk'), {
+        import_id: activeImportId.value,
+        chunk_index: idx,
+      });
+
+      const data = chunkRes.data;
+      if (!data?.success) {
+        throw new Error(data?.message || `Gagal memproses part #${idx + 1}.`);
+      }
+
+      processedRows.value += data.processed_in_chunk || 0;
+      liveImported.value += data.imported || 0;
+      liveDuplicates.value += data.duplicates || 0;
+      liveFailed.value += (data.skipped || 0) - (data.duplicates || 0);
+
+      if (Array.isArray(data.errors) && collectedErrors.length < 100) {
+        collectedErrors.push(...data.errors.slice(0, 100 - collectedErrors.length));
+      }
+
+      if (data.stats) {
+        currentStats.value = data.stats;
+      }
+
+      // Compute speed & ETA
+      const elapsedSec = (performance.now() - startTime) / 1000;
+      if (elapsedSec > 0.2 && processedRows.value > 0) {
+        const rowsPerSec = Math.round(processedRows.value / elapsedSec);
+        const remainingRows = Math.max(0, totalRowsToImport.value - processedRows.value);
+        importSpeedText.value = `${rowsPerSec.toLocaleString('id-ID')} data/detik`;
+        importEtaText.value = remainingRows > 0 ? formatEta(remainingRows / rowsPerSec) : 'Hampir selesai...';
+      }
+    }
+
+    if (!importCancelled.value) {
+      importPhase.value = 'completed';
+    }
+
+    importResult.value = {
+      success: true,
+      imported: liveImported.value,
+      duplicates: liveDuplicates.value,
+      skipped: liveDuplicates.value + liveFailed.value,
+      errors: collectedErrors,
+      stats: currentStats.value,
+    };
   } catch (e) {
-    errors.value = [
-      e?.response?.data?.message
-        || e.message
-        || 'Terjadi kesalahan saat import.',
-    ];
+    importPhase.value = 'error';
+    const msg = e?.response?.data?.message || e.message || 'Terjadi kesalahan saat import.';
+    importErrorMessage.value = msg;
+    errors.value = [msg];
+
+    if (activeImportId.value) {
+      try {
+        await window.axios.post(route('admin.lotre.import.cleanup'), {
+          import_id: activeImportId.value,
+        });
+      } catch (_) {}
+    }
   } finally {
     uploading.value = false;
   }
@@ -198,8 +340,13 @@ const confirmClearAll = async () => {
     showCancelButton: true,
     confirmButtonText: 'Ya, Hapus Semua',
     cancelButtonText: 'Batal',
-    confirmButtonColor: '#dc2626',
     reverseButtons: true,
+    buttonsStyling: false,
+    customClass: {
+      actions: 'gap-3',
+      confirmButton: 'bg-red-600 hover:bg-red-500 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition-all cursor-pointer',
+      cancelButton: 'bg-gray-500 hover:bg-gray-600 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition-all cursor-pointer',
+    },
   });
 
   if (result.isConfirmed) {
@@ -658,6 +805,164 @@ const goToLotreUndian = () => {
           </VBtn>
         </VCardText>
       </VCard>
+
+      <!-- Interactive Real-Time Chunked Import Progress Popup -->
+      <VDialog v-model="progressDialog" persistent max-width="540">
+        <VCard class="rounded-2xl overflow-hidden">
+          <div
+            class="px-6 py-4 text-white flex items-center justify-between"
+            :class="{
+              'bg-blue-600': importPhase === 'preparing' || importPhase === 'processing',
+              'bg-green-600': importPhase === 'completed',
+              'bg-amber-600': importPhase === 'cancelled',
+              'bg-red-600': importPhase === 'error',
+            }"
+          >
+            <div class="flex items-center gap-3">
+              <VIcon size="28" class="text-white">
+                {{
+                  importPhase === 'completed'
+                    ? 'mdi-check-circle'
+                    : importPhase === 'error'
+                      ? 'mdi-alert-circle'
+                      : importPhase === 'cancelled'
+                        ? 'mdi-cancel'
+                        : 'mdi-database-import'
+                }}
+              </VIcon>
+              <div>
+                <div class="text-lg font-bold leading-tight">
+                  {{
+                    importPhase === 'preparing'
+                      ? 'Menyiapkan File Excel...'
+                      : importPhase === 'processing'
+                        ? 'Mengimport Data Peserta...'
+                        : importPhase === 'completed'
+                          ? 'Import Selesai!'
+                          : importPhase === 'cancelled'
+                            ? 'Import Dibatalkan'
+                            : 'Import Gagal'
+                  }}
+                </div>
+                <div class="text-xs opacity-90">
+                  <span v-if="importPhase === 'preparing'">
+                    Mengunggah &amp; memecah file menjadi part 1.000 data...
+                  </span>
+                  <span v-else-if="importPhase === 'processing'">
+                    Part {{ currentChunkIndex }} dari {{ totalChunks }}
+                    ({{ processedRows.toLocaleString('id-ID') }} / {{ totalRowsToImport.toLocaleString('id-ID') }} data)
+                  </span>
+                  <span v-else-if="importPhase === 'completed'">
+                    Seluruh {{ totalRowsToImport.toLocaleString('id-ID') }} baris telah diproses.
+                  </span>
+                  <span v-else-if="importPhase === 'cancelled'">
+                    Proses dihentikan pada part {{ currentChunkIndex }} dari {{ totalChunks }}.
+                  </span>
+                  <span v-else>
+                    Terjadi kendala saat memproses file.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="text-2xl font-extrabold tabular-nums">
+              {{ overallProgressPercent }}%
+            </div>
+          </div>
+
+          <VCardText class="pa-6 space-y-5">
+            <!-- Real-time Progress Bar -->
+            <div>
+              <VProgressLinear
+                :model-value="overallProgressPercent"
+                :indeterminate="importPhase === 'preparing' && uploadPercent >= 99"
+                :color="
+                  importPhase === 'completed'
+                    ? 'success'
+                    : importPhase === 'error'
+                      ? 'error'
+                      : importPhase === 'cancelled'
+                        ? 'warning'
+                        : 'primary'
+                "
+                height="14"
+                rounded
+                striped
+                :active="importPhase === 'preparing' || importPhase === 'processing'"
+              />
+              <div
+                v-if="importPhase === 'processing'"
+                class="flex justify-between text-xs text-gray-500 mt-2"
+              >
+                <span>Kecepatan: <strong>{{ importSpeedText || '...' }}</strong></span>
+                <span>Estimasi sisa: <strong>{{ importEtaText }}</strong></span>
+              </div>
+            </div>
+
+            <!-- Live Counters -->
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div class="bg-green-50 border border-green-200 rounded-xl p-3">
+                <div class="text-2xl font-bold text-green-600 tabular-nums">
+                  {{ liveImported.toLocaleString('id-ID') }}
+                </div>
+                <div class="text-xs font-medium text-green-700 mt-0.5">
+                  Berhasil
+                </div>
+              </div>
+              <div class="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <div class="text-2xl font-bold text-amber-600 tabular-nums">
+                  {{ liveDuplicates.toLocaleString('id-ID') }}
+                </div>
+                <div class="text-xs font-medium text-amber-700 mt-0.5">
+                  Duplikat
+                </div>
+              </div>
+              <div class="bg-red-50 border border-red-200 rounded-xl p-3">
+                <div class="text-2xl font-bold text-red-600 tabular-nums">
+                  {{ liveFailed.toLocaleString('id-ID') }}
+                </div>
+                <div class="text-xs font-medium text-red-700 mt-0.5">
+                  Gagal / Kosong
+                </div>
+              </div>
+            </div>
+
+            <!-- Error Alert inside Modal -->
+            <VAlert
+              v-if="importPhase === 'error' && importErrorMessage"
+              type="error"
+              variant="tonal"
+              class="text-sm"
+            >
+              {{ importErrorMessage }}
+            </VAlert>
+
+            <!-- Action Footer -->
+            <div class="flex justify-end gap-2 pt-2">
+              <VBtn
+                v-if="importPhase === 'processing'"
+                color="error"
+                variant="outlined"
+                :disabled="importCancelled"
+                @click="cancelChunkedImport"
+              >
+                <VIcon class="mr-1">mdi-stop-circle-outline</VIcon>
+                {{ importCancelled ? 'Membatalkan...' : 'Batalkan Import' }}
+              </VBtn>
+
+              <VBtn
+                v-if="importPhase === 'completed' || importPhase === 'cancelled' || importPhase === 'error'"
+                color="primary"
+                size="large"
+                @click="closeProgressDialog"
+              >
+                <VIcon class="mr-1">mdi-check</VIcon>
+                {{ importPhase === 'error' ? 'Tutup' : 'Lihat Ringkasan Hasil' }}
+              </VBtn>
+            </div>
+          </VCardText>
+        </VCard>
+      </VDialog>
     </div>
   </AppLayout>
 </template>

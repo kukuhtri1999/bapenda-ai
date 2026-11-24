@@ -8,7 +8,7 @@ const titleApp = import.meta.env.VITE_APP_NAME;
 
 <template>
   <div class="flex items-center align-middle">
-    <img :src="logoUrl" alt="Logo" width="40" />
+    <img :src="logoUrl || '/images/logo-samsat-lamongan.png'" alt="Logo Samsat Lamongan" width="48" height="48" class="object-contain flex-shrink-0" />
     <Transition name="fade-slide">
       <span
         v-if="showTitle"

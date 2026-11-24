@@ -180,10 +180,7 @@ const { startTour } = useTour(formSteps);
       <header class="wp-topbar">
         <div class="wp-topbar__inner">
           <Link href="/" class="wp-brand no-underline">
-            <VImg :src="logoUrl" alt="Bapenda" contain width="32" height="32" class="me-2" />
-            <VImg src="/images/logo-jatim.png" alt="Pemprov Jatim" contain width="32" height="32" class="me-2 d-none d-sm-block" />
-            <VImg src="/images/Lambang_Polda_Jatim.png" alt="Polri" contain width="32" height="32" class="me-2 d-none d-md-block" />
-            <VImg src="/images/jasa-raharja.png" alt="Jasa Raharja" contain width="32" height="32" class="me-2 d-none d-md-block" />
+            <VImg :src="logoUrl || '/images/logo-samsat-lamongan.png'" alt="KB Samsat Lamongan" contain width="40" height="40" class="me-2.5 flex-shrink-0" />
             <div class="wp-brand__text">
               <span class="wp-brand__name">KB Samsat Lamongan</span>
               <span class="wp-brand__sub d-none d-sm-block">Pelayanan Publik Bebas Biaya</span>

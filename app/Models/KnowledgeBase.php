@@ -114,14 +114,18 @@ class KnowledgeBase extends Model
      */
     public static function cleanHtml(string $html): string
     {
+        // Convert block endings to spaces so adjacent words never merge when tags are stripped
+        $text = preg_replace('/<\/(?:p|div|h[1-6]|li|tr|blockquote)>|<br\s*\/?>/i', ' ', $html);
         // Remove XML / HTML processing instructions like <?xml encoding="UTF-8">
-        $text = preg_replace('/<\?[^>]*\?>?/', ' ', $html);
+        $text = preg_replace('/<\?[^>]*\?>?/', ' ', (string) $text);
         // Strip remaining HTML tags
-        $text = strip_tags($text);
+        $text = strip_tags((string) $text);
         // Decode all HTML entities to real UTF-8 characters
         $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        // Strip stray citation artifacts such as [cite: 42, 114]
+        $text = preg_replace('/\s*\[cite:\s*[\d,\s]+\]/i', '', $text);
         // Collapse multiple whitespace / newlines into single space
-        return trim(preg_replace('/\s+/u', ' ', $text));
+        return trim(preg_replace('/\s+/u', ' ', (string) $text));
     }
 
     /**

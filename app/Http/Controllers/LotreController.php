@@ -14,9 +14,46 @@ class LotreController extends Controller
     // Public page
     public function index()
     {
-        // Pass settings to the frontend
+        $totalParticipantsCount = PesertaLotre::count();
+
+        // Build a balanced stratified sample across all kecamatans so the slot reel
+        // displays all subdistricts fairly (even when 45k+ rows are sorted by kecamatan in Excel)
+        $kecamatans = PesertaLotre::where('apakah_menang', false)
+            ->whereNotNull('kecamatan')
+            ->where('kecamatan', '!=', '')
+            ->distinct()
+            ->pluck('kecamatan');
+
+        $participants = collect();
+        if ($kecamatans->isNotEmpty()) {
+            $perKec = max(4, (int) ceil(220 / $kecamatans->count()));
+            foreach ($kecamatans as $kec) {
+                $sample = PesertaLotre::select([
+                    'id', 'nama', 'nopol', 'alamat', 'kecamatan', 'apakah_menang', 'urutan_menang',
+                ])
+                    ->where('apakah_menang', false)
+                    ->where('kecamatan', $kec)
+                    ->limit($perKec)
+                    ->get();
+                $participants = $participants->concat($sample);
+            }
+            $participants = $participants->shuffle()->values();
+        } else {
+            $participants = PesertaLotre::select([
+                'id', 'nama', 'nopol', 'alamat', 'kecamatan', 'apakah_menang', 'urutan_menang',
+            ])->where('apakah_menang', false)->limit(150)->get()->shuffle()->values();
+        }
+
+        $winners = PesertaLotre::select([
+            'id', 'nama', 'nopol', 'alamat', 'kecamatan', 'urutan_menang',
+        ])->whereNotNull('urutan_menang')->orderBy('urutan_menang', 'asc')->get();
+
+        // Pass settings and initial data directly to avoid extra client-side API calls
         return Inertia::render('Lotre/Index', [
             'spinDuration' => LotreSetting::getSpinDuration(),
+            'totalParticipantsCount' => $totalParticipantsCount,
+            'initialParticipants' => $participants,
+            'initialWinners' => $winners,
         ]);
     }
 
@@ -70,49 +107,52 @@ class LotreController extends Controller
 
                 // If still no predetermined winner available, fall back to random
                 if (!$candidate) {
-                    $candidate = PesertaLotre::where('apakah_menang', false)
-                        ->lockForUpdate()
-                        ->inRandomOrder()
-                        ->first();
+                    $candidate = $this->pickRandomCandidate(
+                        PesertaLotre::where('apakah_menang', false)
+                    );
                 }
             } elseif ($lotreMode === 'one_per_kecamatan') {
-                // One Per Kecamatan mode: exclude kecamatans that already have a winner
+                // One Per Kecamatan mode: exclude kecamatans that already have a winner,
+                // then pick one remaining kecamatan uniformly at random so all kecamatans have equal odds
                 $wonKecamatans = PesertaLotre::where('apakah_menang', true)
                     ->whereNotNull('kecamatan')
                     ->where('kecamatan', '!=', '')
+                    ->distinct()
                     ->pluck('kecamatan')
-                    ->unique()
                     ->toArray();
 
-                $query = PesertaLotre::where('apakah_menang', false)
+                $eligibleKecamatansQuery = PesertaLotre::where('apakah_menang', false)
                     ->whereNotNull('kecamatan')
                     ->where('kecamatan', '!=', '');
 
                 if (!empty($wonKecamatans)) {
-                    $query->whereNotIn('kecamatan', $wonKecamatans);
+                    $eligibleKecamatansQuery->whereNotIn('kecamatan', $wonKecamatans);
                 }
 
-                $candidate = $query->lockForUpdate()
-                    ->inRandomOrder()
-                    ->first();
+                $eligibleKecamatans = $eligibleKecamatansQuery->distinct()->pluck('kecamatan')->all();
+
+                if (!empty($eligibleKecamatans)) {
+                    $chosenKecamatan = $eligibleKecamatans[random_int(0, count($eligibleKecamatans) - 1)];
+                    $candidate = $this->pickRandomCandidate(
+                        PesertaLotre::where('apakah_menang', false)->where('kecamatan', $chosenKecamatan)
+                    );
+                }
 
                 // If no more eligible kecamatans, check if there are participants without kecamatan
                 if (!$candidate) {
-                    $candidate = PesertaLotre::where('apakah_menang', false)
-                        ->where(function ($q) {
-                            $q->whereNull('kecamatan')
-                                ->orWhere('kecamatan', '');
-                        })
-                        ->lockForUpdate()
-                        ->inRandomOrder()
-                        ->first();
+                    $candidate = $this->pickRandomCandidate(
+                        PesertaLotre::where('apakah_menang', false)
+                            ->where(function ($q) {
+                                $q->whereNull('kecamatan')
+                                    ->orWhere('kecamatan', '');
+                            })
+                    );
                 }
             } else {
                 // Random mode: select a random eligible participant
-                $candidate = PesertaLotre::where('apakah_menang', false)
-                    ->lockForUpdate()
-                    ->inRandomOrder()
-                    ->first();
+                $candidate = $this->pickRandomCandidate(
+                    PesertaLotre::where('apakah_menang', false)
+                );
             }
 
             if (!$candidate) {
@@ -161,5 +201,20 @@ class LotreController extends Controller
         $p = PesertaLotre::create($validator->validated());
 
         return response()->json($p, 201);
+    }
+
+    /**
+     * Pick a single random row using indexed count + offset instead of slow ORDER BY RAND().
+     */
+    private function pickRandomCandidate($query): ?PesertaLotre
+    {
+        $count = (clone $query)->count();
+        if ($count === 0) {
+            return null;
+        }
+
+        $offset = random_int(0, $count - 1);
+
+        return $query->lockForUpdate()->offset($offset)->limit(1)->first();
     }
 }

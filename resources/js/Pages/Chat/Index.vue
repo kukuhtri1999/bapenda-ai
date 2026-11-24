@@ -904,16 +904,23 @@ const formatTime = (timestamp) => {
   });
 };
 
-const formatMessage = async (content) => {
-  if (!content) return '';
+const renderMarkdownToChatHtml = (rawContent) => {
+  if (!rawContent) return '';
 
-  // If already looks like HTML, return as-is (for our follow-up/feedback messages)
-  const looksHtml = /<\w+[\s\S]*>/m.test(content);
-  if (looksHtml) return content;
+  // If already looks like HTML (e.g. follow-up/feedback blocks), strip stray [cite: ...] and return
+  const looksHtml = /<\w+[\s\S]*>/m.test(rawContent);
+  if (looksHtml) {
+    return rawContent.replace(/\s*\[cite:\s*[\d,\s]+\]/gi, '');
+  }
 
-  // Enhanced formatting with better link handling
-  const formatted = content
-    // Handle Markdown headings FIRST (before line break conversion)
+  return String(rawContent)
+    // Strip stray citation markers like [cite: 42, 114]
+    .replace(/\s*\[cite:\s*[\d,\s]+\]/gi, '')
+    // Handle Markdown headings FIRST (while \n newlines still exist)
+    .replace(
+      /^#### (.+)$/gm,
+      '<h5 style="font-size:12.5px;font-weight:700;margin:8px 0 3px;color:#1a1a2e">$1</h5>',
+    )
     .replace(
       /^### (.+)$/gm,
       '<h4 style="font-size:13px;font-weight:700;margin:10px 0 4px;color:#1a1a2e">$1</h4>',
@@ -928,7 +935,7 @@ const formatMessage = async (content) => {
     )
     // Handle Markdown-style links [text](url) first
     .replace(
-      /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g,
+      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #C0392B; text-decoration: underline; font-weight: 600;">$1</a>',
     )
     // Handle plain URLs (but not those already in HTML tags)
@@ -936,19 +943,18 @@ const formatMessage = async (content) => {
       /(?<!href="|">)(https?:\/\/[^\s<]+)(?![^<]*<\/a>)/g,
       '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #C0392B; text-decoration: underline;">$1</a>',
     )
-    // Convert bold text
+    // Convert bold text before bullet conversion so "* **Bold**" won't confuse single-asterisk italic
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Convert bullet points BEFORE newline -> <br> replacement
+    .replace(/^[ \t]*[-*]\s+/gm, '• ')
     // Convert italic text
     .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>')
-    // Convert line breaks
-    .replace(/\n/g, '<br>')
-    // Format numbered lists with proper line breaks
-    .replace(/^(\d+\.\s)/gm, '<br>$1')
-    // Format bullet points
-    .replace(/^[-*]\s/gm, '<br>• ');
-
-  return formatted;
+    // Clean excess blank lines after block headings, then convert newlines to <br>
+    .replace(/(<\/h[2-5]>)\n+/g, '$1')
+    .replace(/\n/g, '<br>');
 };
+
+const formatMessage = async (content) => renderMarkdownToChatHtml(content);
 
 const getFormattedContent = (message) => {
   const key = message.id || message.content;
@@ -958,51 +964,9 @@ const getFormattedContent = (message) => {
     return formattedMessages.value.get(key);
   }
 
-  // Format message asynchronously and cache result
-  formatMessage(message.content).then((formatted) => {
-    formattedMessages.value.set(key, formatted);
-  });
-
-  // Return simple formatted content as fallback while processing
-  let content = message.content || '';
-
-  // Enhanced formatting with better link handling
-  content = content
-    // Handle Markdown headings FIRST (before line break conversion)
-    .replace(
-      /^### (.+)$/gm,
-      '<h4 style="font-size:13px;font-weight:700;margin:10px 0 4px;color:#1a1a2e">$1</h4>',
-    )
-    .replace(
-      /^## (.+)$/gm,
-      '<h3 style="font-size:14px;font-weight:700;margin:12px 0 5px;color:#1a1a2e">$1</h3>',
-    )
-    .replace(
-      /^# (.+)$/gm,
-      '<h2 style="font-size:15px;font-weight:700;margin:14px 0 6px;color:#1a1a2e">$1</h2>',
-    )
-    // Handle Markdown-style links [text](url)
-    .replace(
-      /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: #C0392B; text-decoration: underline; font-weight: 600;">$1</a>',
-    )
-    // Handle plain URLs (but not those already in HTML tags)
-    .replace(
-      /(?<!href="|">)(https?:\/\/[^\s<]+)(?![^<]*<\/a>)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #C0392B; text-decoration: underline;">$1</a>',
-    )
-    // Handle bold text
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    // Handle italic text
-    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>')
-    // Handle line breaks
-    .replace(/\n/g, '<br>')
-    // Handle numbered lists
-    .replace(/^(\d+\.\s)/gm, '<br>$1')
-    // Handle bullet points
-    .replace(/^[-*]\s/gm, '<br>• ');
-
-  return content;
+  const formatted = renderMarkdownToChatHtml(message.content || '');
+  formattedMessages.value.set(key, formatted);
+  return formatted;
 };
 
 const getSuggestionColor = (index) => {

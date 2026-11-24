@@ -8,9 +8,11 @@ import { router } from '@inertiajs/vue3';
 import { QuillEditor } from '@vueup/vue-quill';
 import axios from 'axios';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { useMarkdownConverter } from '@/utils/markdownToRichHtml.js';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 
 const $toast = inject('$toast');
+const quillEditorRef = ref(null);
 
 const props = defineProps({
   knowledgeBase: Object,
@@ -34,6 +36,12 @@ const form = reactive({
   file: null,
   is_active: props.knowledgeBase.is_active,
 });
+
+const {
+  previousRawContent,
+  convertMarkdownContent,
+  undoMarkdownConvert,
+} = useMarkdownConverter(ref, form, quillEditorRef, $toast);
 
 const formState = reactive({
   processing: false,
@@ -531,7 +539,7 @@ const { startTour } = useTour(kbEditSteps);
 
                 <!-- Content editor — shown for both manual and file-based entries -->
                 <div class="mb-2">
-                  <div class="d-flex align-center justify-space-between mb-2">
+                  <div class="d-flex flex-wrap align-center justify-space-between gap-2 mb-2">
                     <span
                       class="text-subtitle-2 font-weight-medium text-medium-emphasis"
                     >
@@ -543,6 +551,28 @@ const { startTour } = useTour(kbEditSteps);
                         (extracted from uploaded file — you may edit freely)
                       </span>
                     </span>
+                    <div class="d-flex align-center gap-2">
+                      <VBtn
+                        v-if="previousRawContent !== null"
+                        size="x-small"
+                        variant="text"
+                        color="grey-darken-2"
+                        prepend-icon="mdi-undo"
+                        @click="undoMarkdownConvert"
+                      >
+                        Undo
+                      </VBtn>
+                      <VBtn
+                        size="small"
+                        variant="tonal"
+                        color="deep-purple"
+                        prepend-icon="mdi-auto-fix"
+                        :disabled="!form.content"
+                        @click="convertMarkdownContent"
+                      >
+                        Konversi Markdown → Format Rapi
+                      </VBtn>
+                    </div>
                   </div>
                   <VAlert
                     v-if="form.source_type === 'file'"
@@ -557,6 +587,7 @@ const { startTour } = useTour(kbEditSteps);
                     the knowledge base and re-indexed in the vector database.
                   </VAlert>
                   <QuillEditor
+                    ref="quillEditorRef"
                     v-if="isClient"
                     v-model:content="form.content"
                     content-type="html"

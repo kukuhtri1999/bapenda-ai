@@ -61,40 +61,12 @@ onMounted(() => {
         <div class="auth-content" :class="{ 'content-loaded': isLoaded }">
           <div class="flex justify-center mb-10 w-fit place-self-center">
             <VImg
-              :src="logoUrl"
-              alt="Logo"
+              :src="logoUrl || '/images/logo-samsat-lamongan.png'"
+              alt="Logo KB Samsat Lamongan"
               contain
-              :height="40"
-              width="40"
+              :height="60"
+              :width="60"
               aspect-ratio="1"
-              class="me-3"
-            />
-            <VImg
-              src="/images/logo-jatim.png"
-              alt="Logo Jatim"
-              contain
-              :height="40"
-              width="40"
-              aspect-ratio="1"
-              class="me-2"
-            />
-            <VImg
-              src="/images/Lambang_Polda_Jatim.png"
-              alt="Logo Polda Jatim"
-              contain
-              height="40"
-              width="40"
-              aspect-ratio="1"
-              class="me-2"
-            />
-            <VImg
-              src="/images/jasa-raharja.png"
-              alt="Jasa Raharja"
-              contain
-              height="40"
-              width="40"
-              aspect-ratio="1"
-              class="me-3"
             />
           </div>
           <!-- Brand Logo -->

@@ -141,7 +141,7 @@ const logout = () => {
           >
             <ApplicationMark
               :showTitle="!rail || isHovered"
-              class="h-10 w-auto"
+              class="h-12 w-auto"
             />
           </Link>
         </div>

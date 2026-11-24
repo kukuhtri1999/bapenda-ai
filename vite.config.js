@@ -1,10 +1,18 @@
 import { defineConfig } from 'vite';
+import fs from 'node:fs';
+import path from 'node:path';
 import laravel from 'laravel-vite-plugin';
 import vue from '@vitejs/plugin-vue';
 import vuetify from 'vite-plugin-vuetify';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  server: {
+    host: '127.0.0.1',
+    hmr: {
+      host: '127.0.0.1',
+    },
+  },
   plugins: [
     laravel({
       input: 'resources/js/app.js',
@@ -175,6 +183,16 @@ export default defineConfig({
         ],
       },
     }),
+    {
+      name: 'copy-pwa-manifest',
+      closeBundle() {
+        const src = path.resolve('public/build/manifest.webmanifest');
+        const dest = path.resolve('public/manifest.webmanifest');
+        if (fs.existsSync(src)) {
+          fs.copyFileSync(src, dest);
+        }
+      },
+    },
   ],
   build: {
     rollupOptions: {

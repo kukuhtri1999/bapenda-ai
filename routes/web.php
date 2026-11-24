@@ -140,6 +140,9 @@ Route::middleware([
         Route::get('/import', [LotreImportController::class, 'index'])->name('admin.lotre.import');
         Route::post('/import/preview', [LotreImportController::class, 'preview'])->name('admin.lotre.preview');
         Route::post('/import', [LotreImportController::class, 'upload'])->name('admin.lotre.upload');
+        Route::post('/import/prepare', [LotreImportController::class, 'prepareImport'])->name('admin.lotre.import.prepare');
+        Route::post('/import/chunk', [LotreImportController::class, 'processImportChunk'])->name('admin.lotre.import.chunk');
+        Route::post('/import/cleanup', [LotreImportController::class, 'cleanupImport'])->name('admin.lotre.import.cleanup');
         Route::post('/import/clear', [LotreImportController::class, 'clearAll'])->name('admin.lotre.clear');
         Route::get('/import/template', [LotreImportController::class, 'downloadTemplate'])->name('admin.lotre.template');
 

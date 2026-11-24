@@ -187,12 +187,12 @@ class LotreImportController extends Controller
   public function preview(Request $request): JsonResponse
   {
     $validator = Validator::make($request->all(), [
-      'file' => 'required|file|mimes:xlsx,xls,csv|max:20480',
+      'file' => 'required|file|mimes:xlsx,xls,csv|max:51200',
     ], [
       'file.required' => 'File harus diunggah.',
       'file.file' => 'Upload harus berupa file.',
       'file.mimes' => 'Format file harus XLSX, XLS, atau CSV.',
-      'file.max' => 'Ukuran file maksimal 20MB.',
+      'file.max' => 'Ukuran file maksimal 50MB.',
     ]);
 
     if ($validator->fails()) {
@@ -203,8 +203,15 @@ class LotreImportController extends Controller
     }
 
     try {
+      @set_time_limit(180);
+      @ini_set('memory_limit', '512M');
+
       $file = $request->file('file');
-      $spreadsheet = IOFactory::load($file->getPathname());
+      $reader = IOFactory::createReaderForFile($file->getPathname());
+      if (method_exists($reader, 'setReadDataOnly')) {
+        $reader->setReadDataOnly(true);
+      }
+      $spreadsheet = $reader->load($file->getPathname());
       $sheet = $spreadsheet->getActiveSheet();
       $rows = $sheet->toArray();
 
@@ -344,6 +351,325 @@ class LotreImportController extends Controller
         'message' => 'Import gagal: ' . $e->getMessage(),
       ], 500);
     }
+  }
+
+  /**
+   * Step 1 of chunked big-data import:
+   * Parse uploaded spreadsheet once (read-data-only), normalize rows,
+   * and split into 1,000-row JSON chunks for fast part-by-part insertion.
+   */
+  public function prepareImport(Request $request): JsonResponse
+  {
+    $validator = Validator::make($request->all(), [
+      'file' => 'required|file|mimes:xlsx,xls,csv|max:51200',
+    ], [
+      'file.required' => 'File harus diunggah.',
+      'file.file' => 'Upload harus berupa file.',
+      'file.mimes' => 'Format file harus XLSX, XLS, atau CSV.',
+      'file.max' => 'Ukuran file maksimal 50MB.',
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'errors' => $validator->errors(),
+      ], 422);
+    }
+
+    try {
+      @set_time_limit(300);
+      @ini_set('memory_limit', '512M');
+
+      $file = $request->file('file');
+      $reader = IOFactory::createReaderForFile($file->getPathname());
+      if (method_exists($reader, 'setReadDataOnly')) {
+        $reader->setReadDataOnly(true);
+      }
+      $spreadsheet = $reader->load($file->getPathname());
+      $sheet = $spreadsheet->getActiveSheet();
+      $rows = $sheet->toArray();
+
+      // Free PhpSpreadsheet memory immediately
+      $spreadsheet->disconnectWorksheets();
+      unset($spreadsheet, $sheet);
+
+      if (count($rows) < 2) {
+        return response()->json([
+          'success' => false,
+          'message' => 'File kosong atau tidak memiliki baris data.',
+        ], 422);
+      }
+
+      $headers = array_map(function ($h) {
+        return strtolower(trim((string) $h));
+      }, $rows[0]);
+
+      $namaIdx = $this->findColumnIndex($headers, ['nama', 'name', 'nama_peserta', 'peserta']);
+      $nopolIdx = $this->findColumnIndex($headers, ['nopol', 'no_pol', 'nomor_polisi', 'plat', 'plat_nomor']);
+      $alamatIdx = $this->findColumnIndex($headers, ['alamat', 'address', 'alamat_peserta']);
+      $kecamatanIdx = $this->findColumnIndex($headers, ['kecamatan', 'kec', 'district', 'wilayah']);
+
+      if ($namaIdx === null && $nopolIdx === null) {
+        return response()->json([
+          'success' => false,
+          'message' => 'Kolom "nama" atau "nopol" tidak ditemukan.',
+        ], 422);
+      }
+
+      $importId = 'imp_' . date('Ymd_His') . '_' . bin2hex(random_bytes(6));
+      $dirPath = storage_path("app/lotre_imports/{$importId}");
+      if (!is_dir($dirPath)) {
+        mkdir($dirPath, 0755, true);
+      }
+
+      $chunkSize = 1000;
+      $currentChunk = [];
+      $chunkIndex = 0;
+      $totalRows = 0;
+      $totalCount = count($rows);
+
+      for ($i = 1; $i < $totalCount; $i++) {
+        $row = $rows[$i];
+        $nama = $namaIdx !== null ? trim((string) ($row[$namaIdx] ?? '')) : '';
+        $nopol = $nopolIdx !== null ? strtoupper(trim((string) ($row[$nopolIdx] ?? ''))) : '';
+        $alamat = $alamatIdx !== null ? trim((string) ($row[$alamatIdx] ?? '')) : '';
+        $kecamatan = $kecamatanIdx !== null ? trim((string) ($row[$kecamatanIdx] ?? '')) : '';
+
+        // Skip completely empty trailing rows
+        if ($nama === '' && $nopol === '' && $alamat === '' && $kecamatan === '') {
+          continue;
+        }
+
+        $currentChunk[] = [
+          'row' => $i + 1,
+          'nama' => $nama !== '' ? $nama : null,
+          'nopol' => $nopol !== '' ? $nopol : null,
+          'alamat' => $alamat !== '' ? $alamat : null,
+          'kecamatan' => $kecamatan !== '' ? $kecamatan : null,
+        ];
+        $totalRows++;
+
+        if (count($currentChunk) >= $chunkSize) {
+          file_put_contents(
+            "{$dirPath}/chunk_{$chunkIndex}.json",
+            json_encode($currentChunk, JSON_UNESCAPED_UNICODE)
+          );
+          $chunkIndex++;
+          $currentChunk = [];
+        }
+      }
+
+      if (!empty($currentChunk)) {
+        file_put_contents(
+          "{$dirPath}/chunk_{$chunkIndex}.json",
+          json_encode($currentChunk, JSON_UNESCAPED_UNICODE)
+        );
+        $chunkIndex++;
+      }
+
+      unset($rows, $currentChunk);
+
+      if ($totalRows === 0) {
+        $this->deleteImportDirectory($dirPath);
+        return response()->json([
+          'success' => false,
+          'message' => 'Tidak ada data valid yang ditemukan di dalam file.',
+        ], 422);
+      }
+
+      return response()->json([
+        'success' => true,
+        'import_id' => $importId,
+        'total_rows' => $totalRows,
+        'total_chunks' => $chunkIndex,
+        'chunk_size' => $chunkSize,
+      ]);
+    } catch (\Throwable $e) {
+      Log::error('Prepare import failed: ' . $e->getMessage(), [
+        'trace' => $e->getTraceAsString(),
+      ]);
+
+      return response()->json([
+        'success' => false,
+        'message' => 'Gagal memproses file: ' . $e->getMessage(),
+      ], 500);
+    }
+  }
+
+  /**
+   * Step 2 of chunked big-data import:
+   * Process a single 1,000-row chunk using batch duplicate check + batch insert.
+   */
+  public function processImportChunk(Request $request): JsonResponse
+  {
+    $validator = Validator::make($request->all(), [
+      'import_id' => ['required', 'string', 'regex:/^[a-zA-Z0-9_\-]+$/'],
+      'chunk_index' => 'required|integer|min:0',
+    ]);
+
+    if ($validator->fails()) {
+      return response()->json([
+        'success' => false,
+        'errors' => $validator->errors(),
+      ], 422);
+    }
+
+    $importId = $request->input('import_id');
+    $chunkIndex = (int) $request->input('chunk_index');
+    $dirPath = storage_path("app/lotre_imports/{$importId}");
+    $chunkFile = "{$dirPath}/chunk_{$chunkIndex}.json";
+
+    if (!file_exists($chunkFile)) {
+      return response()->json([
+        'success' => false,
+        'message' => "Chunk #{$chunkIndex} tidak ditemukan atau sudah diproses.",
+      ], 404);
+    }
+
+    try {
+      $rows = json_decode(file_get_contents($chunkFile), true) ?: [];
+      $now = now()->toDateTimeString();
+
+      $imported = 0;
+      $skipped = 0;
+      $duplicates = 0;
+      $errors = [];
+
+      DB::transaction(function () use ($rows, $now, &$imported, &$skipped, &$duplicates, &$errors) {
+        // 1. Batch lookup all non-empty nopols in this chunk in ONE query
+        $nopols = [];
+        foreach ($rows as $r) {
+          if (!empty($r['nopol'])) {
+            $nopols[] = $r['nopol'];
+          }
+        }
+        $nopols = array_values(array_unique($nopols));
+
+        $existingNopols = [];
+        if (!empty($nopols)) {
+          $existingNopols = PesertaLotre::whereIn('nopol', $nopols)
+            ->pluck('nopol')
+            ->flip()
+            ->all();
+        }
+
+        $seenInChunk = [];
+        $insertBatch = [];
+
+        foreach ($rows as $r) {
+          $rowNum = $r['row'] ?? '?';
+          $nama = $r['nama'] ?? null;
+          $nopol = $r['nopol'] ?? null;
+
+          if (empty($nama) && empty($nopol)) {
+            $skipped++;
+            if (count($errors) < 50) {
+              $errors[] = "Baris {$rowNum}: nama dan nopol kosong.";
+            }
+            continue;
+          }
+
+          if (!empty($nopol)) {
+            if (isset($existingNopols[$nopol]) || isset($seenInChunk[$nopol])) {
+              $duplicates++;
+              $skipped++;
+              if (count($errors) < 50) {
+                $errors[] = "Baris {$rowNum}: nopol '{$nopol}' duplikat, dilewati.";
+              }
+              continue;
+            }
+            $seenInChunk[$nopol] = true;
+          }
+
+          $insertBatch[] = [
+            'nama' => $nama,
+            'nopol' => $nopol,
+            'alamat' => $r['alamat'] ?? null,
+            'kecamatan' => $r['kecamatan'] ?? null,
+            'apakah_menang' => false,
+            'urutan_menang' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+          ];
+          $imported++;
+        }
+
+        // 2. Batch insert in 500-row groups (2 fast multi-row INSERTs for 1,000 rows)
+        if (!empty($insertBatch)) {
+          foreach (array_chunk($insertBatch, 500) as $subBatch) {
+            PesertaLotre::insert($subBatch);
+          }
+        }
+      });
+
+      // Remove processed chunk file & cleanup directory if empty
+      @unlink($chunkFile);
+      $remaining = glob("{$dirPath}/chunk_*.json");
+      if (empty($remaining)) {
+        $this->deleteImportDirectory($dirPath);
+      }
+
+      return response()->json([
+        'success' => true,
+        'chunk_index' => $chunkIndex,
+        'processed_in_chunk' => count($rows),
+        'imported' => $imported,
+        'skipped' => $skipped,
+        'duplicates' => $duplicates,
+        'errors' => $errors,
+        'stats' => [
+          'total_participants' => PesertaLotre::count(),
+          'total_winners' => PesertaLotre::where('apakah_menang', true)->count(),
+        ],
+      ]);
+    } catch (\Throwable $e) {
+      Log::error("Process chunk #{$chunkIndex} failed: " . $e->getMessage());
+
+      return response()->json([
+        'success' => false,
+        'message' => "Gagal memproses part #{$chunkIndex}: " . $e->getMessage(),
+      ], 500);
+    }
+  }
+
+  /**
+   * Cleanup temporary chunk files if user cancels mid-import.
+   */
+  public function cleanupImport(Request $request): JsonResponse
+  {
+    $importId = $request->input('import_id', '');
+    if (preg_match('/^[a-zA-Z0-9_\-]+$/', $importId)) {
+      $dirPath = storage_path("app/lotre_imports/{$importId}");
+      $this->deleteImportDirectory($dirPath);
+    }
+
+    return response()->json([
+      'success' => true,
+      'stats' => [
+        'total_participants' => PesertaLotre::count(),
+        'total_winners' => PesertaLotre::where('apakah_menang', true)->count(),
+      ],
+    ]);
+  }
+
+  /**
+   * Safely remove temporary import directory.
+   */
+  private function deleteImportDirectory(string $dirPath): void
+  {
+    if (!is_dir($dirPath)) {
+      return;
+    }
+
+    $files = glob("{$dirPath}/*");
+    if ($files) {
+      foreach ($files as $file) {
+        if (is_file($file)) {
+          @unlink($file);
+        }
+      }
+    }
+    @rmdir($dirPath);
   }
 
   /**

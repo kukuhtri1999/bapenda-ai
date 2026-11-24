@@ -2,9 +2,8 @@ import './bootstrap';
 import '../css/app.css';
 
 // ── PWA Service Worker registration ────────────────────────────────────────
-// Uses workbox-generated SW from vite-plugin-pwa; registers on first load
-// and auto-updates in the background via 'autoUpdate' strategy.
-import { registerSW } from 'virtual:pwa-register';
+// Registers workbox-generated SW at /sw.js (public/sw.js) with root scope '/'.
+// Avoids virtual:pwa-register defaulting to /build/sw.js (404).
 
 import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
@@ -18,19 +17,17 @@ import 'vue3-toastify/dist/index.css';
 import 'vuetify/styles';
 import '@mdi/font/css/materialdesignicons.css';
 
-if (typeof window !== 'undefined') {
-  registerSW({
-    immediate: true,
-    onNeedRefresh() {
-      // New content available — silent auto-update (skipWaiting + clientsClaim)
-    },
-    onOfflineReady() {
-      console.info('[PWA] Offline ready.');
-    },
-    onRegistered(r) {
-      // Periodically check for SW updates (every 60 min)
-      r && setInterval(() => r.update(), 60 * 60 * 1000);
-    },
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js', { scope: '/' })
+      .then((registration) => {
+        // Periodically check for SW updates (every 60 min)
+        setInterval(() => registration.update(), 60 * 60 * 1000);
+      })
+      .catch(() => {
+        // Ignore SW registration errors in unsupported contexts
+      });
   });
 }
 

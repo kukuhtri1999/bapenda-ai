@@ -349,6 +349,7 @@ TONE;
 - Untuk tabel tarif/jadwal dari KB, gunakan tabel Markdown.
 - **Emoji** boleh digunakan secukupnya: 📍 lokasi, 📋 dokumen, 💰 biaya, ⏰ jam, ✅ bisa, ❌ tidak bisa.
 - **JANGAN** ulangi pertanyaan user dalam jawaban. Langsung ke inti jawaban.
+- Data referensi Knowledge Base mungkin masih berisi format **raw Markdown** (`###`, `**`, `*`) atau penanda `[cite: ...]`. Selalu olah menjadi jawaban yang **rapi dan matang** menggunakan Markdown yang benar, serta **JANGAN PERNAH** menampilkan penanda `[cite: ...]` atau kode mentah yang tidak terformat.
 FORMAT;
   }
 
@@ -425,14 +426,23 @@ CORR;
     $globalSeen = [];
 
     foreach (array_slice($rawResults, 0, 12) as $kb) {
-      // Prefer search_content (already clean plain text) over raw HTML content
-      $rawText = $kb['search_content'] ?? $kb['content'] ?? $kb['answer'] ?? '';
+      // Prefer full structured content/answer when available so headings/lists/markdown
+      // line breaks remain intact for the LLM; fall back to search_content.
+      $rawText = !empty($kb['content'])
+        ? $kb['content']
+        : ($kb['answer'] ?? $kb['search_content'] ?? '');
 
-      // Deep-clean: strip XML processing instructions → strip HTML tags → decode entities
+      // Preserve structural line breaks from HTML block elements before stripping tags
       $rawText = preg_replace('/<\?[^>]*\?>?/', ' ', (string) $rawText);
+      $rawText = preg_replace('/<\/(?:p|div|h[1-6]|li|blockquote|tr)>|<br\s*\/?>/i', "\n", $rawText);
+      $rawText = preg_replace('/<li[^>]*>/i', '- ', $rawText);
       $rawText = strip_tags($rawText);
       $rawText = html_entity_decode($rawText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-      $rawText = trim(preg_replace('/\s+/u', ' ', $rawText));
+      // Remove NotebookLM/Gemini citation artifacts such as [cite: 42, 114]
+      $rawText = preg_replace('/\s*\[cite:\s*[\d,\s]+\]/i', '', $rawText);
+      // Collapse horizontal whitespace while keeping intentional paragraph/list line breaks
+      $rawText = preg_replace('/[ \t]+/u', ' ', $rawText);
+      $rawText = preg_replace('/\n{3,}/', "\n\n", trim($rawText));
 
       // 2000 chars — enough for full procedural blocks including schedules
       $snippet = mb_substr($rawText, 0, 2000);

@@ -31,6 +31,11 @@ class SecurityHeadersMiddleware
         // Restrict device permissions
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
+        // Enforce HSTS in production over HTTPS
+        if (app()->isProduction() && $request->isSecure()) {
+            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
+
         return $response;
     }
 }

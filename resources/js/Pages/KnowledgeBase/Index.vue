@@ -67,17 +67,24 @@ const fetchGoodMoodTips = [
 ];
 
 const headers = [
-  { title: 'Title', key: 'title', sortable: true },
-  { title: 'Category', key: 'category', sortable: true },
-  { title: 'Type', key: 'type', sortable: true },
-  // { title: "Source", key: "source_type", sortable: true },
-  { title: 'Status', key: 'status', sortable: true },
-  { title: 'Active', key: 'is_active', sortable: true },
-  // { title: "Views", key: "view_count", sortable: true },
-  { title: 'Quality', key: 'quality_score', sortable: true },
-  { title: 'Created', key: 'created_at', sortable: true },
-  { title: 'Actions', key: 'actions', sortable: false },
+  { title: 'Title', key: 'title', sortable: true, minWidth: '300px' },
+  { title: 'Category / Type', key: 'category', sortable: true, width: '165px' },
+  { title: 'Status / Active', key: 'status', sortable: true, width: '115px' },
+  { title: 'Quality / Created', key: 'quality_score', sortable: true, width: '145px' },
+  { title: 'Actions', key: 'actions', sortable: false, align: 'center', width: '88px' },
 ];
+
+const shortTypeLabel = (type) => {
+  const map = {
+    faq: 'FAQ',
+    sop: 'SOP',
+    regulation: 'Peraturan',
+    guide: 'Panduan',
+    announcement: 'Pengumuman',
+    tambahan_sistem: 'Koreksi AI',
+  };
+  return map[type] || props.types?.[type] || type;
+};
 
 const sourceTypeItems = [
   { title: 'All Sources', value: '' },
@@ -1075,181 +1082,205 @@ const { startTour } = useTour(kbSteps);
           show-select
           item-value="id"
           hover
-          hide-default-footer
+          density="compact"
         >
-          <!-- Title column -->
+          <!-- Hide Vuetify built-in footer completely so only custom server-side pagination shows -->
+          <template #bottom></template>
+
+          <!-- Title column (wide, clean space) -->
           <template #item.title="{ item }">
-            <div class="d-flex align-center gap-2 py-1">
-              <VIcon
-                :icon="getSourceIcon(item.source_type)"
-                :color="item.source_type === 'file' ? 'blue' : 'teal'"
-                size="16"
-              />
-              <div>
-                <div class="text-body-2 font-weight-medium text-grey-darken-4">
+            <div class="d-flex align-start gap-2 py-1">
+              <div class="d-flex flex-column align-center gap-1 pt-0.5 flex-shrink-0">
+                <VIcon
+                  :icon="getSourceIcon(item.source_type)"
+                  :color="item.source_type === 'file' ? 'blue' : 'teal'"
+                  size="16"
+                />
+                <VBtn
+                  v-if="item.file_path"
+                  size="x-small"
+                  icon
+                  variant="text"
+                  color="blue"
+                  title="Download File"
+                  style="width: 20px; height: 20px"
+                  @click.stop="window.open(route('knowledge-base.download', item.id))"
+                >
+                  <VIcon size="13">mdi-download</VIcon>
+                </VBtn>
+              </div>
+              <div class="min-w-0">
+                <div class="text-body-2 font-weight-medium text-grey-darken-4 leading-snug">
                   {{ item.title }}
                 </div>
                 <div
-                  class="text-caption text-medium-emphasis"
+                  class="text-caption text-medium-emphasis mt-0.5 line-clamp-1"
                   v-if="item.excerpt"
                 >
-                  {{ item.excerpt.substring(0, 80) }}…
+                  {{ item.excerpt.substring(0, 100) }}…
                 </div>
               </div>
             </div>
           </template>
 
-          <!-- Category column -->
+          <!-- Combined Category & Type column (stacked) -->
           <template #item.category="{ item }">
-            <VChip
-              size="x-small"
-              :color="
-                item.category === 'pajak'
-                  ? 'blue'
-                  : item.category === 'stnk'
-                    ? 'teal'
-                    : 'grey'
-              "
-              variant="tonal"
-              class="font-weight-medium"
-              >{{ categories[item.category] || item.category }}</VChip
-            >
+            <div class="d-flex flex-column align-start gap-1 py-1">
+              <VChip
+                size="x-small"
+                :color="
+                  item.category === 'pajak'
+                    ? 'blue'
+                    : item.category === 'stnk'
+                      ? 'teal'
+                      : 'grey'
+                "
+                variant="tonal"
+                class="font-weight-medium"
+              >
+                {{ categories[item.category] || item.category }}
+              </VChip>
+              <div class="d-flex align-center gap-1 flex-wrap">
+                <VChip
+                  size="x-small"
+                  :color="
+                    item.type === 'faq'
+                      ? 'orange'
+                      : item.type === 'sop'
+                        ? 'purple'
+                        : item.type === 'tambahan_sistem'
+                          ? 'deep-orange'
+                          : 'blue-grey'
+                  "
+                  variant="tonal"
+                  class="font-weight-medium"
+                >
+                  {{ shortTypeLabel(item.type) }}
+                </VChip>
+                <VChip
+                  v-if="item.type === 'tambahan_sistem'"
+                  size="x-small"
+                  color="red"
+                  variant="flat"
+                  label
+                  class="font-weight-bold"
+                >
+                  Koreksi AI
+                </VChip>
+              </div>
+            </div>
           </template>
 
-          <!-- Type column -->
-          <template #item.type="{ item }">
-            <VChip
-              size="x-small"
-              :color="
-                item.type === 'faq'
-                  ? 'orange'
-                  : item.type === 'sop'
-                    ? 'purple'
-                    : item.type === 'tambahan_sistem'
-                      ? 'deep-orange'
-                      : 'blue-grey'
-              "
-              variant="tonal"
-              class="font-weight-medium"
-              >{{ types[item.type] || item.type }}</VChip
-            >
-            <VChip
-              v-if="item.type === 'tambahan_sistem'"
-              size="x-small"
-              color="red"
-              variant="flat"
-              label
-              class="ml-1 font-weight-bold"
-              >Koreksi AI</VChip
-            >
-          </template>
-
-          <!-- Status column -->
+          <!-- Combined Status & Active column (stacked, smaller switcher) -->
           <template #item.status="{ item }">
-            <VChip
-              size="x-small"
-              :color="getStatusColor(item.status)"
-              variant="tonal"
-              class="font-weight-medium"
-              >{{ statuses[item.status] || item.status }}</VChip
-            >
-          </template>
-
-          <!-- Active toggle column -->
-          <template #item.is_active="{ item }">
-            <VSwitch
-              :model-value="item.is_active"
-              @change="toggleStatus(item)"
-              color="success"
-              density="compact"
-              hide-details
-              inset
-            />
-          </template>
-
-          <!-- Date column -->
-          <template #item.created_at="{ item }">
-            <div class="text-body-2">{{ formatDate(item.created_at) }}</div>
-            <div class="text-caption text-medium-emphasis" v-if="item.creator">
-              by {{ item.creator.name }}
+            <div class="d-flex flex-column align-start gap-1 py-1">
+              <VChip
+                size="x-small"
+                :color="getStatusColor(item.status)"
+                variant="tonal"
+                class="font-weight-medium"
+              >
+                {{ statuses[item.status] || item.status }}
+              </VChip>
+              <div class="d-flex align-center gap-1 kb-compact-switch-wrap">
+                <VSwitch
+                  :model-value="item.is_active"
+                  @change="toggleStatus(item)"
+                  color="success"
+                  density="compact"
+                  hide-details
+                  inset
+                  class="kb-compact-switch"
+                />
+                <span class="text-caption text-medium-emphasis" style="font-size: 10px">
+                  {{ item.is_active ? 'Aktif' : 'Nonaktif' }}
+                </span>
+              </div>
             </div>
           </template>
 
-          <!-- Quality Score column -->
+          <!-- Combined Quality & Created column (stacked) -->
           <template #item.quality_score="{ item, value }">
-            <div class="d-flex align-center gap-1">
-              <span
-                v-if="formatQualityScore(value ?? item) !== null"
-                :class="['qs-badge', scoreColorClass(value ?? item)]"
-                :title="`Pinecone Vector Match Score: ${getScoreRaw(value ?? item)}`"
-                >{{ formatQualityScore(value ?? item) }}</span
-              >
-              <span v-else class="qs-badge qs-none">—</span>
-              <VBtn
-                :loading="scoringItems.has(item?.id ?? item?.raw?.id)"
-                size="x-small"
-                icon
-                variant="text"
-                color="grey"
-                title="Perbarui skor dari Pinecone Vector DB"
-                @click="computeScore(item)"
-              >
-                <VIcon size="13">mdi-refresh</VIcon>
-              </VBtn>
+            <div class="d-flex flex-column align-start gap-1 py-1">
+              <div class="d-flex align-center gap-1">
+                <span
+                  v-if="formatQualityScore(value ?? item) !== null"
+                  :class="['qs-badge', scoreColorClass(value ?? item)]"
+                  :title="`Pinecone Vector Match Score: ${getScoreRaw(value ?? item)}`"
+                >
+                  {{ formatQualityScore(value ?? item) }}
+                </span>
+                <span v-else class="qs-badge qs-none">—</span>
+                <VBtn
+                  :loading="scoringItems.has(item?.id ?? item?.raw?.id)"
+                  size="x-small"
+                  icon
+                  variant="text"
+                  color="grey"
+                  title="Perbarui skor dari Pinecone Vector DB"
+                  style="width: 20px; height: 20px"
+                  @click="computeScore(item)"
+                >
+                  <VIcon size="13">mdi-refresh</VIcon>
+                </VBtn>
+              </div>
+              <div class="text-caption text-grey-darken-2" style="font-size: 11px; line-height: 1.25">
+                {{ formatDate(item.created_at) }}
+                <span v-if="item.creator" class="text-medium-emphasis d-block" style="font-size: 10px">
+                  by {{ item.creator.name }}
+                </span>
+              </div>
             </div>
           </template>
+
+          <!-- Actions column (2x2 Grid Layout) -->
           <template #item.actions="{ item }">
-            <div class="d-flex gap-1 align-center">
+            <div class="kb-actions-grid">
               <VBtn
                 size="x-small"
                 icon
-                variant="text"
+                variant="tonal"
                 color="primary"
+                title="Detail"
                 @click="$inertia.visit(route('knowledge-base.show', item.id))"
-                ><VIcon size="16">mdi-eye</VIcon></VBtn
               >
+                <VIcon size="15">mdi-eye</VIcon>
+              </VBtn>
               <VBtn
                 size="x-small"
                 icon
-                variant="text"
+                variant="tonal"
                 color="orange-darken-1"
+                title="Edit"
                 @click="$inertia.visit(route('knowledge-base.edit', item.id))"
-                ><VIcon size="16">mdi-pencil</VIcon></VBtn
               >
-              <VBtn
-                v-if="item.file_path"
-                size="x-small"
-                icon
-                variant="text"
-                color="blue"
-                @click="window.open(route('knowledge-base.download', item.id))"
-                ><VIcon size="16">mdi-download</VIcon></VBtn
-              >
-              <!-- Enhance with AI GPT-5.6 Terra -->
+                <VIcon size="15">mdi-pencil</VIcon>
+              </VBtn>
               <VTooltip text="Enhance dengan AI GPT-5.6 Terra" location="top">
                 <template #activator="{ props: tip }">
                   <VBtn
                     v-bind="tip"
                     size="x-small"
                     icon
-                    variant="text"
-                    :color="
-                      enhancingItems.has(item.id) ? 'grey' : 'deep-purple'
-                    "
+                    variant="tonal"
+                    :color="enhancingItems.has(item.id) ? 'grey' : 'deep-purple'"
                     :loading="enhancingItems.has(item.id)"
                     @click="enhanceItem(item)"
-                    ><VIcon size="16">mdi-auto-fix</VIcon></VBtn
                   >
+                    <VIcon size="15">mdi-auto-fix</VIcon>
+                  </VBtn>
                 </template>
               </VTooltip>
               <VBtn
                 size="x-small"
                 icon
-                variant="text"
+                variant="tonal"
                 color="error"
+                title="Hapus"
                 @click="deleteItem(item)"
-                ><VIcon size="16">mdi-delete</VIcon></VBtn
               >
+                <VIcon size="15">mdi-delete</VIcon>
+              </VBtn>
             </div>
           </template>
 
@@ -2173,14 +2204,16 @@ const { startTour } = useTour(kbSteps);
   font-size: 11px !important;
   font-weight: 600 !important;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   color: #6b7280 !important;
-  padding: 10px 16px !important;
+  padding: 8px 10px !important;
+  white-space: nowrap;
 }
 
 .kb-table :deep(td) {
   border-bottom: 1px solid #f3f4f6 !important;
-  padding: 10px 16px !important;
+  padding: 8px 10px !important;
+  vertical-align: middle !important;
 }
 
 .kb-table :deep(tr:last-child td) {
@@ -2189,6 +2222,35 @@ const { startTour } = useTour(kbSteps);
 
 .kb-table :deep(tr:hover td) {
   background: #fafafa !important;
+}
+
+.kb-compact-switch-wrap {
+  min-height: 22px;
+}
+
+.kb-compact-switch {
+  transform: scale(0.75);
+  transform-origin: left center;
+  margin-right: -10px;
+}
+
+.kb-compact-switch :deep(.v-selection-control) {
+  min-height: 22px !important;
+}
+
+.kb-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 28px);
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+}
+
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .gap-1 {

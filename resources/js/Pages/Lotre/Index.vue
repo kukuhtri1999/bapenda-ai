@@ -22,36 +22,20 @@
         <!-- Header - Compact -->
         <header class="text-center mb-3">
           <div
-            class="flex items-center auto w-[150px] justify-center gap-3 mb-2 place-self-center"
+            class="flex items-center justify-center mb-2 place-self-center"
           >
-            <VImg :src="logoUrl" alt="Logo" contain :width="60" />
             <VImg
-              src="/images/logo-jatim.png"
-              alt="Logo Jatim"
+              :src="logoUrl || '/images/logo-samsat-lamongan.png'"
+              alt="Logo KB Samsat Lamongan"
               contain
-              :height="60"
-              :width="60"
+              :height="72"
+              :width="72"
             />
-            <!--
-            <VImg
-              src="/images/Lambang_Polda_Jatim.png"
-              alt="Logo Polri"
-              contain
-              :height="60"
-              :width="60"
-            />
-            <VImg
-              src="/images/jasa-raharja.png"
-              alt="Jasa Raharja"
-              contain
-              :height="60"
-              :width="60"
-            /> -->
           </div>
           <h1
             class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-pink-200 to-cyan-200"
           >
-            LOTRE UNDIAN BAPENDA JATIM
+            PEMBERIAN APRESIASI WAJIB PAJAK PATUH BAPENDA JATIM
           </h1>
         </header>
 
@@ -60,7 +44,7 @@
           <!-- Slot Machine Card -->
           <div class="lg:col-span-2 flex flex-col min-h-0">
             <div
-              class="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-2xl overflow-hidden flex flex-col flex-1"
+              class="bg-indigo-950/75 rounded-2xl border border-white/20 shadow-2xl overflow-hidden flex flex-col flex-1"
             >
               <!-- Machine Header -->
               <div
@@ -223,6 +207,12 @@
                       </svg>
                       <span v-else>🎰</span>
                       {{ spinning ? 'BERPUTAR...' : 'PUTAR!' }}
+                      <kbd
+                        v-if="!spinning"
+                        class="hidden sm:inline-block ml-1 px-2 py-0.5 text-[10px] font-semibold bg-black/25 rounded border border-white/25"
+                      >
+                        Spasi
+                      </kbd>
                     </span>
                   </button>
 
@@ -236,6 +226,23 @@
                       {{ resetting ? 'Resetting...' : 'Reset' }}
                     </span>
                   </button>
+
+                  <button
+                    @click="toggleMute"
+                    type="button"
+                    :title="isMuted ? 'Aktifkan Suara' : 'Matikan Suara'"
+                    class="px-4 py-3 rounded-full font-bold text-white border transition-all duration-300 hover:scale-105"
+                    :class="
+                      isMuted
+                        ? 'bg-gray-700/70 border-gray-500/50 hover:bg-gray-600/80'
+                        : 'bg-indigo-600/80 border-indigo-400/50 hover:bg-indigo-500/80'
+                    "
+                  >
+                    <span class="flex items-center gap-1.5 text-sm">
+                      <span>{{ isMuted ? '🔇' : '🔊' }}</span>
+                      <span class="hidden sm:inline">{{ isMuted ? 'Suara Mati' : 'Suara Aktif' }}</span>
+                    </span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -244,7 +251,7 @@
           <!-- Winners Panel - Compact -->
           <div class="lg:col-span-1 flex flex-col min-h-0">
             <div
-              class="bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 shadow-2xl overflow-hidden flex flex-col flex-1"
+              class="bg-indigo-950/75 rounded-2xl border border-white/20 shadow-2xl overflow-hidden flex flex-col flex-1"
             >
               <div
                 class="bg-gradient-to-r from-purple-500 to-pink-500 p-2 flex-shrink-0"
@@ -317,11 +324,21 @@
 
 <script setup>
 import {
-  ref, computed, onMounted, nextTick,
+  ref, computed, onMounted, onUnmounted, nextTick,
 } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
+import { useLotreAudio } from '@/composables/useLotreAudio';
+
+const {
+  isMuted,
+  toggleMute,
+  ensureAudioContext,
+  playClick,
+  playWheelTick,
+  playWinnerFanfare,
+} = useLotreAudio();
 
 const logoUrl = import.meta.env.VITE_APP_LOGO;
 
@@ -331,14 +348,25 @@ const props = defineProps({
     type: Number,
     default: 2000, // Faster default: 2 seconds
   },
+  totalParticipantsCount: {
+    type: Number,
+    default: 0,
+  },
+  initialParticipants: {
+    type: Array,
+    default: () => [],
+  },
+  initialWinners: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 // Settings - Compact and Fast
 const VISIBLE_COUNT = 5; // Fewer visible items for compact view
 const ITEM_H = 48; // Smaller items for compact view
 const CENTER_ROW_INDEX = Math.floor(VISIBLE_COUNT / 2);
-const SPIN_MS = Math.min(props.spinDuration, 3000); // Cap at 3 seconds for fast feel
-const CYCLE_INTERVAL = 30; // Fast cycling animation interval (ms)
+const spinMs = computed(() => Math.max(1000, Number(props.spinDuration) || 4000));
 
 // State
 const participants = ref([]);
@@ -354,13 +382,13 @@ const innerRef = ref(null);
 
 // Computed
 const eligibleCount = computed(
-  () => participants.value.length - winners.value.length,
+  () => Math.max(0, (props.totalParticipantsCount || participants.value.length) - winners.value.length),
 );
 
 const animationStyle = computed(() => ({
   transform: `translateY(${translateY.value}px)`,
   transition: spinning.value
-    ? `transform ${SPIN_MS}ms cubic-bezier(.2,.9,.3,1)` // Faster easing with quick start
+    ? `transform ${spinMs.value}ms cubic-bezier(0.16, 0.85, 0.25, 1)`
     : 'none',
 }));
 
@@ -447,17 +475,79 @@ const buildPoolForWinner = (target) => {
   const source = participants.value.length
     ? participants.value.filter((p) => p.id !== target.id)
     : winners.value.filter((p) => p.id !== target.id);
-  let pool = [];
   if (source.length === 0) return { pool: [target], pos: 0 };
-  // Build a larger pool for faster, more dramatic spin effect
-  while (pool.length < 200) pool = pool.concat(shuffle(source));
-  const pos = Math.max(10, Math.floor(pool.length * 0.7)); // More distance for faster feel
+
+  // Scale pool length proportionally to spinMs (~28 rows/sec, min 80) so long spins stay lively
+  const targetPoolLength = Math.max(80, Math.round((spinMs.value / 1000) * 28));
+  let pool = [];
+  while (pool.length < targetPoolLength) {
+    pool = pool.concat(shuffle(source));
+  }
+  pool = pool.slice(0, targetPoolLength);
+
+  const pos = Math.max(10, Math.floor(pool.length * 0.72));
   pool.splice(pos, 0, target);
   return { pool, pos };
 };
 
+let spinAudioRafId = null;
+let lastTickRowIndex = -1;
+let lastTickTimestamp = 0;
+
+const stopSpinAudioTracker = () => {
+  if (spinAudioRafId !== null) {
+    cancelAnimationFrame(spinAudioRafId);
+    spinAudioRafId = null;
+  }
+  lastTickRowIndex = -1;
+};
+
+const startSpinAudioTracker = () => {
+  stopSpinAudioTracker();
+  lastTickTimestamp = performance.now();
+
+  const trackFrame = (now) => {
+    if (!spinning.value || !innerRef.value) {
+      spinAudioRafId = null;
+      return;
+    }
+
+    try {
+      const style = window.getComputedStyle(innerRef.value);
+      const transformStr = style.transform;
+      if (transformStr && transformStr !== 'none') {
+        const matrix = new DOMMatrixReadOnly(transformStr);
+        const currentY = matrix.m42;
+        const currentRowIndex = Math.floor(Math.abs(currentY) / ITEM_H);
+
+        if (currentRowIndex !== lastTickRowIndex) {
+          const elapsedSinceLastTick = now - lastTickTimestamp;
+          // Cap rapid-fire ticks at ~32ms (~31 ticks/sec) for crisp "drtrdrtdrt" clarity
+          if (elapsedSinceLastTick >= 32) {
+            // Louder, crisper tick as it slows down near the winner
+            const volumeScale = elapsedSinceLastTick > 100 ? 1.0 : 0.78;
+            playWheelTick(volumeScale);
+            lastTickRowIndex = currentRowIndex;
+            lastTickTimestamp = now;
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore DOM matrix parsing edge cases
+    }
+
+    spinAudioRafId = requestAnimationFrame(trackFrame);
+  };
+
+  spinAudioRafId = requestAnimationFrame(trackFrame);
+};
+
 const spin = async () => {
   if (spinning.value) return;
+
+  // Unlock/resume Web Audio API immediately on user click gesture
+  ensureAudioContext();
+  playClick();
 
   let picked;
   try {
@@ -471,6 +561,10 @@ const spin = async () => {
         text: 'Semua kecamatan sudah ada pemenangnya!',
         background: '#1e1b4b',
         color: '#fff',
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: 'bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-lg shadow-lg transition-all cursor-pointer',
+        },
       });
       return;
     }
@@ -483,6 +577,7 @@ const spin = async () => {
   // Clear timers
   if (spinTimer) clearTimeout(spinTimer);
   if (finishTimer) clearTimeout(finishTimer);
+  stopSpinAudioTracker();
 
   // Build pool with picked participant
   const { pool, pos } = buildPoolForWinner(picked);
@@ -499,43 +594,46 @@ const spin = async () => {
   const centerOffset = CENTER_ROW_INDEX * ITEM_H;
   const final = -(pos * ITEM_H) + centerOffset;
 
-  // Start spin animation
+  // Start spin animation & synchronized wheel tick audio
   spinning.value = true;
   spinTimer = setTimeout(() => {
     translateY.value = final;
+    startSpinAudioTracker();
   }, 20); // Faster start
 
   // Reveal after spin
-  finishTimer = setTimeout(async () => {
+  finishTimer = setTimeout(() => {
+    stopSpinAudioTracker();
     revealed.value.add(picked.id);
     latestWinner.value = picked;
+    if (!winners.value.some((w) => w.id === picked.id)) {
+      winners.value.push(picked);
+    }
     spinning.value = false;
     runConfetti();
     spinTimer = null;
     finishTimer = null;
 
-    // Play winner sound effect (optional)
-    playWinnerSound();
-
-    await fetchWinners();
-  }, SPIN_MS + 100); // Shorter delay after spin
+    // Play grand celebratory winner fanfare + bells + applause
+    playWinnerFanfare();
+  }, spinMs.value + 100); // Match configured admin spinDuration
 };
 
 const resetAll = async () => {
   if (spinTimer) clearTimeout(spinTimer);
   if (finishTimer) clearTimeout(finishTimer);
+  stopSpinAudioTracker();
 
   try {
     await fetch('/api/lotre/reset', { method: 'POST' });
   } catch (e) {}
 
   spinning.value = false;
-  displayPool.value = [];
   translateY.value = 0;
   revealed.value = new Set();
+  winners.value = [];
   latestWinner.value = null;
-  await fetchParticipants();
-  await fetchWinners();
+  displayPool.value = participants.value.slice(0, 80);
 };
 
 const confirmReset = async () => {
@@ -546,10 +644,14 @@ const confirmReset = async () => {
     showCancelButton: true,
     confirmButtonText: 'Ya, Reset',
     cancelButtonText: 'Batal',
-    confirmButtonColor: '#ef4444',
-    cancelButtonColor: '#6b7280',
     background: '#1e1b4b',
     color: '#fff',
+    buttonsStyling: false,
+    customClass: {
+      actions: 'gap-3',
+      confirmButton: 'bg-red-600 hover:bg-red-500 text-white font-semibold px-6 py-2.5 rounded-lg shadow-lg transition-all cursor-pointer',
+      cancelButton: 'bg-slate-600 hover:bg-slate-500 text-white font-semibold px-6 py-2.5 rounded-lg shadow-lg transition-all cursor-pointer',
+    },
   });
 
   if (result.isConfirmed) {
@@ -594,50 +696,61 @@ const runConfetti = () => {
   }
 };
 
-const playWinnerSound = () => {
-  // Create a simple beep sound using Web Audio API
-  try {
-    const audioContext = new (window.AudioContext
-      || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
+const handleKeyDown = (e) => {
+  if (e.code === 'Space' || e.key === ' ') {
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if (Swal.isVisible()) return;
 
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-    gainNode.gain.value = 0.3;
-
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.2);
-  } catch (e) {
-    // Ignore audio errors
+    e.preventDefault();
+    if (!spinning.value && !resetting.value && eligibleCount.value > 0) {
+      spin();
+    }
   }
 };
 
 onMounted(async () => {
-  await fetchParticipants();
-  await fetchWinners();
+  window.addEventListener('keydown', handleKeyDown);
+
+  if (props.initialParticipants.length > 0) {
+    participants.value = props.initialParticipants;
+    winners.value = props.initialWinners;
+    revealed.value = new Set((winners.value || []).map((x) => x.id));
+    if (winners.value.length > 0) {
+      latestWinner.value = winners.value[winners.value.length - 1];
+    }
+  } else {
+    await Promise.all([fetchParticipants(), fetchWinners()]);
+  }
 
   if (participants.value.length) {
-    displayPool.value = [...participants.value].concat([...participants.value]);
+    displayPool.value = participants.value.slice(0, 80);
   } else if (winners.value.length) {
     displayPool.value = [...winners.value];
   } else {
     displayPool.value = Array(VISIBLE_COUNT).fill({ nama: 'Loading...' });
   }
 });
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+  stopSpinAudioTracker();
+});
 </script>
 
 <style scoped>
 /* Background Particles */
+.particles-container {
+  contain: strict;
+}
+
 .particles-container .particle {
   position: absolute;
   width: 6px;
   height: 6px;
   background: rgba(255, 255, 255, 0.3);
   border-radius: 50%;
+  will-change: transform, opacity;
   animation: float 15s ease-in-out infinite;
 }
 
@@ -657,6 +770,8 @@ onMounted(async () => {
 .slot-items {
   position: relative;
   width: 100%;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 .slot-item {

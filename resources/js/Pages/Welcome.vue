@@ -393,112 +393,115 @@ onUnmounted(() => {
   <VApp>
     <Head title="KB Samsat Lamongan — Pelayanan Publik Pajak Kendaraan Bermotor" />
 
-    <!-- ═══ TOP ANNOUNCEMENT BAR (PEMUTIHAN) ═══ -->
-    <div
-      v-if="pemutihanIsActive"
-      class="gov-announcement-bar"
-      @click="scrollTo('pemutihan')"
-      role="button"
-      tabindex="0"
-      title="Klik untuk melihat detail Program Pemutihan Pajak"
-    >
-      <div class="gov-announcement-bar__inner">
-        <div class="gov-announcement-bar__content">
-          <span class="gov-announcement-bar__badge d-none d-sm-inline-flex">
-            <VIcon size="12" class="me-1">mdi-bullhorn-outline</VIcon>
-            INFO RESMI
-          </span>
-          <VIcon size="13" color="white" class="me-1.5 d-sm-none flex-shrink-0">mdi-bullhorn-outline</VIcon>
-          <span class="gov-announcement-bar__text">
-            {{ pemutihanAnnouncementText }}
-          </span>
-        </div>
-        <div class="gov-announcement-bar__action d-none d-md-inline-flex">
-          <span>Lihat Detail Program</span>
-          <VIcon size="14" class="gov-announcement-bar__arrow">mdi-arrow-right</VIcon>
+    <!-- ═══ UNIFIED FIXED HEADER STACK (ZERO GAP ON ALL DEVICES) ═══ -->
+    <div class="gov-header-stack">
+      <!-- ═══ TOP ANNOUNCEMENT BAR (PEMUTIHAN) ═══ -->
+      <div
+        v-if="pemutihanIsActive"
+        class="gov-announcement-bar"
+        @click="scrollTo('pemutihan')"
+        role="button"
+        tabindex="0"
+        title="Klik untuk melihat detail Program Pemutihan Pajak"
+      >
+        <div class="gov-announcement-bar__inner">
+          <div class="gov-announcement-bar__content">
+            <span class="gov-announcement-bar__badge d-none d-sm-inline-flex">
+              <VIcon size="12" class="me-1">mdi-bullhorn-outline</VIcon>
+              INFO RESMI
+            </span>
+            <VIcon size="13" color="white" class="me-1.5 d-sm-none flex-shrink-0">mdi-bullhorn-outline</VIcon>
+            <span class="gov-announcement-bar__text">
+              {{ pemutihanAnnouncementText }}
+            </span>
+          </div>
+          <div class="gov-announcement-bar__action d-none d-md-inline-flex">
+            <span>Lihat Detail Program</span>
+            <VIcon size="14" class="gov-announcement-bar__arrow">mdi-arrow-right</VIcon>
+          </div>
         </div>
       </div>
+
+      <!-- ═══ STICKY NAVBAR ═══ -->
+      <header
+        class="gov-navbar"
+        :class="{
+          'gov-navbar--solid': navSolid
+        }"
+      >
+        <div class="gov-navbar__inner">
+          <!-- Single unified KB Samsat Lamongan emblem -->
+          <div class="gov-navbar__brand" @click="scrollTo('hero')">
+            <div class="gov-navbar__logos d-flex align-center">
+              <img
+                :src="logoUrl || '/images/logo-samsat-lamongan.png'"
+                alt="Logo KB Samsat Lamongan"
+                class="gov-navbar__logo-img flex-shrink-0"
+              />
+            </div>
+            <div class="gov-navbar__title">
+              <span class="gov-navbar__name">KB Samsat Lamongan</span>
+              <span class="gov-navbar__sub d-none d-xl-block">Bapenda Provinsi Jawa Timur</span>
+            </div>
+          </div>
+
+          <!-- Desktop Nav Links (Compact with white-space: nowrap) -->
+          <nav class="gov-navbar__links d-none d-lg-flex">
+            <a
+              v-for="link in navLinks"
+              :key="link.target"
+              @click.prevent="scrollTo(link.target)"
+              class="gov-navbar__link"
+            >
+              {{ link.label }}
+            </a>
+          </nav>
+
+          <!-- CTA + Mobile toggle -->
+          <div class="gov-navbar__actions">
+            <VBtn
+              v-if="$page.props.auth?.user"
+              color="white"
+              variant="outlined"
+              size="small"
+              class="gov-navbar__dash-btn me-2 d-none d-sm-flex"
+              :href="route('dashboard')"
+            >
+              Dashboard
+            </VBtn>
+            <VBtn
+              color="#C0392B"
+              variant="flat"
+              size="small"
+              class="gov-navbar__cta"
+              @click="startChat"
+            >
+              <VIcon size="16" class="me-1">mdi-chat-processing</VIcon>
+              <span class="d-none d-sm-inline">Tanya SALMA</span>
+              <span class="d-sm-none">Chat</span>
+            </VBtn>
+            <VBtn
+              icon
+              variant="text"
+              color="white"
+              class="d-lg-none ms-1"
+              @click="mobileMenu = !mobileMenu"
+            >
+              <VIcon>{{ mobileMenu ? 'mdi-close' : 'mdi-menu' }}</VIcon>
+            </VBtn>
+          </div>
+        </div>
+
+        <!-- Mobile Dropdown Menu -->
+        <Transition name="slide-down">
+          <div v-if="mobileMenu" class="gov-navbar__mobile">
+            <a v-for="link in navLinks" :key="link.target" @click.prevent="scrollTo(link.target)" class="gov-navbar__mobile-link">
+              {{ link.label }}
+            </a>
+          </div>
+        </Transition>
+      </header>
     </div>
-
-    <!-- ═══ STICKY NAVBAR ═══ -->
-    <header
-      class="gov-navbar"
-      :class="{
-        'gov-navbar--solid': navSolid,
-        'gov-navbar--with-bar': pemutihanIsActive
-      }"
-    >
-      <div class="gov-navbar__inner">
-        <!-- Logo cluster (all 4 logos preserved) -->
-        <div class="gov-navbar__brand" @click="scrollTo('hero')">
-          <div class="gov-navbar__logos d-flex align-center">
-            <VImg :src="logoUrl" alt="Logo Bapenda" contain width="30" height="30" class="me-1.5 flex-shrink-0" />
-            <VImg src="/images/logo-jatim.png" alt="Jawa Timur" contain width="30" height="30" class="me-1.5 d-none d-sm-block flex-shrink-0" />
-            <VImg src="/images/Lambang_Polda_Jatim.png" alt="Polri" contain width="30" height="30" class="me-1.5 d-none d-md-block flex-shrink-0" />
-            <VImg src="/images/jasa-raharja.png" alt="Jasa Raharja" contain width="30" height="30" class="me-2 d-none d-md-block flex-shrink-0" />
-          </div>
-          <div class="gov-navbar__title">
-            <span class="gov-navbar__name">KB Samsat Lamongan</span>
-            <span class="gov-navbar__sub d-none d-xl-block">Bapenda Provinsi Jawa Timur</span>
-          </div>
-        </div>
-
-        <!-- Desktop Nav Links (Compact with white-space: nowrap) -->
-        <nav class="gov-navbar__links d-none d-lg-flex">
-          <a
-            v-for="link in navLinks"
-            :key="link.target"
-            @click.prevent="scrollTo(link.target)"
-            class="gov-navbar__link"
-          >
-            {{ link.label }}
-          </a>
-        </nav>
-
-        <!-- CTA + Mobile toggle -->
-        <div class="gov-navbar__actions">
-          <VBtn
-            v-if="$page.props.auth?.user"
-            color="white"
-            variant="outlined"
-            size="small"
-            class="gov-navbar__dash-btn me-2 d-none d-sm-flex"
-            :href="route('dashboard')"
-          >
-            Dashboard
-          </VBtn>
-          <VBtn
-            color="#C0392B"
-            variant="flat"
-            size="small"
-            class="gov-navbar__cta"
-            @click="startChat"
-          >
-            <VIcon size="16" class="me-1">mdi-chat-processing</VIcon>
-            <span class="d-none d-sm-inline">Tanya SALMA</span>
-            <span class="d-sm-none">Chat</span>
-          </VBtn>
-          <VBtn
-            icon
-            variant="text"
-            color="white"
-            class="d-lg-none ms-1"
-            @click="mobileMenu = !mobileMenu"
-          >
-            <VIcon>{{ mobileMenu ? 'mdi-close' : 'mdi-menu' }}</VIcon>
-          </VBtn>
-        </div>
-      </div>
-
-      <!-- Mobile Dropdown Menu -->
-      <Transition name="slide-down">
-        <div v-if="mobileMenu" class="gov-navbar__mobile">
-          <a v-for="link in navLinks" :key="link.target" @click.prevent="scrollTo(link.target)" class="gov-navbar__mobile-link">
-            {{ link.label }}
-          </a>
-        </div>
-      </Transition>
-    </header>
 
     <VMain class="pa-0" style="padding-top: 0 !important;">
       <!-- ═══ SECTION 1: HERO IMAGE SLIDER ═══ -->
@@ -1138,23 +1141,14 @@ onUnmounted(() => {
           <!-- Footer Branding with Clean Multi-Logo Cluster -->
           <VCol cols="12" md="5" class="mb-6 mb-md-0">
             <div class="footer-brand mb-4">
-              <div class="footer-logos d-flex align-center flex-wrap gap-2 mb-3">
-                <div class="footer-logo-badge" title="Bapenda Jawa Timur">
-                  <VImg src="/images/logo-bapenda-jatim.png" alt="Bapenda Jatim" contain width="32" height="32" />
+              <div class="footer-logos d-flex align-center flex-wrap gap-3 mb-3">
+                <div class="footer-logo-badge" title="KB Samsat Lamongan">
+                  <VImg :src="logoUrl || '/images/logo-samsat-lamongan.png'" alt="KB Samsat Lamongan" contain width="46" height="46" />
                 </div>
-                <div class="footer-logo-badge" title="Pemerintah Provinsi Jawa Timur">
-                  <VImg src="/images/logo-jatim.png" alt="Pemprov Jatim" contain width="32" height="32" />
+                <div>
+                  <h4 class="text-h6 font-weight-bold text-white mb-0">{{ footerAgencyName }}</h4>
+                  <p class="text-caption text-white-70 mb-0">{{ footerAgencySub }}</p>
                 </div>
-                <div class="footer-logo-badge" title="Polda Jawa Timur / Polri">
-                  <VImg src="/images/Lambang_Polda_Jatim.png" alt="Polda Jatim" contain width="32" height="32" />
-                </div>
-                <div class="footer-logo-badge" title="Jasa Raharja">
-                  <VImg src="/images/jasa-raharja.png" alt="Jasa Raharja" contain width="32" height="32" />
-                </div>
-              </div>
-              <div>
-                <h4 class="text-h6 font-weight-bold text-white mb-0">{{ footerAgencyName }}</h4>
-                <p class="text-caption text-white-70 mb-0">{{ footerAgencySub }}</p>
               </div>
             </div>
             <p style="color:rgba(255,255,255,.6);line-height:1.7" class="text-body-2 mb-0">
@@ -1215,13 +1209,21 @@ onUnmounted(() => {
    Compact, Modern, Professional UI/UX
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── TOP ANNOUNCEMENT BAR ────────────────────────────────────────────────── */
-.gov-announcement-bar {
+/* ── UNIFIED HEADER STACK (ZERO GAP ON ALL VIEWPORTS) ────────────────────── */
+.gov-header-stack {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 105;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── TOP ANNOUNCEMENT BAR ────────────────────────────────────────────────── */
+.gov-announcement-bar {
+  position: relative;
+  width: 100%;
   background: linear-gradient(90deg, #B02A1E 0%, #C0392B 50%, #962D22 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 2px 8px rgba(192, 57, 43, 0.35);
@@ -1309,17 +1311,10 @@ onUnmounted(() => {
 
 /* ── NAVBAR ─────────────────────────────────────────────────────────────── */
 .gov-navbar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  position: relative;
+  width: 100%;
   background: transparent;
   transition: all .35s cubic-bezier(.4,0,.2,1);
-}
-.gov-navbar--with-bar {
-  top: 32px !important;
-}
-@media (max-width: 640px) {
-  .gov-navbar--with-bar {
-    top: 24px !important;
-  }
 }
 .gov-navbar--solid {
   background: rgba(27,40,56,.97);
@@ -1329,17 +1324,19 @@ onUnmounted(() => {
 .gov-navbar__inner {
   max-width: 1280px; margin: 0 auto;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 18px;
-  gap: 10px;
+  min-height: 70px;
+  padding: 14px 20px;
+  gap: 12px;
 }
 .gov-navbar__brand {
   display: flex; align-items: center; cursor: pointer;
   flex-shrink: 0;
 }
-.gov-navbar__logos {
-  display: flex;
-  align-items: center;
-  gap: 2px;
+.gov-navbar__logo-img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  margin-right: 10px;
 }
 .gov-navbar__title { display: flex; flex-direction: column; }
 .gov-navbar__name {
@@ -1424,7 +1421,7 @@ onUnmounted(() => {
   background: linear-gradient(135deg, rgba(27,40,56,.85) 0%, rgba(192,57,43,.45) 100%);
 }
 .hero-slider__content {
-  position: relative; z-index: 4; padding-top: 76px;
+  position: relative; z-index: 4; padding-top: 112px;
 }
 .hero-slider__badge {
   display: inline-flex; align-items: center;
@@ -2108,10 +2105,10 @@ onUnmounted(() => {
 .footer-brand { display: flex; flex-direction: column; }
 .footer-logos { display: flex; align-items: center; gap: 6px; }
 .footer-logo-badge {
-  width: 38px; height: 38px; border-radius: 8px;
+  width: 54px; height: 54px; border-radius: 50%;
   background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14);
   display: flex; align-items: center; justify-content: center;
-  padding: 3px; transition: all .25s ease;
+  padding: 4px; transition: all .25s ease;
 }
 .footer-logo-badge:hover {
   background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.3);
@@ -2175,9 +2172,10 @@ onUnmounted(() => {
   }
 }
 @media (max-width: 600px) {
-  .gov-navbar__inner { padding: 8px 12px; }
+  .gov-navbar__inner { min-height: 58px; padding: 10px 14px; }
+  .gov-navbar__logo-img { width: 36px; height: 36px; margin-right: 8px; }
   .hero-slider { min-height: 54vh; }
-  .hero-slider__content { padding-top: 56px; }
+  .hero-slider__content { padding-top: 92px; }
   .hero-slider__title { font-size: 1.45rem !important; }
   .hero-slider__subtitle { font-size: 0.82rem; margin-bottom: 16px; }
   .hero-slider__btns { display: flex; flex-direction: column; }
